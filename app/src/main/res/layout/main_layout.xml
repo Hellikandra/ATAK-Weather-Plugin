@@ -30,7 +30,7 @@
             android:id="@+id/textView1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Forecast:"
+            android:text="@string/forecast1"
             android:textSize="26dp"
             />
 
@@ -38,7 +38,7 @@
             android:id="@+id/textView2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="City/Town"
+            android:text="@string/city_town"
             android:textSize="18dp"
             />
 
@@ -46,7 +46,7 @@
             android:id="@+id/textView3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Weather"
+            android:text="@string/weather"
             android:textSize="36dp"
             />
 
@@ -54,10 +54,16 @@
             android:id="@+id/textView4"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Temp"
-            android:textSize="56dp"
+            android:text="@string/temperature_min_max"
+            android:textSize="25dp"
             />
-
+        <TextView
+            android:id="@+id/textView5"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/precipitation"
+            android:textSize="25dp"
+            />
 
     </LinearLayout>
 </ScrollView>
