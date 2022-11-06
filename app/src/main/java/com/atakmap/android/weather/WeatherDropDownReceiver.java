@@ -175,7 +175,6 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
             }
             return null;
         }
-
         @Override
         protected void onPostExecute(String result) {
             super.onPostExecute(result);
