@@ -65,5 +65,12 @@
             android:textSize="25dp"
             />
 
+        <SeekBar
+            android:id="@+id/seekBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="6"
+            android:progress="0" />
+
     </LinearLayout>
 </ScrollView>

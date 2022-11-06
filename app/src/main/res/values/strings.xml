@@ -7,7 +7,7 @@
     <string name="set_gps">No GPS, set selfmarker</string>
     <string name="wait">Wait...</string>
     <string name="forecast">Forecast:  </string>
-    <string name="now">NOW:  </string>
+    <string name="now">TODAY:  </string>
     <string name="clear_sky">Clear Sky</string>
     <string name="precipit">Precipitation:   </string>
     <string name="mm">mm in</string>
