@@ -4,8 +4,46 @@
     <string name="app_name">Weather</string>
     <!-- description -->
     <string name="app_desc">This plugin gets weather data from open-meteo API and parses it for the user</string>
-
-
+    <string name="set_gps">No GPS, set selfmarker</string>
+    <string name="wait">Wait...</string>
+    <string name="forecast">Forecast:  </string>
+    <string name="now">TODAY:  </string>
+    <string name="clear_sky">Clear Sky</string>
+    <string name="precipit">Precipitation:   </string>
+    <string name="mm">mm in</string>
+    <string name="hour">hours</string>
+    <string name="nopre">No precipitation</string>
+    <string name="thunder">Thunderstorm</string>
+    <string name="driz1">Drizzle: Dense Intensity</string>
+    <string name="frizdriz">Freezing Drizzle: Light</string>
+    <string name="frizdriz1">Freezing Drizzle: Dense Intensity</string>
+    <string name="rain1">Rain: Slight</string>
+    <string name="rain2">Rain: Moderate</string>
+    <string name="rain3">Rain: Heavy Intensity</string>
+    <string name="driz2">Drizzle: Moderate</string>
+    <string name="driz3">Drizzle: Light</string>
+    <string name="fog1">Fog</string>
+    <string name="fog2">Depositing Rime Fog</string>
+    <string name="overcast">Overcast</string>
+    <string name="part">Partly Cloudy</string>
+    <string name="mainly">Mainly Clear</string>
+    <string name="freez1">Freezing Rain: Light</string>
+    <string name="frez2">Freezing Rain: Heavy Intensity</string>
+    <string name="snow1">Snow Fall: Slight</string>
+    <string name="snow2">Snow Fall: Moderate</string>
+    <string name="snow3">Snow Fall: Heavy Intensity</string>
+    <string name="show5">Snow showers: Heavy</string>
+    <string name="snow4">Snow showers: Slight</string>
+    <string name="rain5">Rain Showers: Violent</string>
+    <string name="rain4">Rain Showers: Moderate</string>
+    <string name="rain6">Rain Showers: Slight</string>
+    <string name="grain">Snow Grains</string>
+    <string name="precipitation">Precipitation</string>
+    <string name="temperature_min_max">Temperature min/max</string>
+    <string name="weather">Weather</string>
+    <string name="city_town">City/Town</string>
+    <string name="forecast1">Forecast:</string>
+    <string name="data1">\"Date: \"</string>
 
 
 </resources>

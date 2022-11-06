@@ -7,7 +7,9 @@ import android.content.Intent;
 import android.os.AsyncTask;
 import android.view.View;
 import android.widget.ImageButton;
+import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.atakmap.coremap.maps.coords.GeoPoint;
 
@@ -29,6 +31,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Objects;
 
 import javax.net.ssl.HttpsURLConnection;
 
@@ -48,6 +51,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
     public  TextView textView3;
     public  TextView textView4;
     public  TextView textView5;
+    public SeekBar seekBar;
 
 
 
@@ -74,7 +78,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
     /**************************** INHERITED METHODS *****************************/
 
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(final Context context, Intent intent) {
 
         final String action = intent.getAction();
         if (action == null)
@@ -89,12 +93,11 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
             textView2 = templateView.findViewById(R.id.textView2);
             textView3 = templateView.findViewById(R.id.textView3);
             textView4 = templateView.findViewById(R.id.textView4);
-            //textView5 = templateView.findViewById(R.id.textView5);
+            textView5 = templateView.findViewById(R.id.textView5);
             imageButton = templateView.findViewById(R.id.imageButton);
+            seekBar = templateView.findViewById(R.id.seekBar);
 
-            imageButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
+
                     Double lat = getMapView().getSelfMarker().getPoint().getLatitude();
                     Double longt = getMapView().getSelfMarker().getPoint().getLongitude();
                     Float latf = lat.floatValue();
@@ -102,19 +105,35 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     String slat = latf.toString();
                     String slongt = longtf.toString();
 
-                    String url = "https://api.open-meteo.com/v1/forecast?latitude=" + slat + "&longitude=" + slongt + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,windspeed_10m_max,windgusts_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timezone=auto";
-
-                    new GetURLData().execute(url);
-                  // textView1.setText(url);
+            imageButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Double lat1 = getMapView().getCenterPoint().get().getLatitude();
+                    Double longt1 = getMapView().getCenterPoint().get().getLongitude();
+                    Float latf1 = lat1.floatValue();
+                    Float longtf1 = longt1.floatValue();
+                    String slat = latf1.toString();
+                    String slongt = longtf1.toString();
+                    String url1 = "https://api.open-meteo.com/v1/forecast?latitude=" + slat + "&longitude=" + slongt + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,windspeed_10m_max,windgusts_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timezone=auto";
+                    new GetURLData().execute(url1);
                 }
             });
+
+                    String url = "https://api.open-meteo.com/v1/forecast?latitude=" + slat + "&longitude=" + slongt + "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,windspeed_10m_max,windgusts_10m_max,winddirection_10m_dominant&windspeed_unit=ms&timezone=auto";
+
+                    if (slat.isEmpty()) {
+                        Toast.makeText(context, R.string.set_gps, Toast.LENGTH_SHORT).show();
+                        return;}
+                    new GetURLData().execute(url);
+                  // textView1.setText(url);
+
             }
         }
     private class GetURLData extends AsyncTask <String, String, String> {
 
         protected void onPreExecute() {
             super.onPreExecute();
-            textView1.setText("Wait...");
+            textView1.setText(R.string.wait);
         }
 
         @SuppressLint("SuspiciousIndentation")
@@ -153,8 +172,6 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-
-
             }
             return null;
         }
@@ -170,64 +187,71 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                 String code = jsonObject.getJSONObject("daily").getJSONArray("weathercode").getString(0);
                 String tempmax = jsonObject.getJSONObject("daily").getJSONArray("temperature_2m_max").getString(0);
                 String tempmin = jsonObject.getJSONObject("daily").getJSONArray("temperature_2m_min").getString(0);
-                //String precipits = jsonObject.getJSONObject("daily").getJSONArray("precipitation_sum").getString(0);
-                //String precipith = jsonObject.getJSONObject("daily").getJSONArray("precipitation_hours").getString(0);
+                String precipits = jsonObject.getJSONObject("daily").getJSONArray("precipitation_sum").getString(0);
+                String precipith = jsonObject.getJSONObject("daily").getJSONArray("precipitation_hours").getString(0);
 
-                textView1.setText("Forecast:  " + time.toString());
+                textView1.setText(pluginContext.getString(R.string.now) + time.toString());
                 //textView2.setText(code.toString());
-                if (code == String.valueOf(0)) textView3.setText("Clear Sky".toString());
+                if (code == String.valueOf(0)) textView3.setText(R.string.clear_sky);
 
-                if (code == String.valueOf(1)) textView3.setText("Mainly Clear".toString());
-                if (code == String.valueOf(2)) textView3.setText("Partly Cloudy".toString());
-                if (code == String.valueOf(3)) textView3.setText("Overcast".toString());
+                if (code == String.valueOf(1)) textView3.setText(R.string.mainly);
+                if (code == String.valueOf(2)) textView3.setText(R.string.part);
+                if (code == String.valueOf(3)) textView3.setText(R.string.overcast);
 
-                if (code == String.valueOf(45)) textView3.setText("Fog".toString());
-                if (code == String.valueOf(48)) textView3.setText("Depositing Rime Fog".toString());
+                if (code == String.valueOf(45)) textView3.setText(R.string.fog1);
+                if (code == String.valueOf(48)) textView3.setText(R.string.fog2);
 
-                if (code == String.valueOf(51)) textView3.setText("Drizzle: Light".toString());
-                if (code == String.valueOf(53)) textView3.setText("Drizzle: Moderate".toString());
+                if (code == String.valueOf(51)) textView3.setText(R.string.driz3);
+                if (code == String.valueOf(53)) textView3.setText(R.string.driz2);
                 if (code == String.valueOf(55))
-                    textView3.setText("Drizzle: Dense Intensity".toString());
+                    textView3.setText(R.string.driz1);
 
                 if (code == String.valueOf(56))
-                    textView3.setText("Freezing Drizzle: Light".toString());
+                    textView3.setText(R.string.frizdriz);
                 if (code == String.valueOf(57))
-                    textView3.setText("Freezing Drizzle: Dense Intensity".toString());
+                    textView3.setText(R.string.frizdriz1);
 
-                if (code == String.valueOf(61)) textView3.setText("Rain: Slight".toString());
-                if (code == String.valueOf(63)) textView3.setText("Rain: Moderate".toString());
+                if (code == String.valueOf(61)) textView3.setText(R.string.rain1);
+                if (code == String.valueOf(63)) textView3.setText(R.string.rain2);
                 if (code == String.valueOf(65))
-                    textView3.setText("Rain: Heavy Intensity".toString());
+                    textView3.setText(R.string.rain3);
 
                 if (code == String.valueOf(66))
-                    textView3.setText("Freezing Rain: Light".toString());
+                    textView3.setText(R.string.freez1);
                 if (code == String.valueOf(67))
-                    textView3.setText("Freezing Rain: Heavy Intensity".toString());
+                    textView3.setText(R.string.frez2);
 
-                if (code == String.valueOf(71)) textView3.setText("Snow Fall: Slight".toString());
-                if (code == String.valueOf(73)) textView3.setText("Snow Fall: Moderate".toString());
+                if (code == String.valueOf(71)) textView3.setText(R.string.snow1);
+                if (code == String.valueOf(73)) textView3.setText(R.string.snow2);
                 if (code == String.valueOf(75))
-                    textView3.setText("Snow Fall: Heavy Intensity".toString());
+                    textView3.setText(R.string.snow3);
 
-                if (code == String.valueOf(77)) textView3.setText("Snow Grains".toString());
+                if (code == String.valueOf(77)) textView3.setText(R.string.grain);
 
                 if (code == String.valueOf(80))
-                    textView3.setText("Rain Showers: Slight".toString());
+                    textView3.setText(R.string.rain6);
                 if (code == String.valueOf(81))
-                    textView3.setText("Rain Showers: Moderate".toString());
+                    textView3.setText(R.string.rain4);
                 if (code == String.valueOf(82))
-                    textView3.setText("Rain Showers: Violent".toString());
+                    textView3.setText(R.string.rain5);
 
                 if (code == String.valueOf(85))
-                    textView3.setText("Snow showers: Slight".toString());
-                if (code == String.valueOf(86)) textView3.setText("Snow showers: Heavy".toString());
+                    textView3.setText(R.string.snow4);
+                if (code == String.valueOf(86)) textView3.setText(R.string.show5);
 
-                if (code == String.valueOf(95)) textView3.setText("Thunderstorm".toString());
+                if (code == String.valueOf(95)) textView3.setText(R.string.thunder);
 
                 textView4.setText(tempmin.toString() + "C" + "/" + tempmax.toString() + "C");
 
-                // if (precipits == String.valueOf(0)) textView5.setText("No precipitation");
-                //else textView5.setText("Precipitation:   " + precipits.toString() + precipith.toString());
+                //if (precipits == String.valueOf(0)) {
+                //   textView5.setText("No precipitation");}
+
+
+                if (Objects.equals(precipits, "0.0")) {
+                    textView5.setText(R.string.nopre);
+                } else {
+                    textView5.setText(pluginContext.getString(R.string.precipit) + precipits.toString() + pluginContext.getString(R.string.mm) + precipith.toString() + pluginContext.getString(R.string.hour));
+                }
 
 
                 String url1 = "https://nominatim.openstreetmap.org/reverse?format=json&lat=" + latitude + "&lon=" + longitude + "&zoom=14&addressdetails=1";
@@ -236,9 +260,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
             } catch (JSONException e) {
                 e.printStackTrace();
             }
-
-
         }
+
 
         private class GetGeocodeData extends AsyncTask<String, String, String> {
 
@@ -278,8 +301,6 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-
-
                 }
                 return null;
             }
@@ -295,20 +316,16 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     //String city = jsonObject1.getString("city");
                     //String state_district = jsonObject1.getString("state_district");
                     //String state = jsonObject1.getString("state");
-                   // textView2.setText(suburb + "," + village + "," + town + "," + city + "," + state_district + "," + state);
+                    // textView2.setText(suburb + "," + village + "," + town + "," + city + "," + state_district + "," + state);
                     String display_name = jsonObject1.getString("display_name");
                     textView2.setText(display_name);
-               } catch (JSONException e) {
-                   e.printStackTrace();
+                } catch (JSONException e) {
+                    e.printStackTrace();
                 }
             }
 
         }
     }
-
-
-
-
 
     @Override
     public void onDropDownSelectionRemoved() {
