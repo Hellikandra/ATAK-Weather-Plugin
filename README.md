@@ -17,5 +17,6 @@ The delta between branch is mainly Gradle files.
 
 # Point of contacts
 
-The PoC can be do under Discord TAK Community. Anyone can participate to the development.
+The PoC can be contacted under Discord TAK Community. Anyone can participate to the development.
+Sharp for development and Hellikandra for repository.
 
