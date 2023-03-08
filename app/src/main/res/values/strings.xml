@@ -5,7 +5,7 @@
     <!-- description -->
     <string name="app_desc">This plugin gets weather data from open-meteo API and parses it for the user</string>
     <string name="set_gps">No GPS, set selfmarker</string>
-    <string name="wait">Wait...</string>
+    <string name="wait">Wait…</string>
     <string name="forecast">Forecast:  </string>
     <string name="now">TODAY:  </string>
     <string name="clear_sky">Clear Sky</string>
@@ -13,7 +13,9 @@
     <string name="mm">mm in</string>
     <string name="hour">hours</string>
     <string name="nopre">No precipitation</string>
-    <string name="thunder">Thunderstorm</string>
+    <string name="thunder1">Thunderstorm</string>
+    <string name="thunder2">Thunderstorm with slight hail</string>
+    <string name="thunder3">Thunderstorm with heavy hail</string>
     <string name="driz1">Drizzle: Dense Intensity</string>
     <string name="frizdriz">Freezing Drizzle: Light</string>
     <string name="frizdriz1">Freezing Drizzle: Dense Intensity</string>
@@ -28,11 +30,11 @@
     <string name="part">Partly Cloudy</string>
     <string name="mainly">Mainly Clear</string>
     <string name="freez1">Freezing Rain: Light</string>
-    <string name="frez2">Freezing Rain: Heavy Intensity</string>
+    <string name="freez2">Freezing Rain: Heavy Intensity</string>
     <string name="snow1">Snow Fall: Slight</string>
     <string name="snow2">Snow Fall: Moderate</string>
     <string name="snow3">Snow Fall: Heavy Intensity</string>
-    <string name="show5">Snow showers: Heavy</string>
+    <string name="snow5">Snow showers: Heavy</string>
     <string name="snow4">Snow showers: Slight</string>
     <string name="rain5">Rain Showers: Violent</string>
     <string name="rain4">Rain Showers: Moderate</string>
