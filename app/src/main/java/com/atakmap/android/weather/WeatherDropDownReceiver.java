@@ -129,70 +129,71 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     HALF_HEIGHT, false, this);
 
             // initiating the tabhost
-            tabHost = templateView.findViewById(R.id.mainTabHost);
+            //tabHost = templateView.findViewById(R.id.mainTabHost);
+            if (tabHost == null) {
+                tabHost = templateView.findViewById(R.id.mainTabHost);
+                // setting up the tabhost
+                tabHost.setup();
 
-            // setting up the tabhost
-            tabHost.setup();
+                // code for adding tab 1 to the tabhost
+                spec = tabHost.newTabSpec("Forecasting");
+                spec.setContent(R.id.subTabWidget1);
+                // setting the name of the tab 1 as "Tab One"
+                spec.setIndicator("Forecasting");
+                // adding the tab to tabhost
+                tabHost.addTab(spec);
 
-            // code for adding tab 1 to the tabhost
-            spec = tabHost.newTabSpec("Forecasting");
-            spec.setContent(R.id.subTabWidget1);
-            // setting the name of the tab 1 as "Tab One"
-            spec.setIndicator("Forecasting");
-            // adding the tab to tabhost
-            tabHost.addTab(spec);
+                // code for adding tab 2 to the tabhost
+                spec = tabHost.newTabSpec("Overlay");
+                spec.setContent(R.id.subTabWidget2);
 
-            // code for adding tab 2 to the tabhost
-            spec = tabHost.newTabSpec("Overlay");
-            spec.setContent(R.id.subTabWidget2);
+                // setting the name of the tab 1 as "Tab Two"
+                spec.setIndicator("Overlay");
+                tabHost.addTab(spec);
 
-            // setting the name of the tab 1 as "Tab Two"
-            spec.setIndicator("Overlay");
-            tabHost.addTab(spec);
+                // code for adding the Tab 3 to the tabhost
+                spec = tabHost.newTabSpec("TBD");
+                spec.setContent(R.id.subTabWidget3);
+                spec.setIndicator("TBD");
+                tabHost.addTab(spec);
 
-            // code for adding the Tab 3 to the tabhost
-            spec = tabHost.newTabSpec("TBD");
-            spec.setContent(R.id.subTabWidget3);
-            spec.setIndicator("TBD");
-            tabHost.addTab(spec);
+                // Tab 1 : init
+                imageButton = templateView.findViewById(R.id.imageButton);
+                imageButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        double dLatitude1 = getMapView().getSelfMarker().getPoint().getLatitude();
+                        double dLongitude1 = getMapView().getSelfMarker().getPoint().getLongitude();
 
-            // Tab 1 : init
-            imageButton = templateView.findViewById(R.id.imageButton);
-            imageButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    double dLatitude1  = getMapView().getSelfMarker().getPoint().getLatitude();
-                    double dLongitude1 = getMapView().getSelfMarker().getPoint().getLongitude();
+                        float fLatitude = (float) dLatitude1;
+                        float fLongitude = (float) dLongitude1;
 
-                    float fLatitude = (float)dLatitude1;
-                    float fLongitude = (float)dLongitude1;
+                        String sLatitude = "" + fLatitude;
+                        String sLongitude = "" + fLongitude;
 
-                    String sLatitude  = "" + fLatitude;
-                    String sLongitude = "" + fLongitude;
+                        // Create the URL to update values
+                        String url1 = stOpenMeteoBaseUrl + stLatOMBU + sLatitude + stLongOMBU + sLongitude + stHourlyRequest + stDailyRequest + stWindSpeedUnit + stTimeZone;
+                        new GetURLData().execute(url1);
+                    }
+                });
 
-                    // Create the URL to update values
-                    String url1 = stOpenMeteoBaseUrl + stLatOMBU + sLatitude + stLongOMBU + sLongitude + stHourlyRequest + stDailyRequest + stWindSpeedUnit + stTimeZone;
-                    new GetURLData().execute(url1);
-                }
-            });
+                textview_date = templateView.findViewById(R.id.textView_date);
+                textview_town = templateView.findViewById(R.id.textView_town);
 
-            textview_date = templateView.findViewById(R.id.textView_date);
-            textview_town = templateView.findViewById(R.id.textView_town);
+                image = templateView.findViewById(R.id.image);
 
-            image = templateView.findViewById(R.id.image);
+                textview_airT = templateView.findViewById(R.id.textview_airT);
+                textview_airTrf = templateView.findViewById(R.id.textview_airTrf);
+                textview_visibility = templateView.findViewById(R.id.textview_visibility);
 
-            textview_airT = templateView.findViewById(R.id.textview_airT);
-            textview_airTrf = templateView.findViewById(R.id.textview_airTrf);
-            textview_visibility = templateView.findViewById(R.id.textview_visibility);
+                textview_weather = templateView.findViewById(R.id.textview_weather);
+                textview_humidity = templateView.findViewById(R.id.textview_humidity);
+                textview_pressure = templateView.findViewById(R.id.textview_pressure);
+                textview_wind = templateView.findViewById(R.id.textview_wind);
+                textview_precipitation = templateView.findViewById(R.id.textview_precipitation);
 
-            textview_weather = templateView.findViewById(R.id.textview_weather);
-            textview_humidity = templateView.findViewById(R.id.textview_humidity);
-            textview_pressure = templateView.findViewById(R.id.textview_pressure);
-            textview_wind = templateView.findViewById(R.id.textview_wind);
-            textview_precipitation = templateView.findViewById(R.id.textview_precipitation);
-
-            //seekBar = templateView.findViewById(R.id.seekBar);
-
+                //seekBar = templateView.findViewById(R.id.seekBar);
+            }
 
             // First API call
             double dLatitude  = getMapView().getSelfMarker().getPoint().getLatitude();
@@ -210,7 +211,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                 return;
             }
             new GetURLData().execute(url);
-            textview_date.setText(url);
+            if (textview_date != null) {textview_date.setText(url);}
         }
     }
     private class GetURLData extends AsyncTask <String, String, String> {
