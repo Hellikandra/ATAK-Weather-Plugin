@@ -162,8 +162,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                 imageButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        double dLatitude1 = getMapView().getSelfMarker().getPoint().getLatitude();
-                        double dLongitude1 = getMapView().getSelfMarker().getPoint().getLongitude();
+                        double dLatitude1 = getMapView().getCenterPoint().get().getLatitude();
+                        double dLongitude1 = getMapView().getCenterPoint().get().getLongitude();
 
                         float fLatitude = (float) dLatitude1;
                         float fLongitude = (float) dLongitude1;
