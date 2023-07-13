@@ -186,6 +186,278 @@
                             android:layout_height="wrap_content"
                             android:max="6"
                             android:progress="0" />
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/dailyForecast_title"/>
+                        <GridLayout
+                            android:id="@+id/daily_forecast_gridlayout"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:rowCount="1"
+                            android:columnCount="7"
+                            android:background="@drawable/image_view_bg">
+                            <TableLayout
+                                android:id="@+id/daily_forecast_tablelayout_1"
+                                android:layout_height="wrap_content"
+                                android:layout_width="100dp"
+                                android:rowCount="6"
+                                android:columnCount="1" >
+                                <TextView
+                                    android:id="@+id/daily_forecast_day_textview_1"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="today" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_date_textview_1"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="07-27" />
+                                <ImageView
+                                    android:id="@+id/daily_forecast_weathercode_imageview_1"
+                                    android:layout_width="50dp"
+                                    android:layout_height="50dp"
+                                    android:src="@drawable/wc_00d" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_max_textview_1"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="High xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_min_textview_1"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Min xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_weatherinfo_textview_1"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/weather" />
+                            </TableLayout>
+                            <TableLayout
+                                android:id="@+id/daily_forecast_tablelayout_2"
+                                android:layout_height="wrap_content"
+                                android:layout_width="100dp"
+                                android:rowCount="6"
+                                android:columnCount="1" >
+                                <TextView
+                                    android:id="@+id/daily_forecast_day_textview_2"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="today" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_date_textview_2"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="07-27" />
+                                <ImageView
+                                    android:id="@+id/daily_forecast_weathercode_imageview_2"
+                                    android:layout_width="50dp"
+                                    android:layout_height="50dp"
+                                    android:src="@drawable/wc_00d" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_max_textview_2"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="High xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_min_textview_2"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Min xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_weatherinfo_textview_2"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/weather" />
+                            </TableLayout>
+                            <TableLayout
+                                android:id="@+id/daily_forecast_tablelayout_3"
+                                android:layout_height="wrap_content"
+                                android:layout_width="100dp"
+                                android:rowCount="6"
+                                android:columnCount="1" >
+                                <TextView
+                                    android:id="@+id/daily_forecast_day_textview_3"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="today" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_date_textview_3"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="07-27" />
+                                <ImageView
+                                    android:id="@+id/daily_forecast_weathercode_imageview_3"
+                                    android:layout_width="50dp"
+                                    android:layout_height="50dp"
+                                    android:src="@drawable/wc_00d" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_max_textview_3"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="High xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_min_textview_3"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Min xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_weatherinfo_textview_3"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/weather" />
+                            </TableLayout>
+                            <TableLayout
+                                android:id="@+id/daily_forecast_tablelayout_4"
+                                android:layout_height="wrap_content"
+                                android:layout_width="100dp"
+                                android:rowCount="6"
+                                android:columnCount="1" >
+                                <TextView
+                                    android:id="@+id/daily_forecast_day_textview_4"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="today" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_date_textview_4"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="07-27" />
+                                <ImageView
+                                    android:id="@+id/daily_forecast_weathercode_imageview_4"
+                                    android:layout_width="50dp"
+                                    android:layout_height="50dp"
+                                    android:src="@drawable/wc_00d" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_max_textview_4"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="High xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_min_textview_4"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Min xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_weatherinfo_textview_4"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/weather" />
+                            </TableLayout>
+                            <TableLayout
+                                android:id="@+id/daily_forecast_tablelayout_5"
+                                android:layout_height="wrap_content"
+                                android:layout_width="100dp"
+                                android:rowCount="6"
+                                android:columnCount="1" >
+                                <TextView
+                                    android:id="@+id/daily_forecast_day_textview_5"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="today" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_date_textview_5"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="07-27" />
+                                <ImageView
+                                    android:id="@+id/daily_forecast_weathercode_imageview_5"
+                                    android:layout_width="50dp"
+                                    android:layout_height="50dp"
+                                    android:src="@drawable/wc_00d" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_max_textview_5"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="High xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_min_textview_5"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Min xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_weatherinfo_textview_5"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/weather" />
+                            </TableLayout>
+                            <TableLayout
+                                android:id="@+id/daily_forecast_tablelayout_6"
+                                android:layout_height="wrap_content"
+                                android:layout_width="100dp"
+                                android:rowCount="6"
+                                android:columnCount="1" >
+                                <TextView
+                                    android:id="@+id/daily_forecast_day_textview_6"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="today" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_date_textview_6"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="07-27" />
+                                <ImageView
+                                    android:id="@+id/daily_forecast_weathercode_imageview_6"
+                                    android:layout_width="50dp"
+                                    android:layout_height="50dp"
+                                    android:src="@drawable/wc_00d" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_max_textview_6"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="High xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_min_textview_6"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Min xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_weatherinfo_textview_6"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/weather" />
+                            </TableLayout>
+                            <TableLayout
+                                android:id="@+id/daily_forecast_tablelayout_7"
+                                android:layout_height="wrap_content"
+                                android:layout_width="100dp"
+                                android:rowCount="6"
+                                android:columnCount="1" >
+                                <TextView
+                                    android:id="@+id/daily_forecast_day_textview_7"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="today" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_date_textview_7"
+                                    android:layout_height="wrap_content"
+                                    android:layout_width="wrap_content"
+                                    android:text="07-27" />
+                                <ImageView
+                                    android:id="@+id/daily_forecast_weathercode_imageview_7"
+                                    android:layout_width="50dp"
+                                    android:layout_height="50dp"
+                                    android:src="@drawable/wc_00d" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_max_textview_7"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="High xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_temp_min_textview_7"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Min xx °T" />
+                                <TextView
+                                    android:id="@+id/daily_forecast_weatherinfo_textview_7"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/weather" />
+                            </TableLayout>
+
+                        </GridLayout>
                     </LinearLayout>
 
 
@@ -199,7 +471,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Tis is Tab 2" />
+                            android:text="This is Tab 2" />
                     </LinearLayout>
                     <!-- tab 3 -->
                     <LinearLayout
@@ -211,7 +483,17 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Tis is Tab 3" />
+                            android:text="This is Tab 3" />
+                        <Button
+                            android:id="@+id/wind_update_information_button"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Request Wind information" />
+                        <TextView
+                            android:id="@+id/textview_tab3_waiting_json_data"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
+
                     </LinearLayout>
                 </FrameLayout>
             </LinearLayout>
