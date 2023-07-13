@@ -46,6 +46,7 @@
     <string name="city_town">City/Town</string>
     <string name="forecast1">Forecast:</string>
     <string name="data1">\"Date: \"</string>
+    <string name="dailyForecast_title">Daily Forecast</string>
 
 
 </resources>
