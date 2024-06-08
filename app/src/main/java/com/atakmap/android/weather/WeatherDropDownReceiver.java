@@ -29,6 +29,7 @@ import android.widget.Toast;
 
 import com.atak.plugins.impl.PluginLayoutInflater;
 import com.atakmap.android.maps.MapView;
+import com.atakmap.android.weather.plugin.BuildConfig;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.dropdown.DropDown.OnStateListener;
 import com.atakmap.android.dropdown.DropDownReceiver;
@@ -47,6 +48,7 @@ import java.io.InputStreamReader;
 //import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.DayOfWeek;
@@ -1422,5 +1424,4 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
     @Override
     public void onDropDownClose() {
     }
-
 }
