@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    item_daily_forecast.xml
+    A single day column in the 7-day horizontal forecast strip.
+
+    The IDs declared here are the BASE ids. Because GridLayout uses <include>,
+    the outer include tag overrides the root id (e.g. daily_forecast_tablelayout_1).
+    The child view IDs (day_textview, date_textview, …) must therefore be
+    kept DISTINCT across the 7 includes — DailyForecastView references them
+    via the hardcoded ID arrays (DAY_IDS, DATE_IDS, …).
+
+    ⚠ Android does NOT support ID remapping inside <include> for child views,
+      so the 7 sets of unique child IDs remain in the layout file as before.
+      The difference is that the STRUCTURE is now a single reusable template,
+      making it easy to change the column layout in one place.
+
+    For a production refactor, consider replacing this with a RecyclerView
+    with a horizontal LinearLayoutManager — that would truly eliminate the
+    duplicated IDs and scale to any number of days.
+-->
+<TableLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="100dp"
+  android:layout_height="wrap_content"
+  android:padding="4dp">
+
+  <!-- Day label: "Today", "Monday", … -->
+  <TextView
+    android:id="@+id/daily_forecast_day_textview"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="—"
+    android:textSize="11sp"
+    android:textStyle="bold"
+    android:gravity="center_horizontal"
+    android:layout_gravity="center_horizontal" />
+
+  <!-- Date: "2024-07-28" -->
+  <TextView
+    android:id="@+id/daily_forecast_date_textview"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="——"
+    android:textSize="10sp"
+    android:gravity="center_horizontal"
+    android:layout_gravity="center_horizontal" />
+
+  <!-- Weather icon -->
+  <ImageView
+    android:id="@+id/daily_forecast_weathercode_imageview"
+    android:layout_width="48dp"
+    android:layout_height="48dp"
+    android:src="@drawable/wc_00d"
+    android:layout_gravity="center_horizontal"
+    android:contentDescription="@string/weather_icon_desc" />
+
+  <!-- High temperature -->
+  <TextView
+    android:id="@+id/daily_forecast_temp_max_textview"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="High —°C"
+    android:textSize="11sp"
+    android:gravity="center_horizontal"
+    android:layout_gravity="center_horizontal" />
+
+  <!-- Low temperature -->
+  <TextView
+    android:id="@+id/daily_forecast_temp_min_textview"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="Low —°C"
+    android:textSize="11sp"
+    android:gravity="center_horizontal"
+    android:layout_gravity="center_horizontal" />
+
+  <!-- Weather description -->
+  <TextView
+    android:id="@+id/daily_forecast_weatherinfo_textview"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="@string/weather"
+    android:textSize="10sp"
+    android:gravity="center_horizontal"
+    android:maxLines="2"
+    android:ellipsize="end" />
+
+</TableLayout>

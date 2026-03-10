@@ -1,4 +1,4 @@
- package com.atakmap.android.weather.infrastructure.ui.preferences;
+ package com.atakmap.android.weather.infrastructure.preferences;
 
 import android.annotation.SuppressLint;
 import android.content.Context;

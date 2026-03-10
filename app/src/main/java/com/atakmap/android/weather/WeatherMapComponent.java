@@ -15,7 +15,7 @@ import com.atakmap.android.maps.MapView;
 import com.atakmap.android.dropdown.DropDownMapComponent;
 
 import com.atakmap.android.util.ATAKUtilities;
-import com.atakmap.android.weather.infrastructure.ui.preferences.WeatherPreferenceFragment;
+import com.atakmap.android.weather.infrastructure.preferences.WeatherPreferenceFragment;
 import com.atakmap.app.preferences.ToolsPreferenceFragment;
 import com.atakmap.coremap.cot.event.CotDetail;
 import com.atakmap.coremap.cot.event.CotEvent;

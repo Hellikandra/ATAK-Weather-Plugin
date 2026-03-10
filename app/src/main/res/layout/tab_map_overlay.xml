@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    tab_map_overlay.xml
+    Tab 2 — Map radar/overlay controls (placeholder for future extension).
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/subTabWidget2"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:padding="12dp"
+  android:gravity="center_horizontal">
+
+  <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="@string/overlay_coming_soon"
+    android:textSize="14sp"
+    android:layout_marginTop="24dp" />
+
+  <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="@string/overlay_description"
+    android:textSize="11sp"
+    android:gravity="center"
+    android:layout_marginTop="8dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp" />
+
+</LinearLayout>

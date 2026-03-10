@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    tab_parameters.xml — Tab 4: Parameter Selector
+    Multi-select list per section (Hourly / Daily / Current).
+    Each section has a "Select All / None" toggle and a fixed-height
+    ListView. Selections are persisted immediately to SharedPreferences.
+-->
+<ScrollView
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/subTabWidget4"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <!-- ── Info banner ─────────────────────────────────────────────── -->
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/params_info_banner"
+      android:textSize="11sp"
+      android:textStyle="italic"
+      android:layout_marginBottom="8dp"/>
+
+    <!-- ══ HOURLY ══════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:background="@drawable/image_view_bg"
+      android:padding="4dp">
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="@string/params_section_hourly"
+        android:textSize="13sp"
+        android:textStyle="bold"/>
+      <Button
+        android:id="@+id/params_all_hourly"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:text="@string/params_select_all"
+        android:textSize="10sp"
+        android:layout_marginEnd="4dp"/>
+      <Button
+        android:id="@+id/params_none_hourly"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:text="@string/params_select_none"
+        android:textSize="10sp"/>
+    </LinearLayout>
+
+    <!--
+        ListView with CHOICE_MODE_MULTIPLE.
+        Height is set programmatically by ParametersView after adapter
+        population to avoid nested-scroll truncation.
+    -->
+    <ListView
+      android:id="@+id/params_list_hourly"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:choiceMode="multipleChoice"
+      android:dividerHeight="0dp"
+      android:layout_marginBottom="10dp"/>
+
+    <!-- ══ DAILY ═══════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:background="@drawable/image_view_bg"
+      android:padding="4dp">
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="@string/params_section_daily"
+        android:textSize="13sp"
+        android:textStyle="bold"/>
+      <Button
+        android:id="@+id/params_all_daily"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:text="@string/params_select_all"
+        android:textSize="10sp"
+        android:layout_marginEnd="4dp"/>
+      <Button
+        android:id="@+id/params_none_daily"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:text="@string/params_select_none"
+        android:textSize="10sp"/>
+    </LinearLayout>
+
+    <ListView
+      android:id="@+id/params_list_daily"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:choiceMode="multipleChoice"
+      android:dividerHeight="0dp"
+      android:layout_marginBottom="10dp"/>
+
+    <!-- ══ CURRENT ════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:background="@drawable/image_view_bg"
+      android:padding="4dp">
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="@string/params_section_current"
+        android:textSize="13sp"
+        android:textStyle="bold"/>
+      <Button
+        android:id="@+id/params_all_current"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:text="@string/params_select_all"
+        android:textSize="10sp"
+        android:layout_marginEnd="4dp"/>
+      <Button
+        android:id="@+id/params_none_current"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="28dp"
+        android:text="@string/params_select_none"
+        android:textSize="10sp"/>
+    </LinearLayout>
+
+    <ListView
+      android:id="@+id/params_list_current"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:choiceMode="multipleChoice"
+      android:dividerHeight="0dp"
+      android:layout_marginBottom="10dp"/>
+
+  </LinearLayout>
+</ScrollView>

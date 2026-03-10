@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    tab_comparison.xml — Tab 6: Self Marker vs Map Center
+    Stacked card layout:
+      ┌─────────────────────────────┐
+      │  📍 Self Marker card         │
+      ├─────────────────────────────┤
+      │  Δ Delta row                │
+      ├─────────────────────────────┤
+      │  🗺 Map Center card          │
+      └─────────────────────────────┘
+    Each card shows: location name, WMO icon + description,
+    temp, feels-like, humidity, pressure, wind, precipitation.
+    Bound by ComparisonView.java.
+-->
+<ScrollView
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/subTabWidget6"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <!-- ── Refresh + status ───────────────────────────────────────── -->
+    <Button
+      android:id="@+id/comp_refresh_button"
+      style="@style/darkButton"
+      android:layout_width="match_parent"
+      android:layout_height="40dp"
+      android:text="@string/comp_refresh"
+      android:layout_marginBottom="6dp"/>
+
+    <TextView
+      android:id="@+id/comp_status_text"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/wait"
+      android:gravity="center"
+      android:visibility="visible"/>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- CARD 1 — Self Marker                                        -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:background="@drawable/image_view_bg"
+      android:padding="8dp"
+      android:layout_marginTop="6dp">
+
+      <!-- Card header -->
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/comp_col_self"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+      <TextView
+        android:id="@+id/comp_self_location"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textSize="10sp"
+        android:textStyle="italic"
+        android:layout_marginBottom="6dp"/>
+
+      <!-- Icon + description row -->
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <ImageView
+          android:id="@+id/comp_self_icon"
+          android:layout_width="56dp"
+          android:layout_height="56dp"
+          android:src="@drawable/wc_00d"
+          android:contentDescription="@string/weather_icon_desc"/>
+
+        <TextView
+          android:id="@+id/comp_self_weather_desc"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="—"
+          android:textSize="13sp"
+          android:layout_marginStart="8dp"
+          android:maxLines="2"/>
+      </LinearLayout>
+
+      <!-- Data table -->
+      <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stretchColumns="1">
+
+        <TableRow>
+          <TextView android:text="@string/comp_row_temp"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_self_temp"
+            android:text="— / —°C" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/real_feel"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_self_feels"
+            android:text="—°C" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/humidity_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_self_humidity"
+            android:text="— %" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/pressure_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_self_pressure"
+            android:text="— hPa" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/wind_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_self_wind"
+            android:text="— m/s" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/precipitation_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_self_precip"
+            android:text="@string/nopre" android:textSize="12sp"/>
+        </TableRow>
+      </TableLayout>
+    </LinearLayout>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- DELTA ROW                                                   -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:gravity="center_horizontal"
+      android:layout_marginTop="4dp"
+      android:layout_marginBottom="4dp"
+      android:padding="6dp">
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/comp_delta_header"
+        android:textStyle="bold"
+        android:textSize="11sp"
+        android:gravity="center_horizontal"
+        android:layout_marginBottom="4dp"/>
+
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <TextView android:id="@+id/comp_delta_temp"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="ΔT —"
+          android:textSize="11sp" android:gravity="center_horizontal"
+          android:textColor="#FF5C8A"/>
+
+        <TextView android:id="@+id/comp_delta_humidity"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="ΔH —"
+          android:textSize="11sp" android:gravity="center_horizontal"
+          android:textColor="#4FC3F7"/>
+
+        <TextView android:id="@+id/comp_delta_pressure"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="ΔP —"
+          android:textSize="11sp" android:gravity="center_horizontal"
+          android:textColor="#81C784"/>
+
+        <TextView android:id="@+id/comp_delta_wind"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="ΔW —"
+          android:textSize="11sp" android:gravity="center_horizontal"
+          android:textColor="#FFB74D"/>
+
+        <TextView android:id="@+id/comp_delta_precip"
+          android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:text="ΔR —"
+          android:textSize="11sp" android:gravity="center_horizontal"
+          android:textColor="#CE93D8"/>
+      </LinearLayout>
+
+      <!-- Arrow indicating direction -->
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="▼"
+        android:textSize="18sp"
+        android:gravity="center_horizontal"
+        android:layout_marginTop="2dp"/>
+    </LinearLayout>
+
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <!-- CARD 2 — Map Center                                         -->
+    <!-- ════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:background="@drawable/image_view_bg"
+      android:padding="8dp"
+      android:layout_marginBottom="6dp">
+
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/comp_col_center"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+      <TextView
+        android:id="@+id/comp_center_location"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textSize="10sp"
+        android:textStyle="italic"
+        android:layout_marginBottom="6dp"/>
+
+      <!-- Icon + description row -->
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <ImageView
+          android:id="@+id/comp_center_icon"
+          android:layout_width="56dp"
+          android:layout_height="56dp"
+          android:src="@drawable/wc_00d"
+          android:contentDescription="@string/weather_icon_desc"/>
+
+        <TextView
+          android:id="@+id/comp_center_weather_desc"
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="—"
+          android:textSize="13sp"
+          android:layout_marginStart="8dp"
+          android:maxLines="2"/>
+      </LinearLayout>
+
+      <!-- Data table -->
+      <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stretchColumns="1">
+
+        <TableRow>
+          <TextView android:text="@string/comp_row_temp"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_center_temp"
+            android:text="— / —°C" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/real_feel"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_center_feels"
+            android:text="—°C" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/humidity_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_center_humidity"
+            android:text="— %" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/pressure_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_center_pressure"
+            android:text="— hPa" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/wind_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_center_wind"
+            android:text="— m/s" android:textSize="12sp"/>
+        </TableRow>
+        <TableRow>
+          <TextView android:text="@string/precipitation_label"
+            android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/>
+          <TextView android:id="@+id/comp_center_precip"
+            android:text="@string/nopre" android:textSize="12sp"/>
+        </TableRow>
+      </TableLayout>
+    </LinearLayout>
+
+  </LinearLayout>
+</ScrollView>

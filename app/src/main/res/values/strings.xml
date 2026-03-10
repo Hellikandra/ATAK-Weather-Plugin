@@ -48,5 +48,51 @@
     <string name="data1">\"Date: \"</string>
     <string name="dailyForecast_title">Daily Forecast</string>
 
+    <!-- ── Tab 1: Current Weather ──────────────────────────────────────────── -->
+    <string name="currently">Currently</string>
+    <string name="refresh_weather">Refresh weather</string>
+    <string name="weather_icon_desc">Weather condition icon</string>
+    <string name="real_feel">Real Feel: </string>
+    <string name="visibility_label">Visibility: </string>
+    <string name="hourly_scrubber_label">Hourly forecast — drag to scrub</string>
+    <string name="seekbar_label_default">+00h  (00:00)</string>
+    <string name="error_prefix">Error: </string>
+
+    <!-- Detail row labels -->
+    <string name="humidity_label">Humidity:</string>
+    <string name="pressure_label">Pressure:</string>
+    <string name="wind_label">Wind:</string>
+    <string name="precipitation_label">Precipitation:</string>
+
+    <!-- ── Tab 2: Wind Profile ─────────────────────────────────────────────── -->
+    <string name="wind_profile_title">Wind Profile (Multi-Altitude)</string>
+    <string name="wind_request_button">Request Wind Information</string>
+
+    <!-- ── Tab 3: Map Overlay ──────────────────────────────────────────────── -->
+    <string name="overlay_coming_soon">Radar Overlay — Coming Soon</string>
+    <string name="overlay_description">Weather radar tiles and wind vector overlays
+    will appear on the ATAK map from this tab.</string>
+
+    <!-- ── Tab 4: Parameters ───────────────────────────────────────────────── -->
+    <string name="params_info_banner">Select which variables to request from Open-Meteo.
+    Changes apply on the next refresh.</string>
+    <string name="params_section_hourly">Hourly Weather Variables</string>
+    <string name="params_section_daily">Daily Weather Variables</string>
+    <string name="params_section_current">Current Weather Variables</string>
+    <string name="params_select_all">All</string>
+    <string name="params_select_none">None</string>
+
+    <!-- ── Tab 5: Charts (multi-line legend toggles) ───────────────────────── -->
+    <string name="chart_legend_temp">Temp</string>
+    <string name="chart_legend_humidity">Humidity</string>
+    <string name="chart_legend_wind">Wind</string>
+    <string name="chart_legend_pressure">Pressure</string>
+
+    <!-- ── Tab 6: Comparison ───────────────────────────────────────────────── -->
+    <string name="comp_refresh">Refresh Comparison</string>
+    <string name="comp_col_self">📍 Self Marker</string>
+    <string name="comp_col_center">🗺 Map Center</string>
+    <string name="comp_row_temp">Temperature</string>
+    <string name="comp_delta_header">Δ Map Center − Self Marker</string>
 
 </resources>

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    tab_charts.xml — Tab 5: Multi-line Weather Chart
+    All four series (Temp / Humidity / Wind / Pressure) are drawn as
+    overlapping normalised lines with distinct colours.
+    Each legend chip is also a toggle to show/hide that series.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/subTabWidget5"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:padding="6dp">
+
+  <!-- ── Legend / toggle chips ──────────────────────────────────────── -->
+  <HorizontalScrollView
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="6dp">
+
+    <LinearLayout
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical">
+
+      <!-- Temp — red #FF5C8A -->
+      <Button
+        android:id="@+id/chart_toggle_temp"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="@string/chart_legend_temp"
+        android:textSize="11sp"
+        android:backgroundTint="#FF5C8A"
+        android:layout_marginEnd="6dp"/>
+
+      <!-- Humidity — cyan #4FC3F7 -->
+      <Button
+        android:id="@+id/chart_toggle_humidity"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="@string/chart_legend_humidity"
+        android:textSize="11sp"
+        android:backgroundTint="#4FC3F7"
+        android:layout_marginEnd="6dp"/>
+
+      <!-- Wind — orange #FFB74D -->
+      <Button
+        android:id="@+id/chart_toggle_wind"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="@string/chart_legend_wind"
+        android:textSize="11sp"
+        android:backgroundTint="#FFB74D"
+        android:layout_marginEnd="6dp"/>
+
+      <!-- Pressure — green #81C784 -->
+      <Button
+        android:id="@+id/chart_toggle_pressure"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="@string/chart_legend_pressure"
+        android:textSize="11sp"
+        android:backgroundTint="#81C784"/>
+
+    </LinearLayout>
+  </HorizontalScrollView>
+
+  <!-- ── Selected hour value readout ────────────────────────────────── -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginBottom="4dp">
+
+    <TextView
+      android:id="@+id/chart_hour_label"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="+00h"
+      android:textSize="11sp"
+      android:textStyle="italic"/>
+
+    <!-- Value readouts for each active series at the cursor position -->
+    <TextView android:id="@+id/chart_val_temp"
+      android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:text="—°" android:textSize="11sp" android:textColor="#FF5C8A"
+      android:layout_marginEnd="8dp"/>
+    <TextView android:id="@+id/chart_val_humidity"
+      android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:text="— %" android:textSize="11sp" android:textColor="#4FC3F7"
+      android:layout_marginEnd="8dp"/>
+    <TextView android:id="@+id/chart_val_wind"
+      android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:text="— m/s" android:textSize="11sp" android:textColor="#FFB74D"
+      android:layout_marginEnd="8dp"/>
+    <TextView android:id="@+id/chart_val_pressure"
+      android:layout_width="wrap_content" android:layout_height="wrap_content"
+      android:text="— hPa" android:textSize="11sp" android:textColor="#81C784"/>
+  </LinearLayout>
+
+  <!-- ── Chart canvas (WeatherChartView injected programmatically) ─── -->
+  <FrameLayout
+    android:id="@+id/chart_frame"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:background="@drawable/image_view_bg"/>
+
+  <!-- ── Loading / error ────────────────────────────────────────────── -->
+  <TextView
+    android:id="@+id/chart_status_text"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="@string/wait"
+    android:gravity="center"
+    android:textSize="12sp"
+    android:visibility="gone"/>
+
+</LinearLayout>

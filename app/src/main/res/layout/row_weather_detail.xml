@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    row_weather_detail.xml
+    Reusable detail section: Humidity / Pressure / Wind / Precipitation.
+    Included in tab_current_weather.xml.
+    Uses a TableLayout for clean label+value alignment.
+-->
+<TableLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:stretchColumns="1"
+  android:layout_marginTop="4dp">
+
+  <!-- Humidity -->
+  <TableRow
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/humidity_label"
+      android:textStyle="bold"
+      android:paddingEnd="8dp" />
+    <TextView
+      android:id="@+id/textview_humidity"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="— %" />
+  </TableRow>
+
+  <!-- Pressure -->
+  <TableRow
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/pressure_label"
+      android:textStyle="bold"
+      android:paddingEnd="8dp" />
+    <TextView
+      android:id="@+id/textview_pressure"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="— hPa" />
+  </TableRow>
+
+  <!-- Wind -->
+  <TableRow
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/wind_label"
+      android:textStyle="bold"
+      android:paddingEnd="8dp" />
+    <TextView
+      android:id="@+id/textview_wind"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="— m/s" />
+  </TableRow>
+
+  <!-- Precipitation -->
+  <TableRow
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/precipitation_label"
+      android:textStyle="bold"
+      android:paddingEnd="8dp" />
+    <TextView
+      android:id="@+id/textview_precipitation"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/precipitation" />
+  </TableRow>
+
+</TableLayout>
