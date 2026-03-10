@@ -20,5 +20,8 @@ public class WeatherLifecycle extends AbstractPlugin
     {
         super(isc, new WeatherTool(((PluginContextProvider) isc.getService(PluginContextProvider.class)).getPluginContext()),
                 (MapComponent) new WeatherMapComponent());
+
+        // optionally if we do not want to have the icon
+        // super(isc, (MapComponent) new WeatherMapComponent());
     }
 }

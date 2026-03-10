@@ -8,8 +8,8 @@
 
 buildscript {
 
-    ext.PLUGIN_VERSION = "1.4.1"
-    ext.ATAK_VERSION = "5.1.0"
+    ext.PLUGIN_VERSION = "2.0.0"
+    ext.ATAK_VERSION = "5.6.0"
 
     def takdevVersion = '3.+'
 
@@ -282,5 +282,6 @@ def getCommandFlavor() {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: '*.jar')
+    // implementation files("${rootDir}/../../atak-javadoc.jar")
 }
 

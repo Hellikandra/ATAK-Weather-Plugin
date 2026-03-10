@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory
+        android:key="key_for_category"
+        android:title="Test pref category (in plugin they cannot have any members" />
+
+    <com.atakmap.android.gui.PanEditTextPreference
+        android:key="pan_edit_text_test"
+        android:defaultValue="0"
+        android:title="Some text of PanEditTextPref" />
+
+</PreferenceScreen>

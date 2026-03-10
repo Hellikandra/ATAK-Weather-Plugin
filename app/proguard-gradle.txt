@@ -48,8 +48,7 @@
 
 
 
--keep class * extends transapps.maps.plugin.tool.Tool {
-}
+
 -keep class * implements gov.tak.api.plugin.IPlugin {
 }
 

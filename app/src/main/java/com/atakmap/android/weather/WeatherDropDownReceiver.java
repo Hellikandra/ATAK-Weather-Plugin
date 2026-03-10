@@ -2,34 +2,24 @@
 package com.atakmap.android.weather;
 
 import android.annotation.SuppressLint;
-import android.content.AsyncQueryHandler;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.Resources;
-import android.graphics.Color;
 import android.os.AsyncTask;
-//import android.view.LayoutInflater;
+import android.os.Build;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.ImageButton;
-//import android.widget.SeekBar;
-import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.TabHost;
 import android.widget.TabHost.TabSpec;
 import android.widget.TableLayout;
-import android.widget.TableRow;
 import android.widget.TextView;
 import android.widget.Toast;
 
-//import com.atakmap.coremap.maps.coords.GeoPoint;
-
 import com.atak.plugins.impl.PluginLayoutInflater;
 import com.atakmap.android.maps.MapView;
-import com.atakmap.android.weather.plugin.BuildConfig;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.dropdown.DropDown.OnStateListener;
 import com.atakmap.android.dropdown.DropDownReceiver;
@@ -39,25 +29,23 @@ import com.atakmap.coremap.log.Log;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.w3c.dom.Text;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-//import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.file.Paths;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.DayOfWeek;
-import java.time.chrono.ChronoLocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import java.time.LocalDateTime;
 
 import javax.net.ssl.HttpsURLConnection;
+
+import gov.tak.api.cot.event.CotDetail;
+
 
 public class WeatherDropDownReceiver extends DropDownReceiver implements
         OnStateListener {
@@ -73,17 +61,17 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
     // ------- Global variables -------
     // -------                  -------
     // https://open-meteo.com/
-    private String stOpenMeteoBaseUrl = "https://api.open-meteo.com/v1/forecast?";
-    private String stLatOMBU  = "latitude=";
-    private String stLongOMBU = "&longitude=";
+    private final String stOpenMeteoBaseUrl = "https://api.open-meteo.com/v1/forecast?";
+    private final String stLatOMBU  = "latitude=";
+    private final String stLongOMBU = "&longitude=";
 
     // Hourly Weather Variables
-    private String stHourlyRequest = "&hourly=temperature_2m,relativehumidity_2m,apparent_temperature,precipitation_probability,precipitation,weathercode,surface_pressure,visibility,windspeed_10m,winddirection_10m";
-    private String stDailyRequest  = "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,precipitation_probability_max";
-    private String stWindSpeedUnit = "&windspeed_unit=ms";
-    private String stTimeZone = "&timezone=auto";
+    private final String stHourlyRequest = "&hourly=temperature_2m,relativehumidity_2m,apparent_temperature,precipitation_probability,precipitation,weathercode,surface_pressure,visibility,windspeed_10m,winddirection_10m";
+    private final String stDailyRequest  = "&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_hours,precipitation_probability_max";
+    private final String stWindSpeedUnit = "&windspeed_unit=ms";
+    private final String stTimeZone = "&timezone=auto";
 
-    private String stWindInformationAltitude= "&hourly=temperature_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m&windspeed_unit=ms";
+    private final String stWindInformationAltitude= "&hourly=temperature_2m,windspeed_10m,windspeed_80m,windspeed_120m,windspeed_180m,winddirection_10m,winddirection_80m,winddirection_120m,winddirection_180m,windgusts_10m,temperature_80m,temperature_120m,temperature_180m&windspeed_unit=ms";
 
     // https://nominatim.org/release-docs/latest/
     private String stOpenStreetNominatim = "https://nominatim.openstreetmap.org/reverse?format=json?";
@@ -710,10 +698,18 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
 
             } else {
                 try {
-                    LocalDateTime on_json_request = LocalDateTime.now();
+                    LocalDateTime on_json_request = null;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        on_json_request = LocalDateTime.now();
+                    }
                     String date_time_pattern = "yyyy-MM-dd HH:mm:ss";
-                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern(date_time_pattern);
-                    json_request_time = on_json_request.format(formatter);
+                    DateTimeFormatter formatter = null;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        formatter = DateTimeFormatter.ofPattern(date_time_pattern);
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        json_request_time = on_json_request.format(formatter);
+                    }
 
                     JSONObject jsonObject = new JSONObject(result);
                     Double latitude = jsonObject.getDouble("latitude");
@@ -723,6 +719,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     Log.d(TAG, "Extracted JSONArray : " + daily_values);
                     daily_time = new String[daily_values.length()];
                     daily_weathercode = new String[daily_values.length()];
+
+
                     daily_temperature_2m_max = new String[daily_values.length()];
                     daily_temperature_2m_min = new String[daily_values.length()];
                     daily_precipitation_sum = new String[daily_values.length()];
@@ -752,10 +750,18 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     for (int i = 0; i < daily_values.length(); i++) {
                         String htime = jsonObject.getJSONObject("hourly").getJSONArray("time").getString(i);
                         String htime_pattern = "yyyy-MM-dd'T'HH:mm";
-                        DateTimeFormatter htime_formatter = DateTimeFormatter.ofPattern(htime_pattern);
-                        LocalDateTime htime_date = LocalDateTime.parse(htime, htime_formatter);
+                        DateTimeFormatter htime_formatter = null;
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            htime_formatter = DateTimeFormatter.ofPattern(htime_pattern);
+                        }
+                        LocalDateTime htime_date = null;
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            htime_date = LocalDateTime.parse(htime, htime_formatter);
+                        }
 
-                        hourly_time[i] = String.valueOf(htime_date.getHour());
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            hourly_time[i] = String.valueOf(htime_date.getHour());
+                        }
                         hourly_temperature_2m[i] = jsonObject.getJSONObject("hourly").getJSONArray("temperature_2m").getString(i);
                         hourly_relativehumidity_2m[i] = jsonObject.getJSONObject("hourly").getJSONArray("relativehumidity_2m").getString(i);
                         hourly_apparent_temperature[i] = jsonObject.getJSONObject("hourly").getJSONArray("apparent_temperature").getString(i);
@@ -767,7 +773,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     }
 
                     textview_date.setText(pluginContext.getString(R.string.now) + json_request_time + " / forecast to +0" + hourly_time[0] + " hours");
-
+                    double value = Double.parseDouble(daily_temperature_2m_min[0]);
 
                     textview_airT.setText(daily_temperature_2m_min[0] + "°C" + " / " + daily_temperature_2m_max[0] + "°C");
                     textview_airTrf.setText(hourly_apparent_temperature[0] + "°C");
@@ -964,9 +970,18 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     textview_daily_forecast_min_temp_loop[0].setText("Low: " + daily_temperature_2m_min[0] + "°C");
                     // textview weather text set before
 
-                    DateTimeFormatter dayformatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-                    LocalDate date = LocalDate.parse(daily_time[1], dayformatter);
-                    DayOfWeek dayOfWeek = date.getDayOfWeek();
+                    DateTimeFormatter dayformatter = null;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        dayformatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                    }
+                    LocalDate date = null;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        date = LocalDate.parse(daily_time[1], dayformatter);
+                    }
+                    DayOfWeek dayOfWeek = null;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        dayOfWeek = date.getDayOfWeek();
+                    }
 
                     // Generate the second day Forecast layout
                     textview_daily_forecast_day_loop[1].setText(dayOfWeek.toString());
@@ -1091,8 +1106,12 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     }
 
                     // Generate the third day Forecast layout
-                    date = LocalDate.parse(daily_time[2]);
-                    dayOfWeek = date.getDayOfWeek();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        date = LocalDate.parse(daily_time[2]);
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        dayOfWeek = date.getDayOfWeek();
+                    }
                     textview_daily_forecast_day_loop[2].setText(dayOfWeek.toString());
                     textview_daily_forecast_date_loop[2].setText(daily_time[2]);
                     // imageview weathercode set before
@@ -1215,8 +1234,12 @@ public class WeatherDropDownReceiver extends DropDownReceiver implements
                     }
 
                     // Generate the fourth day Forecast layout
-                    date = LocalDate.parse(daily_time[3]);
-                    dayOfWeek = date.getDayOfWeek();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        date = LocalDate.parse(daily_time[3]);
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        dayOfWeek = date.getDayOfWeek();
+                    }
                     textview_daily_forecast_day_loop[3].setText(dayOfWeek.toString());
                     textview_daily_forecast_date_loop[3].setText(daily_time[3]);
                     // imageview weathercode set before
