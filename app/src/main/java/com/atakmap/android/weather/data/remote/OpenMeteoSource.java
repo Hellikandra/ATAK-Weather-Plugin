@@ -79,7 +79,9 @@ public class OpenMeteoSource implements IWeatherRemoteSource,
     // ── IWeatherRemoteSource ──────────────────────────────────────────────────
 
     @Override
-    public String getSourceId() { return SOURCE_ID; }
+    public String getSourceId()   { return SOURCE_ID; }
+    @Override
+    public String getDisplayName() { return "Open-Meteo (free, no key)"; }
 
     @Override
     public List<WeatherParameter> getSupportedParameters() {

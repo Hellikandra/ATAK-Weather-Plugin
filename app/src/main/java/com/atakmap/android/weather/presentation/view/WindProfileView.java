@@ -68,6 +68,15 @@ public class WindProfileView {
         }
     }
 
+    /**
+     * Called by WeatherDropDownReceiver when the wind hour seekbar changes.
+     * (Receiver replaces the view's listener to add live wind-effect redraw.)
+     */
+    public void onHourChanged(int hour) {
+        if (windChartView != null) windChartView.setSelectedHour(hour);
+        updateTextTable(hour);
+    }
+
     public void setRequestClickListener(View.OnClickListener listener) {
         if (buttonRequest != null) buttonRequest.setOnClickListener(listener);
     }

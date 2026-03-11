@@ -4,7 +4,7 @@
     <string name="app_name">Weather</string>
     <!-- description -->
     <string name="app_desc">This plugin gets weather data from open-meteo API and parses it for the user</string>
-<!--    <string name="set_gps">No GPS, set selfmarker</string>-->
+    <!--    <string name="set_gps">No GPS, set selfmarker</string>-->
     <string name="wait">Wait…</string>
     <string name="forecast">Forecast:  </string>
     <string name="now">TODAY:  </string>
@@ -153,4 +153,32 @@
     <string name="map_btn_share_marker">📡 Share over Network</string>
 
     <string name="wind_btn_drop_marker">🌬 Drop Wind Marker</string>
+
+    <!-- ADD these entries to res/values/strings.xml -->
+
+    <!-- ── Map tab: pick-to-place flow ────────────────────────────────── -->
+    <string name="map_marker_pick_description">Tap the button, then tap anywhere on the map to fetch and place a weather marker at that exact point.</string>
+    <string name="map_marker_pick_hint">📍 Tap the map to pick a location…  (tap button again to cancel)</string>
+    <string name="map_btn_pick_and_drop">📍 Tap Map to Place Weather Marker</string>
+    <string name="map_btn_pick_cancel">✕ Cancel — picking location…</string>
+
+    <!-- ── Wind tab: wind effect drawing ─────────────────────────────── -->
+    <string name="wind_effect_section_title">Wind Effect Drawing</string>
+    <string name="wind_effect_description">Draws a directional cone + range-height box on the map. Requires a wind marker to be placed first.</string>
+    <string name="wind_effect_range_label">Range (cone + box depth):</string>
+    <string name="wind_effect_height_label">Height (wind effect AGL):</string>
+    <string name="wind_effect_draw_btn">🌬 Draw Wind Effect</string>
+    <string name="wind_effect_clear_btn">Clear</string>
+    <string name="wind_effect_no_marker">Place a wind marker first</string>
+    <string name="wind_effect_drawn">Wind effect drawn</string>
+    <string name="wind_effect_cleared">Wind effect cleared</string>
+
+
+    <!-- ── CONF tab: API Source selector ─────────────────────────────── -->
+    <string name="source_section_title">Data Source</string>
+    <string name="source_provider_label">Provider:</string>
+
+    <!-- ── Wind effect drawn with no profile loaded ───────────────────── -->
+    <string name="wind_effect_drawn_no_profile">Wind effect drawn (surface speed only — tap &#34;Request Wind Info&#34; for multi-altitude)</string>
+
 </resources>

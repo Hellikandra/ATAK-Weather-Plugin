@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    tab_config.xml — Tab 3 "CONF": Map Overlay + API Source + Parameters
+
+    New: API Source Spinner at top — selects the weather data provider.
+    New entries in IWeatherRemoteSource let future providers register themselves.
+    The Spinner is wired to WeatherSourceManager (SharedPrefs key "wx_source_id").
+-->
+<ScrollView
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/subTabWidget3"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent">
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="10dp">
+
+    <!-- ══ SECTION 0: DATA SOURCE SELECTOR ══════════════════════════ -->
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/source_section_title"
+      android:textSize="13sp"
+      android:textStyle="bold"
+      android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:layout_marginBottom="12dp">
+
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/source_provider_label"
+        android:textSize="12sp"
+        android:layout_marginEnd="8dp"/>
+
+      <!--
+          Spinner populated programmatically from WeatherSourceManager.getAvailableSources().
+          Entries: "Open-Meteo (free)" initially, future sources appended at runtime.
+      -->
+      <Spinner
+        android:id="@+id/spinner_weather_source"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="@drawable/image_view_bg"/>
+
+    </LinearLayout>
+
+    <TextView
+      android:id="@+id/textview_source_status"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="10sp"
+      android:textStyle="italic"
+      android:alpha="0.7"
+      android:layout_marginBottom="10dp"/>
+
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginBottom="12dp"/>
+
+    <!-- ══ SECTION 1: MAP MARKER ════════════════════════════════════ -->
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_section_title"
+      android:textSize="13sp"
+      android:textStyle="bold"
+      android:layout_marginBottom="4dp"/>
+
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_pick_description"
+      android:textSize="11sp"
+      android:layout_marginBottom="10dp"/>
+
+    <TextView
+      android:id="@+id/textview_pick_hint"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_pick_hint"
+      android:textSize="11sp"
+      android:textStyle="bold"
+      android:textColor="#FFFFA500"
+      android:background="#33FFA500"
+      android:padding="8dp"
+      android:layout_marginBottom="8dp"
+      android:visibility="gone"/>
+
+    <Button android:id="@+id/btn_drop_weather_marker"
+      style="@style/darkButton" android:layout_width="match_parent"
+      android:layout_height="48dp" android:text="@string/map_btn_pick_and_drop"
+      android:textSize="12sp" android:layout_marginBottom="6dp"/>
+
+    <Button android:id="@+id/btn_share_marker"
+      style="@style/darkButton" android:layout_width="match_parent"
+      android:layout_height="48dp" android:text="@string/map_btn_share_marker"
+      android:textSize="12sp" android:layout_marginBottom="6dp"/>
+
+    <Button android:id="@+id/btn_remove_all_markers"
+      style="@style/darkButton" android:layout_width="match_parent"
+      android:layout_height="48dp" android:text="@string/map_btn_remove_markers"
+      android:textSize="12sp" android:layout_marginBottom="10dp"/>
+
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/map_marker_status_label" android:textSize="11sp"
+      android:textStyle="bold" android:layout_marginBottom="2dp"/>
+
+    <TextView android:id="@+id/textview_marker_status"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/map_marker_none_placed" android:textSize="11sp"
+      android:fontFamily="monospace" android:layout_marginBottom="12dp"/>
+
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginBottom="12dp"/>
+
+    <!-- ══ SECTION 2: PARAMETERS ════════════════════════════════════ -->
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/params_info_banner" android:textSize="11sp"
+      android:textStyle="italic" android:layout_marginBottom="4dp"/>
+
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/params_change_hint" android:textSize="10sp"
+      android:textStyle="italic" android:alpha="0.7" android:layout_marginBottom="8dp"/>
+
+    <!-- HOURLY -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:background="@drawable/image_view_bg" android:padding="4dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/params_section_hourly" android:textSize="13sp" android:textStyle="bold"/>
+      <Button android:id="@+id/params_all_hourly" style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
+        android:text="@string/params_select_all" android:textSize="10sp" android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/params_none_hourly" style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
+        android:text="@string/params_select_none" android:textSize="10sp"/>
+    </LinearLayout>
+    <ListView android:id="@+id/params_list_hourly" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:choiceMode="multipleChoice"
+      android:dividerHeight="0dp" android:layout_marginBottom="10dp"/>
+
+    <!-- DAILY -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:background="@drawable/image_view_bg" android:padding="4dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/params_section_daily" android:textSize="13sp" android:textStyle="bold"/>
+      <Button android:id="@+id/params_all_daily" style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
+        android:text="@string/params_select_all" android:textSize="10sp" android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/params_none_daily" style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
+        android:text="@string/params_select_none" android:textSize="10sp"/>
+    </LinearLayout>
+    <ListView android:id="@+id/params_list_daily" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:choiceMode="multipleChoice"
+      android:dividerHeight="0dp" android:layout_marginBottom="10dp"/>
+
+    <!-- CURRENT -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:background="@drawable/image_view_bg" android:padding="4dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/params_section_current" android:textSize="13sp" android:textStyle="bold"/>
+      <Button android:id="@+id/params_all_current" style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
+        android:text="@string/params_select_all" android:textSize="10sp" android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/params_none_current" style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
+        android:text="@string/params_select_none" android:textSize="10sp"/>
+    </LinearLayout>
+    <ListView android:id="@+id/params_list_current" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:choiceMode="multipleChoice"
+      android:dividerHeight="0dp" android:layout_marginBottom="10dp"/>
+
+  </LinearLayout>
+</ScrollView>

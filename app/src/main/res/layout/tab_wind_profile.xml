@@ -1,16 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    tab_wind_profile.xml — Tab 2: Multi-Altitude Wind Profile
+    tab_wind_profile.xml — Tab 2 "WIND": Wind Profile + Wind Effect + Comparison
 
-    Fix: The previous layout had a LinearLayout root with the ScrollView getting
-    layout_weight="1" / layout_height="0dp". This only works if the parent chain
-    all have definite heights down to the root. Inside ATAK's TabHost the content
-    view can be height-constrained in ways that collapse the weight-based child.
+    Merges former tab_wind_profile (WIND) and tab_comparison (CMP).
 
-    Solution: Wrap the ENTIRE tab content in a NestedScrollView so ALL content
-    scrolls as one unit. The WindChartView gets a fixed height (224dp) since it
-    is a custom Canvas view that measures itself exactly. The text table gets
-    wrap_content inside the scroll.
+    Wind effect now redraws live when ANY of the three seekbars change
+    (hour / range / height) — wired in initWindTab() with a shared
+    redrawIfActive() helper that only fires when a prism is already placed.
+
+    Sections:
+      1. Header: "Wind Profile" title + "Request Wind Info" button
+      2. WindChartView (barb column, 4 altitudes)
+      3. Hour seekbar
+      4. Monospaced text table
+      ── divider ──
+      5. Wind Effect: range + height seekbars, Draw/Clear, Drop Marker
+      ── divider ──
+      6. Comparison: Self vs Map Centre cards + delta row
 -->
 <androidx.core.widget.NestedScrollView
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -25,91 +31,186 @@
     android:orientation="vertical"
     android:padding="8dp">
 
-    <!-- ── Header row ─────────────────────────────────────────────────── -->
-    <LinearLayout
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
-      android:layout_marginBottom="6dp">
-
-      <TextView
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:text="@string/wind_profile_title"
-        android:textSize="13sp"
-        android:textStyle="bold"/>
-
-      <Button
-        android:id="@+id/wind_update_information_button"
-        style="@style/darkButton"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:text="@string/wind_request_button"
-        android:textSize="11sp"/>
-
+    <!-- ── 1. Header ─────────────────────────────────────────────── -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/wind_profile_title" android:textSize="13sp" android:textStyle="bold"/>
+      <Button android:id="@+id/wind_update_information_button" style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="48dp"
+        android:text="@string/wind_request_button" android:textSize="11sp"/>
     </LinearLayout>
 
-    <!-- ── Wind Marker button ─────────────────────────────────────────── -->
-    <Button
-      android:id="@+id/btn_drop_wind_marker"
-      style="@style/darkButton"
-      android:layout_width="match_parent"
-      android:layout_height="44dp"
-      android:text="@string/wind_btn_drop_marker"
-      android:textSize="11sp"
+    <!-- ── 2. WindChartView ───────────────────────────────────────── -->
+    <FrameLayout android:id="@+id/wind_chart_frame" android:layout_width="match_parent"
+      android:layout_height="224dp" android:background="@drawable/image_view_bg"
       android:layout_marginBottom="6dp"/>
 
-    <!-- ── WindChartView — injected by WindProfileView ────────────────── -->
-    <!--    Fixed height: 4 altitudes × 56dp = 224dp                      -->
-    <FrameLayout
-      android:id="@+id/wind_chart_frame"
-      android:layout_width="match_parent"
-      android:layout_height="224dp"
-      android:background="@drawable/image_view_bg"
-      android:layout_marginBottom="6dp"/>
-
-    <!-- ── Hour scrubber ──────────────────────────────────────────────── -->
-    <LinearLayout
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
-      android:layout_marginBottom="6dp">
-
-      <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/wind_hour_label"
-        android:textSize="10sp"
-        android:layout_marginEnd="6dp"/>
-
-      <SeekBar
-        android:id="@+id/wind_seekbar"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:max="167"/>
-
+    <!-- ── 3. Hour seekbar ────────────────────────────────────────── -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/wind_hour_label" android:textSize="10sp" android:layout_marginEnd="6dp"/>
+      <SeekBar android:id="@+id/wind_seekbar" android:layout_width="0dp"
+        android:layout_height="wrap_content" android:layout_weight="1" android:max="167"/>
     </LinearLayout>
 
-    <!-- ── Divider ───────────────────────────────────────────────────── -->
-    <View
-      android:layout_width="match_parent"
-      android:layout_height="1dp"
-      android:background="#33FFFFFF"
-      android:layout_marginBottom="6dp"/>
+    <!-- ── 4. Text table ──────────────────────────────────────────── -->
+    <TextView android:id="@+id/textview_tab3_waiting_json_data"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:fontFamily="monospace" android:textSize="11sp" android:padding="4dp"
+      android:layout_marginBottom="8dp"/>
 
-    <!-- ── Monospaced text table (all rows, no inner scroll needed) ─── -->
-    <TextView
-      android:id="@+id/textview_tab3_waiting_json_data"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:fontFamily="monospace"
-      android:textSize="11sp"
-      android:padding="4dp"/>
+    <!-- ── Divider ────────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginBottom="10dp"/>
+
+    <!-- ── 5. Wind Effect section ─────────────────────────────────── -->
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/wind_effect_section_title" android:textSize="12sp"
+      android:textStyle="bold" android:layout_marginBottom="2dp"/>
+
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/wind_effect_description" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="6dp"/>
+
+    <!-- Range slider -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/wind_effect_range_label" android:textSize="11sp"/>
+      <TextView android:id="@+id/textview_wind_range_value" android:layout_width="60dp"
+        android:layout_height="wrap_content" android:text="2.0 km" android:textSize="11sp"
+        android:textStyle="bold" android:gravity="end"/>
+    </LinearLayout>
+    <SeekBar android:id="@+id/seekbar_wind_range" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:max="19" android:progress="3"
+      android:layout_marginBottom="8dp"/>
+
+    <!-- Height slider -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+        android:text="@string/wind_effect_height_label" android:textSize="11sp"/>
+      <TextView android:id="@+id/textview_wind_height_value" android:layout_width="60dp"
+        android:layout_height="wrap_content" android:text="500 m" android:textSize="11sp"
+        android:textStyle="bold" android:gravity="end"/>
+    </LinearLayout>
+    <SeekBar android:id="@+id/seekbar_wind_height" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:max="38" android:progress="9"
+      android:layout_marginBottom="10dp"/>
+
+    <!-- Draw + Clear -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:layout_marginBottom="6dp">
+      <Button android:id="@+id/btn_draw_wind_effect" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="3"
+        android:text="@string/wind_effect_draw_btn" android:textSize="11sp" android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/btn_clear_wind_effect" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1"
+        android:text="@string/wind_effect_clear_btn" android:textSize="11sp"/>
+    </LinearLayout>
+
+    <!-- Drop Wind Marker -->
+    <Button android:id="@+id/btn_drop_wind_marker" style="@style/darkButton"
+      android:layout_width="match_parent" android:layout_height="44dp"
+      android:text="@string/wind_btn_drop_marker" android:textSize="11sp"
+      android:layout_marginBottom="4dp"/>
+
+    <!-- ── Divider ────────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginTop="8dp" android:layout_marginBottom="10dp"/>
+
+    <!-- ══ 6. COMPARISON SECTION (formerly CMP tab) ════════════════ -->
+    <Button android:id="@+id/comp_refresh_button" style="@style/darkButton"
+      android:layout_width="match_parent" android:layout_height="40dp"
+      android:text="@string/comp_refresh" android:layout_marginBottom="6dp"/>
+
+    <TextView android:id="@+id/comp_status_text" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:text="@string/wait"
+      android:gravity="center" android:visibility="visible"/>
+
+    <!-- Card: Self -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="vertical" android:background="@drawable/image_view_bg"
+      android:padding="8dp" android:layout_marginTop="6dp">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/comp_col_self" android:textSize="13sp" android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+      <TextView android:id="@+id/comp_self_location" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="italic"/>
+      <TextView android:id="@+id/comp_self_coords" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="" android:textSize="9sp" android:alpha="0.7"/>
+      <TextView android:id="@+id/comp_self_source_tag" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:text="" android:textSize="9sp"
+        android:textStyle="italic" android:layout_marginBottom="6dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+        <ImageView android:id="@+id/comp_self_icon" android:layout_width="56dp" android:layout_height="56dp"
+          android:src="@drawable/wc_00d" android:contentDescription="@string/weather_icon_desc"/>
+        <TextView android:id="@+id/comp_self_weather_desc" android:layout_width="0dp"
+          android:layout_height="wrap_content" android:layout_weight="1" android:text="—"
+          android:textSize="13sp" android:layout_marginStart="8dp" android:maxLines="2"/>
+      </LinearLayout>
+      <TableLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:stretchColumns="1">
+        <TableRow><TextView android:text="@string/comp_row_temp" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_self_temp" android:text="— / —°C" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/real_feel" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_self_feels" android:text="—°C" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/humidity_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_self_humidity" android:text="— %" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/pressure_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_self_pressure" android:text="— hPa" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/wind_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_self_wind" android:text="— m/s" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/precipitation_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_self_precip" android:text="@string/nopre" android:textSize="12sp"/></TableRow>
+      </TableLayout>
+    </LinearLayout>
+
+    <!-- Delta row -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="vertical" android:gravity="center_horizontal"
+      android:layout_marginTop="4dp" android:layout_marginBottom="4dp" android:padding="6dp">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/comp_delta_header" android:textStyle="bold"
+        android:textSize="11sp" android:gravity="center_horizontal" android:layout_marginBottom="4dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <TextView android:id="@+id/comp_delta_temp" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="ΔT —" android:textSize="11sp" android:gravity="center_horizontal" android:textColor="#FF5C8A"/>
+        <TextView android:id="@+id/comp_delta_humidity" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="ΔH —" android:textSize="11sp" android:gravity="center_horizontal" android:textColor="#4FC3F7"/>
+        <TextView android:id="@+id/comp_delta_pressure" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="ΔP —" android:textSize="11sp" android:gravity="center_horizontal" android:textColor="#81C784"/>
+        <TextView android:id="@+id/comp_delta_wind" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="ΔW —" android:textSize="11sp" android:gravity="center_horizontal" android:textColor="#FFB74D"/>
+        <TextView android:id="@+id/comp_delta_precip" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="ΔR —" android:textSize="11sp" android:gravity="center_horizontal" android:textColor="#CE93D8"/>
+      </LinearLayout>
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="▼" android:textSize="18sp" android:gravity="center_horizontal" android:layout_marginTop="2dp"/>
+    </LinearLayout>
+
+    <!-- Card: Map Center -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="vertical" android:background="@drawable/image_view_bg"
+      android:padding="8dp" android:layout_marginBottom="6dp">
+      <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/comp_col_center" android:textSize="13sp" android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+      <TextView android:id="@+id/comp_center_location" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="italic"/>
+      <TextView android:id="@+id/comp_center_coords" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:text="" android:textSize="9sp" android:alpha="0.7"/>
+      <TextView android:id="@+id/comp_center_source_tag" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:text="" android:textSize="9sp"
+        android:textStyle="italic" android:layout_marginBottom="6dp"/>
+      <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+        <ImageView android:id="@+id/comp_center_icon" android:layout_width="56dp" android:layout_height="56dp"
+          android:src="@drawable/wc_00d" android:contentDescription="@string/weather_icon_desc"/>
+        <TextView android:id="@+id/comp_center_weather_desc" android:layout_width="0dp"
+          android:layout_height="wrap_content" android:layout_weight="1" android:text="—"
+          android:textSize="13sp" android:layout_marginStart="8dp" android:maxLines="2"/>
+      </LinearLayout>
+      <TableLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:stretchColumns="1">
+        <TableRow><TextView android:text="@string/comp_row_temp" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_center_temp" android:text="— / —°C" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/real_feel" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_center_feels" android:text="—°C" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/humidity_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_center_humidity" android:text="— %" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/pressure_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_center_pressure" android:text="— hPa" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/wind_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_center_wind" android:text="— m/s" android:textSize="12sp"/></TableRow>
+        <TableRow><TextView android:text="@string/precipitation_label" android:textStyle="bold" android:paddingEnd="12dp" android:textSize="12sp"/><TextView android:id="@+id/comp_center_precip" android:text="@string/nopre" android:textSize="12sp"/></TableRow>
+      </TableLayout>
+    </LinearLayout>
 
   </LinearLayout>
-
 </androidx.core.widget.NestedScrollView>

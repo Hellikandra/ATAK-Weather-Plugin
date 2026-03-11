@@ -2,12 +2,14 @@
 <!--
     tab_map_overlay.xml — Tab 3: Map / Marker controls
 
-    Buttons:
-      1. Drop Weather Marker  — places WMO-icon marker at current position
-      2. Share over Network   — broadcasts CoT for the last-placed marker
-      3. Remove All Markers   — clears all wx_* markers
+    Feature: "Drop Weather Marker" is now a two-step flow:
+      1. User taps the button → panel collapses, a hint banner appears,
+         the button becomes "Cancel Pick" (red).
+      2. User taps a point on the live map → weather is fetched for that
+         point, the marker is placed, the panel reopens.
 
-    Status readout shows the last-placed marker's location and source.
+    The picking_hint banner (hidden by default) is shown by
+    WeatherDropDownReceiver while MapPointPicker is active.
 -->
 <ScrollView
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -33,17 +35,31 @@
     <TextView
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:text="@string/map_marker_description"
+      android:text="@string/map_marker_pick_description"
       android:textSize="11sp"
       android:layout_marginBottom="12dp"/>
 
-    <!-- ── Drop marker ───────────────────────────────────────────── -->
+    <!-- ── Pick-mode hint banner (hidden until pick is active) ───── -->
+    <TextView
+      android:id="@+id/textview_pick_hint"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_pick_hint"
+      android:textSize="11sp"
+      android:textStyle="bold"
+      android:textColor="#FFFFA500"
+      android:background="#33FFA500"
+      android:padding="8dp"
+      android:layout_marginBottom="8dp"
+      android:visibility="gone"/>
+
+    <!-- ── Drop marker (primary action) ─────────────────────────── -->
     <Button
       android:id="@+id/btn_drop_weather_marker"
       style="@style/darkButton"
       android:layout_width="match_parent"
       android:layout_height="48dp"
-      android:text="@string/map_btn_drop_marker"
+      android:text="@string/map_btn_pick_and_drop"
       android:textSize="12sp"
       android:layout_marginBottom="8dp"/>
 

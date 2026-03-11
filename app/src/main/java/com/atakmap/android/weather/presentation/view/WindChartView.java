@@ -1,11 +1,18 @@
 package com.atakmap.android.weather.presentation.view;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RectF;
+import android.graphics.Shader;
 import android.view.View;
+import android.view.animation.DecelerateInterpolator;
 
 import com.atakmap.android.weather.domain.model.WindProfileModel;
 
@@ -13,43 +20,92 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Canvas-drawn wind barb column for Tab 2 — Wind Profile.
+ * WindChartView — animated per-altitude wind profile display.
  *
- * Displays the 4 standard altitudes (10 m / 80 m / 120 m / 180 m) as a
- * vertical stack. Each row shows:
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Layout (one row per altitude tier, highest at top)
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- *   [altitude label] — [barb arrow pointing in wind direction] — [speed + temp]
+ *  ┌──────┬──────────────────────────────────────┬───────┬──────────────┐
+ *  │ 180m │ ████████░░░░ speed bar (gradient)    │  →    │ dir° temp°C │
+ *  │ 120m │ ████████████░░░░░░░░░░               │  ↗    │ dir° temp°C │
+ *  │  80m │ ████░░░░░░░░░░░░░░░░░░░░░░           │  ↑    │ dir° temp°C │
+ *  │  10m │ ██████████████████░░░░░░░░  G x.x    │  ↖    │ dir° temp°C │
+ *  └──────┴──────────────────────────────────────┴───────┴──────────────┘
  *
- * ── Barb drawing ─────────────────────────────────────────────────────────────
+ *  Speed bar — left-aligned, width ∝ speed.  Fill is a colour gradient:
+ *    dark→vivid using the same 7-tier palette as the 3D cones.
+ *    A faint vertical "max over full forecast" tick anchors each bar.
  *
- * The arrow shaft points FROM where the wind comes (meteorological convention).
- * Length is scaled logarithmically so 2 m/s and 40 m/s are both legible.
- * Speed categories drive the stroke width:
- *   < 5 m/s  — thin, grey
- *   5-15     — normal, cyan
- *  15-25     — thick, orange
- *  > 25      — thick, red
+ *  Arrow — points DOWNWIND (meteorological convention: arrow tip points
+ *    where wind is going, tail points where it comes from).
+ *    Arrow colour matches the speed tier.  Stroke weight scales with speed.
  *
- * ── No external libraries ─────────────────────────────────────────────────────
- * Pure android.graphics — no MPAndroidChart, no Lottie.
+ *  Numeric — direction°, temperature°C, gusts at 10 m.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Animation
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * When setSelectedHour() is called with a new hour, a 220 ms ValueAnimator
+ * (DecelerateInterpolator) interpolates PER ROW:
+ *
+ *   • Bar width   — linearly from prevSpeed  → targetSpeed
+ *   • Arrow angle — shortest-arc rotation   prevDir → targetDir
+ *   • Row alpha   — brief dip to 65% at mid-animation then back to 100%,
+ *                   creating a "refresh flash" that signals data has changed
+ *
+ * No external animation library required — pure android.animation.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Colour scale  (identical to WindEffectShape.speedColor())
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *   0– 2 m/s  grey    #969696   Calm
+ *   2– 5 m/s  sky     #64C8FF   Light
+ *   5–10 m/s  green   #00DC00   Moderate
+ *  10–15 m/s  amber   #FFD700   Fresh
+ *  15–20 m/s  orange  #FF6400   Strong
+ *  20–28 m/s  red     #FF0000   Near-gale
+ *    >28 m/s  magenta #B400B4   Storm
  */
 public class WindChartView extends View {
 
-    private static final float ROW_HEIGHT_DP = 56f;
-    private static final int   ALTITUDES     = 4;
+    // ── Layout constants ──────────────────────────────────────────────────────
+    private static final float ROW_HEIGHT_DP  = 58f;
+    private static final int   ALTITUDES      = 4;
+    private static final float MAX_SPEED_SCALE = 30f;   // m/s → full bar width
+    private static final int   ANIM_MS        = 220;
 
-    // Altitude labels in display order (top = highest = 180m)
+    // Altitude display order: highest row at top
     private static final int[]    ALT_M     = {180, 120, 80, 10};
-    private static final String[] ALT_LABEL = {"180 m", "120 m", " 80 m", " 10 m"};
+    private static final String[] ALT_LABEL = {"180m", "120m", " 80m", " 10m"};
 
+    // ── Data ──────────────────────────────────────────────────────────────────
     private List<WindProfileModel> profiles;
-    private int                    selectedHour = 0;
+    private int   currentHour = 0;
+
+    // Per-row animated state
+    private final float[] animSpeed  = new float[ALTITUDES];
+    private final float[] animDir    = new float[ALTITUDES];
+    private final float[] fromSpeed  = new float[ALTITUDES];
+    private final float[] fromDir    = new float[ALTITUDES];
+    private final float[] toSpeed    = new float[ALTITUDES];
+    private final float[] toDir      = new float[ALTITUDES];
+    private final float[] maxSpeed   = new float[ALTITUDES]; // max over entire dataset
+
+    // Flash alpha: 1.0 normally, dips to 0.65 at mid-animation
+    private float flashAlpha  = 1.0f;
+    private ValueAnimator animator;
 
     // ── Paints ────────────────────────────────────────────────────────────────
-    private final Paint labelPaint  = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint valuePaint  = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint divPaint    = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint[] speedPaints; // indexed by speed tier (0-3)
+    private final Paint labelPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint valuePaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint divPaint     = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint barBgPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint barFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint arrowPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint tickPaint    = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public WindChartView(Context context) {
         super(context);
@@ -61,153 +117,307 @@ public class WindChartView extends View {
 
         valuePaint.setColor(Color.parseColor("#CCCCCC"));
         valuePaint.setTextSize(10f * dp);
+        valuePaint.setTypeface(android.graphics.Typeface.MONOSPACE);
 
-        divPaint.setColor(Color.parseColor("#33FFFFFF"));
+        divPaint.setColor(Color.parseColor("#44FFFFFF"));
         divPaint.setStrokeWidth(1f);
 
-        speedPaints = new Paint[4];
-        int[] colors = {
-                Color.parseColor("#888888"),  // calm  < 5
-                Color.parseColor("#4FC3F7"),  // light 5-15
-                Color.parseColor("#FFB74D"),  // mod  15-25
-                Color.parseColor("#FF5C8A")   // strong >25
-        };
-        float[] widths = {1.5f, 2f, 2.5f, 3f};
-        for (int i = 0; i < 4; i++) {
-            speedPaints[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
-            speedPaints[i].setColor(colors[i]);
-            speedPaints[i].setStrokeWidth(widths[i] * dp);
-            speedPaints[i].setStyle(Paint.Style.STROKE);
-            speedPaints[i].setStrokeCap(Paint.Cap.ROUND);
-        }
+        barBgPaint.setColor(Color.parseColor("#22FFFFFF"));
+        barBgPaint.setStyle(Paint.Style.FILL);
+
+        barFillPaint.setStyle(Paint.Style.FILL);  // shader set per row in onDraw
+
+        arrowPaint.setStrokeCap(Paint.Cap.ROUND);
+        arrowPaint.setStyle(Paint.Style.STROKE);
+        arrowPaint.setAntiAlias(true);
+
+        tickPaint.setColor(Color.parseColor("#66FFFFFF"));
+        tickPaint.setStrokeWidth(1.5f * dp);
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // Public API
+    // ══════════════════════════════════════════════════════════════════════════
 
+    /** Bind a new dataset. Snaps to hour 0 without animation. */
     public void setProfiles(List<WindProfileModel> profiles) {
-        this.profiles = profiles;
+        this.profiles     = profiles;
+        this.currentHour  = 0;
+        computeMaxSpeeds();
+        snapToHour(0);
         invalidate();
     }
 
+    /**
+     * Animate to a new hour.  Called by WindProfileView when the seekbar moves.
+     * A no-op if the hour has not actually changed.
+     */
     public void setSelectedHour(int hour) {
-        this.selectedHour = hour;
-        invalidate();
+        if (profiles == null || profiles.isEmpty()) return;
+        int next = Math.min(hour, profiles.size() - 1);
+        if (next == currentHour) return;
+
+        // Capture from/to values per row
+        WindProfileModel prevFrame = getFrame(currentHour);
+        WindProfileModel nextFrame = getFrame(next);
+        for (int r = 0; r < ALTITUDES; r++) {
+            WindProfileModel.AltitudeEntry pe = findAlt(prevFrame, ALT_M[r]);
+            WindProfileModel.AltitudeEntry ne = findAlt(nextFrame, ALT_M[r]);
+            fromSpeed[r] = (pe != null) ? (float) pe.windSpeed     : animSpeed[r];
+            fromDir  [r] = (pe != null) ? (float) pe.windDirection : animDir  [r];
+            toSpeed  [r] = (ne != null) ? (float) ne.windSpeed     : fromSpeed[r];
+            toDir    [r] = (ne != null) ? (float) ne.windDirection : fromDir  [r];
+        }
+
+        currentHour = next;
+        startAnim();
     }
 
     @Override
     protected void onMeasure(int widthSpec, int heightSpec) {
-        float dp   = getContext().getResources().getDisplayMetrics().density;
-        int   h    = (int)(ROW_HEIGHT_DP * ALTITUDES * dp);
-        int   w    = resolveSize(getSuggestedMinimumWidth(), widthSpec);
-        setMeasuredDimension(w, resolveSize(h, heightSpec));
+        float dp = getContext().getResources().getDisplayMetrics().density;
+        int   h  = (int)(ROW_HEIGHT_DP * ALTITUDES * dp);
+        setMeasuredDimension(MeasureSpec.getSize(widthSpec), resolveSize(h, heightSpec));
     }
 
-    // ── Draw ───────────────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // Drawing
+    // ══════════════════════════════════════════════════════════════════════════
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (profiles == null || profiles.isEmpty()) return;
 
-        float dp     = getContext().getResources().getDisplayMetrics().density;
-        float rowH   = ROW_HEIGHT_DP * dp;
-        float width  = getWidth();
+        float dp   = getContext().getResources().getDisplayMetrics().density;
+        float rowH = ROW_HEIGHT_DP * dp;
+        float w    = getWidth();
 
-        WindProfileModel frame = getFrame();
+        // Fixed column positions
+        float labelW  = 40f * dp;             // altitude text
+        float barL    = labelW + 6f * dp;     // speed bar left edge
+        float barR    = w * 0.60f;            // speed bar right edge
+        float barW    = barR - barL;
+        float arrowCx = w * 0.72f;            // arrow centre x
+        float valX    = w * 0.79f;            // numeric readout x
+
+        WindProfileModel liveFrame = getFrame(currentHour);
 
         for (int r = 0; r < ALTITUDES; r++) {
             float top = r * rowH;
-            float mid = top + rowH / 2f;
+            float mid = top + rowH * 0.52f;
+            float barH   = rowH * 0.36f;
+            float barTop = mid - barH / 2f;
 
-            // Divider
-            if (r > 0) canvas.drawLine(0, top, width, top, divPaint);
+            // ── Row divider ──────────────────────────────────────────────
+            if (r > 0) canvas.drawLine(0, top, w, top, divPaint);
 
-            // Find matching altitude entry
-            WindProfileModel.AltitudeEntry entry = findAlt(frame, ALT_M[r]);
-            if (entry == null) continue;
+            float spd = animSpeed[r];
+            float dir = animDir  [r];
+            int   col = speedColor(spd);
 
-            // ── Altitude label (left) ─────────────────────────────────────
-            canvas.drawText(ALT_LABEL[r], 8f * dp, mid + 4f * dp, labelPaint);
+            int rowAlpha = (int)(flashAlpha * 255);
 
-            // ── Wind barb (centre) ────────────────────────────────────────
-            float barbCx = width * 0.42f;
-            float barbLen = (float)(20f * dp * (1 + Math.log1p(entry.windSpeed) / Math.log1p(30)));
-            drawBarb(canvas, barbCx, mid, barbLen, entry.windDirection, speedTier(entry.windSpeed), dp);
+            // ── Altitude label ───────────────────────────────────────────
+            labelPaint.setAlpha(rowAlpha);
+            canvas.drawText(ALT_LABEL[r], 4f * dp, mid + 4f * dp, labelPaint);
 
-            // ── Value readout (right) ─────────────────────────────────────
-            String val = String.format(Locale.getDefault(),
-                    "%.1fm/s %.0f° %.1f°C",
-                    entry.windSpeed, entry.windDirection, entry.temperature);
-            // Gusts at 10m
-            if (entry.altitudeMeters == 10 && entry.windGusts > 0) {
-                val += String.format(Locale.getDefault(), " G%.1f", entry.windGusts);
+            // ── Speed bar background ─────────────────────────────────────
+            barBgPaint.setAlpha((int)(0.13f * 255));
+            canvas.drawRoundRect(new RectF(barL, barTop, barR, barTop + barH),
+                    3f * dp, 3f * dp, barBgPaint);
+
+            // ── Speed bar fill (gradient: dark → vivid) ──────────────────
+            float fillFrac = Math.min(spd / MAX_SPEED_SCALE, 1.0f);
+            float fillW    = barW * fillFrac;
+            if (fillW > 2f) {
+                int colDark = scaleColor(col, 0.35f);
+                barFillPaint.setShader(new LinearGradient(
+                        barL, 0, barL + fillW, 0,
+                        setAlphaOn(colDark, rowAlpha),
+                        setAlphaOn(col,     rowAlpha),
+                        Shader.TileMode.CLAMP));
+                canvas.drawRoundRect(new RectF(barL, barTop, barL + fillW, barTop + barH),
+                        3f * dp, 3f * dp, barFillPaint);
             }
-            float textX = width * 0.56f;
-            canvas.drawText(val, textX, mid + 4f * dp, valuePaint);
+
+            // ── Max-speed reference tick ─────────────────────────────────
+            float maxFrac = Math.min(maxSpeed[r] / MAX_SPEED_SCALE, 1.0f);
+            float maxX    = barL + barW * maxFrac;
+            tickPaint.setAlpha(rowAlpha / 2);
+            canvas.drawLine(maxX, barTop - 2f * dp, maxX, barTop + barH + 2f * dp, tickPaint);
+
+            // ── Speed label inside bar ────────────────────────────────────
+            String spdTxt = String.format(Locale.US, "%.1fm/s", spd);
+            float  spdTw  = valuePaint.measureText(spdTxt);
+            float  spdX   = barL + fillW - spdTw - 4f * dp;
+            if (spdX > barL + 2f * dp) {
+                valuePaint.setAlpha(rowAlpha);
+                canvas.drawText(spdTxt, spdX, barTop + barH - 3f * dp, valuePaint);
+            }
+
+            // ── Directional arrow ────────────────────────────────────────
+            float arrowLen = rowH * 0.38f;
+            float thickness = dp * (1.5f + fillFrac * 2.0f); // thicker when faster
+            arrowPaint.setColor(setAlphaOn(col, rowAlpha));
+            arrowPaint.setStrokeWidth(thickness);
+            drawArrow(canvas, arrowCx, mid, arrowLen, dir, dp);
+
+            // ── Numeric readout ──────────────────────────────────────────
+            WindProfileModel.AltitudeEntry live = findAlt(liveFrame, ALT_M[r]);
+            if (live != null) {
+                valuePaint.setAlpha(rowAlpha);
+                canvas.drawText(
+                        String.format(Locale.US, "%.0f\u00b0 %.1f\u00b0C",
+                                live.windDirection, live.temperature),
+                        valX, mid, valuePaint);
+                if (live.altitudeMeters == 10 && live.windGusts > 0)
+                    canvas.drawText(
+                            String.format(Locale.US, "G%.1f", live.windGusts),
+                            valX, mid + 14f * dp, valuePaint);
+            }
         }
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // Arrow drawing
+    // ══════════════════════════════════════════════════════════════════════════
 
-    private WindProfileModel getFrame() {
-        int idx = Math.min(selectedHour, profiles.size() - 1);
-        return profiles.get(Math.max(0, idx));
+    /**
+     * Arrow points DOWNWIND (dirDeg + 180°).
+     * Tail at upwind side, tip with arrowhead at downwind side.
+     */
+    private void drawArrow(Canvas canvas, float cx, float cy,
+                           float len, float dirDeg, float dp) {
+        double toRad = Math.toRadians(dirDeg + 180.0);
+        float dx = (float) Math.sin(toRad);
+        float dy = (float)-Math.cos(toRad);
+
+        // Shaft
+        float x1 = cx - dx * len * 0.5f, y1 = cy - dy * len * 0.5f; // tail (upwind)
+        float x2 = cx + dx * len * 0.5f, y2 = cy + dy * len * 0.5f; // tip  (downwind)
+        canvas.drawLine(x1, y1, x2, y2, arrowPaint);
+
+        // Arrowhead at tip
+        float ah = 7f * dp;
+        Path head = new Path();
+        double lRad = Math.toRadians(dirDeg + 180.0 + 145.0);
+        double rRad = Math.toRadians(dirDeg + 180.0 - 145.0);
+        head.moveTo(x2, y2);
+        head.lineTo(x2 + (float) Math.sin(lRad) * ah,
+                y2 - (float) Math.cos(lRad) * ah);
+        head.moveTo(x2, y2);
+        head.lineTo(x2 + (float) Math.sin(rRad) * ah,
+                y2 - (float) Math.cos(rRad) * ah);
+        canvas.drawPath(head, arrowPaint);
     }
 
-    private WindProfileModel.AltitudeEntry findAlt(WindProfileModel frame, int altM) {
+    // ══════════════════════════════════════════════════════════════════════════
+    // Animation
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void startAnim() {
+        if (animator != null && animator.isRunning()) animator.cancel();
+        animator = ValueAnimator.ofFloat(0f, 1f);
+        animator.setDuration(ANIM_MS);
+        animator.setInterpolator(new DecelerateInterpolator());
+
+        animator.addUpdateListener(anim -> {
+            float f = (float) anim.getAnimatedValue();
+
+            // Flash: dip to 0.65 at midpoint, recover to 1.0
+            flashAlpha = f < 0.5f
+                    ? 1.0f - 0.35f * (f / 0.5f)
+                    : 0.65f + 0.35f * ((f - 0.5f) / 0.5f);
+
+            for (int r = 0; r < ALTITUDES; r++) {
+                animSpeed[r] = fromSpeed[r] + f * (toSpeed[r] - fromSpeed[r]);
+
+                // Shortest-arc direction interpolation
+                float delta = toDir[r] - fromDir[r];
+                if (delta >  180f) delta -= 360f;
+                if (delta < -180f) delta += 360f;
+                animDir[r] = fromDir[r] + f * delta;
+            }
+            invalidate();
+        });
+
+        animator.addListener(new AnimatorListenerAdapter() {
+            @Override public void onAnimationEnd(Animator a) {
+                // Snap to exact targets to avoid floating-point drift
+                for (int r = 0; r < ALTITUDES; r++) {
+                    animSpeed[r] = toSpeed[r];
+                    animDir  [r] = toDir  [r];
+                }
+                flashAlpha = 1.0f;
+                invalidate();
+            }
+        });
+
+        animator.start();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Helpers
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void snapToHour(int hour) {
+        WindProfileModel frame = getFrame(hour);
+        for (int r = 0; r < ALTITUDES; r++) {
+            WindProfileModel.AltitudeEntry e = findAlt(frame, ALT_M[r]);
+            float s = (e != null) ? (float) e.windSpeed     : 0f;
+            float d = (e != null) ? (float) e.windDirection : 0f;
+            animSpeed[r] = fromSpeed[r] = toSpeed[r] = s;
+            animDir  [r] = fromDir  [r] = toDir  [r] = d;
+        }
+    }
+
+    private void computeMaxSpeeds() {
+        for (int r = 0; r < ALTITUDES; r++) maxSpeed[r] = 0f;
+        if (profiles == null) return;
+        for (WindProfileModel frame : profiles)
+            for (int r = 0; r < ALTITUDES; r++) {
+                WindProfileModel.AltitudeEntry e = findAlt(frame, ALT_M[r]);
+                if (e != null && e.windSpeed > maxSpeed[r])
+                    maxSpeed[r] = (float) e.windSpeed;
+            }
+    }
+
+    private WindProfileModel getFrame(int hour) {
+        if (profiles == null || profiles.isEmpty()) return null;
+        return profiles.get(Math.max(0, Math.min(hour, profiles.size() - 1)));
+    }
+
+    private static WindProfileModel.AltitudeEntry findAlt(WindProfileModel frame, int altM) {
         if (frame == null) return null;
-        for (WindProfileModel.AltitudeEntry e : frame.getAltitudes()) {
+        for (WindProfileModel.AltitudeEntry e : frame.getAltitudes())
             if (e.altitudeMeters == altM) return e;
-        }
         return null;
     }
 
-    /**
-     * Draw a wind barb arrow:
-     *  - shaft from centre point, pointing INTO the wind direction
-     *  - arrowhead at the downwind end
-     *
-     * @param cx        centre x
-     * @param cy        centre y
-     * @param len       total shaft length in px
-     * @param dirDeg    meteorological wind direction (from)
-     * @param tier      speed tier (0-3) → paint selection
-     */
-    private void drawBarb(Canvas canvas, float cx, float cy,
-                          float len, double dirDeg, int tier, float dp) {
-        Paint p = speedPaints[tier];
+    // ── Colour utilities ──────────────────────────────────────────────────────
 
-        // Meteorological: direction is where wind comes FROM.
-        // Arrow points upwind (into the direction the wind comes from).
-        double radFrom = Math.toRadians(dirDeg);  // origin direction
-        double radTo   = Math.toRadians(dirDeg + 180); // destination (downwind)
-
-        float hx = (float)(Math.sin(radFrom) * len / 2f);
-        float hy = (float)(-Math.cos(radFrom) * len / 2f);
-        float tx = (float)(Math.sin(radTo)   * len / 2f);
-        float ty = (float)(-Math.cos(radTo)  * len / 2f);
-
-        // Shaft
-        canvas.drawLine(cx + hx, cy + hy, cx + tx, cy + ty, p);
-
-        // Arrowhead at downwind end (tx, ty = tail)
-        float ahLen = 6f * dp;
-        double leftRad  = Math.toRadians(dirDeg + 150);
-        double rightRad = Math.toRadians(dirDeg - 150);
-        Path arrow = new Path();
-        arrow.moveTo(cx + tx, cy + ty);
-        arrow.lineTo(cx + tx + (float)(Math.sin(leftRad)  * ahLen),
-                cy + ty + (float)(-Math.cos(leftRad)  * ahLen));
-        arrow.moveTo(cx + tx, cy + ty);
-        arrow.lineTo(cx + tx + (float)(Math.sin(rightRad) * ahLen),
-                cy + ty + (float)(-Math.cos(rightRad) * ahLen));
-        canvas.drawPath(arrow, p);
+    /** Same palette as WindEffectShape — must stay in sync. */
+    static int speedColor(double ms) {
+        if (ms <  2) return Color.parseColor("#969696");
+        if (ms <  5) return Color.parseColor("#64C8FF");
+        if (ms < 10) return Color.parseColor("#00DC00");
+        if (ms < 15) return Color.parseColor("#FFD700");
+        if (ms < 20) return Color.parseColor("#FF6400");
+        if (ms < 28) return Color.parseColor("#FF0000");
+        return               Color.parseColor("#B400B4");
     }
 
-    private static int speedTier(double ms) {
-        if (ms < 5)  return 0;
-        if (ms < 15) return 1;
-        if (ms < 25) return 2;
-        return 3;
+    /** Return colour with each RGB channel scaled by factor (darkens for gradient start). */
+    private static int scaleColor(int color, float factor) {
+        return Color.rgb(
+                (int)(Color.red  (color) * factor),
+                (int)(Color.green(color) * factor),
+                (int)(Color.blue (color) * factor));
+    }
+
+    /** Return colour with alpha replaced (does not affect RGB). */
+    private static int setAlphaOn(int color, int alpha) {
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
     }
 }

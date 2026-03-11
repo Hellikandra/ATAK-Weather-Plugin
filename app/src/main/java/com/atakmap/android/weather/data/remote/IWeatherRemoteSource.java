@@ -30,6 +30,17 @@ public interface IWeatherRemoteSource {
     String getSourceId();
 
     /**
+     * Human-readable name shown in the CONF tab Spinner.
+     * Default implementation title-cases the source ID.
+     * Override in concrete sources for a friendlier label.
+     */
+    default String getDisplayName() {
+        String id = getSourceId();
+        if (id == null || id.isEmpty()) return "Unknown";
+        return id.substring(0,1).toUpperCase() + id.substring(1).replace("-"," ");
+    }
+
+    /**
      * Returns all WeatherParameters this source can provide.
      * ParametersView calls this to build its section lists, so a different
      * source (e.g. OpenWeatherMap) can declare a different parameter set.

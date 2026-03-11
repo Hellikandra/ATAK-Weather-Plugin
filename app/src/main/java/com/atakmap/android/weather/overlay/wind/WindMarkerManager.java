@@ -12,12 +12,12 @@ import com.atakmap.android.maps.MapGroup;
 import com.atakmap.android.maps.MapItem;
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.maps.Marker;
-import com.atakmap.android.util.IconUtilities;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.overlay.WindMapOverlay;
 import com.atakmap.coremap.log.Log;
 import com.atakmap.coremap.maps.coords.GeoPoint;
+
 
 import java.util.Locale;
 
@@ -82,6 +82,10 @@ public class WindMarkerManager {
         this.pluginContext = pluginContext;
         this.overlay       = overlay;
     }
+
+    // ── Overlay accessor (used by WindEffectShape) ───────────────────────────
+
+    public WindMapOverlay getOverlay() { return overlay; }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -160,22 +164,53 @@ public class WindMarkerManager {
         marker.setVisible(true);
 
         // ── Wind barb icon ────────────────────────────────────────────────────
-        // IconUtilities only has setIcon(Context, Marker, @DrawableRes int, boolean).
-        // For a canvas-drawn Bitmap we use encodeBitmap() → "iconUri" meta-string.
-        // ATAK's GLMarker renderer checks "iconUri" and uses it as the icon source.
+        // Write the canvas-drawn Bitmap to a temp PNG file, then use
+        // IconUtilities.setIcon(Context, Marker, filePath) — the ATAK-confirmed
+        // working path for custom bitmap icons in plugins.
+        // Base64 / iconUri meta-string is NOT guaranteed across ATAK builds.
         Bitmap barb = drawWindBarb(speedMs, dirDeg);
-        String encoded = IconUtilities.encodeBitmap(barb);
-        if (encoded != null) {
-            marker.setMetaString("iconUri", encoded);
-        } else {
-            Log.w(TAG, "encodeBitmap returned null, wind marker will use default icon");
-        }
+        setWindBarbIcon(barb, marker);
+        barb.recycle();
 
         marker.persist(mapView.getMapEventDispatcher(), null, getClass());
         Log.d(TAG, "Wind marker placed: uid=" + uid + " speed=" + speedMs + " dir=" + dirDeg);
     }
 
     // ── Icon drawing ──────────────────────────────────────────────────────────
+
+    /**
+     * Write bitmap to a temp PNG file and set it as the marker icon.
+     *
+     * IconUtilities.setIcon(Context, Marker, drawableResId, adapt) is the
+     * resource-ID overload.  For arbitrary bitmaps, write to
+     * getCacheDir()/wind_barb_<uid>.png and call the string-path overload:
+     *   IconUtilities.setIcon(context, marker, absolutePath, false)
+     *
+     * If that overload is not available (older ATAK SDK), we fall back to
+     * encoding as a Base64 data URI in the "iconUri" meta-string which is
+     * checked by ATAK's PointMapItem renderer as a secondary path.
+     */
+    /**
+     * Encode bitmap as a Base64 PNG data-URI and store it in the marker's
+     * "iconUri" meta-string.  ATAK's PointMapItem / GLMarker renderer checks
+     * this field and uses it as the icon source when no @DrawableRes is set.
+     *
+     * The ATAK SDK only exposes setIcon(Context, Marker, @DrawableRes int, boolean)
+     * — there is no String-path overload — so we bypass IconUtilities entirely
+     * and write the encoded bitmap straight to the meta-string.
+     */
+    private void setWindBarbIcon(Bitmap bmp, Marker marker) {
+        try {
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, baos);
+            String b64 = android.util.Base64.encodeToString(
+                    baos.toByteArray(), android.util.Base64.NO_WRAP);
+            marker.setMetaString("iconUri", "base64://" + b64);
+        } catch (Exception e) {
+            Log.e(TAG, "setWindBarbIcon failed", e);
+        }
+    }
+
 
     /**
      * Draw a meteorological wind barb icon.

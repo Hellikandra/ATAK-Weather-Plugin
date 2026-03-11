@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    main_layout.xml
+    main_layout.xml — 3-tab layout
 
-    IMPORTANT — Android <include> ID override rule:
-    To override the root view's android:id via <include>, you MUST also
-    specify android:layout_width and android:layout_height on the <include>
-    tag, otherwise the override is silently ignored and TabHost cannot find
-    the view to show/hide, causing all tabs to appear stacked at once.
+    Tab 1 "WTHR"  subTabWidget1  tab_weather.xml     (FCST + CHRT merged)
+    Tab 2 "WIND"  subTabWidget2  tab_wind_profile.xml (WIND + CMP merged)
+    Tab 3 "CONF"  subTabWidget3  tab_config.xml       (MAP + PRM merged)
 
-    Tab order in receiver initTabs() must match order here:
-      subTabWidget1 = Forecast
-      subTabWidget2 = Wind
-      subTabWidget3 = Overlay
+    initTabs() in WeatherDropDownReceiver now registers only 3 TabSpecs.
 -->
 <LinearLayout
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -29,16 +24,11 @@
           android:layout_height="match_parent"
           android:orientation="vertical">
 
-            <!-- Tab strip: MUST be android:id/tabs -->
             <TabWidget
               android:id="@android:id/tabs"
               android:layout_width="match_parent"
               android:layout_height="wrap_content"/>
 
-            <!-- Content area: MUST be android:id/tabcontent
-                 TabHost sets all direct children GONE except the active tab.
-                 The android:id on each <include> overrides the root view ID
-                 ONLY when layout_width + layout_height are also specified. -->
             <FrameLayout
               android:id="@android:id/tabcontent"
               android:layout_width="match_parent"
@@ -47,7 +37,7 @@
 
                 <include
                   android:id="@+id/subTabWidget1"
-                  layout="@layout/tab_current_weather"
+                  layout="@layout/tab_weather"
                   android:layout_width="match_parent"
                   android:layout_height="match_parent"/>
 
@@ -59,25 +49,7 @@
 
                 <include
                   android:id="@+id/subTabWidget3"
-                  layout="@layout/tab_map_overlay"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
-
-                <include
-                  android:id="@+id/subTabWidget4"
-                  layout="@layout/tab_parameters"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
-
-                <include
-                  android:id="@+id/subTabWidget5"
-                  layout="@layout/tab_charts"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
-
-                <include
-                  android:id="@+id/subTabWidget6"
-                  layout="@layout/tab_comparison"
+                  layout="@layout/tab_config"
                   android:layout_width="match_parent"
                   android:layout_height="match_parent"/>
 
