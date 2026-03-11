@@ -54,3 +54,4 @@
 
 -dontwarn androidx.**
 
+-repackageclasses atakplugin.weathertool

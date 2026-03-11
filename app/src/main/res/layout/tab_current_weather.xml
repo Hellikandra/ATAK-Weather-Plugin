@@ -43,7 +43,38 @@
       android:layout_height="wrap_content"
       android:text="@string/city_town"
       android:textSize="12sp"
-      android:layout_marginBottom="6dp"/>
+      android:textStyle="bold"/>
+
+    <!-- coordinates: "50.6971° N,  5.2583° E" -->
+    <TextView
+      android:id="@+id/textview_coords"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="10sp"
+      android:alpha="0.7"/>
+
+    <!-- source tag: "Self" or "Map centre" -->
+    <TextView
+      android:id="@+id/textview_source_label"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="10sp"
+      android:textStyle="italic"
+      android:visibility="gone"/>
+
+    <!-- Sprint 3: cache badge — "Cached HH:MM" or "Cached HH:MM ⚠" -->
+    <TextView
+      android:id="@+id/textview_cache_badge"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="9sp"
+      android:textColor="#FFCC44"
+      android:textStyle="italic"
+      android:layout_marginBottom="6dp"
+      android:visibility="gone"/>
 
     <!-- ── Icon + temperature row ─────────────────────────────────── -->
     <LinearLayout
@@ -169,6 +200,17 @@
       android:text="@string/hourly_scrubber_label"
       android:textSize="11sp"
       android:layout_marginTop="10dp"/>
+
+    <!-- Sprint 6: "▼ Now" marker above the seekbar left edge -->
+    <TextView
+      android:id="@+id/textview_now_tick"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/seekbar_now_tick"
+      android:textSize="9sp"
+      android:textColor="#FFFFFFFF"
+      android:paddingStart="2dp"
+      android:layout_marginBottom="0dp"/>
 
     <SeekBar
       android:id="@+id/seekBar"

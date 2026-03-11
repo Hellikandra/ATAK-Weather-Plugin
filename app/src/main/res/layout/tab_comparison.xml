@@ -68,6 +68,22 @@
         android:layout_height="wrap_content"
         android:text="—"
         android:textSize="10sp"
+        android:textStyle="italic"/>
+
+      <TextView
+        android:id="@+id/comp_self_coords"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="9sp"
+        android:alpha="0.7"/>
+
+      <TextView
+        android:id="@+id/comp_self_source_tag"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="9sp"
         android:textStyle="italic"
         android:layout_marginBottom="6dp"/>
 
@@ -234,6 +250,22 @@
         android:layout_height="wrap_content"
         android:text="—"
         android:textSize="10sp"
+        android:textStyle="italic"/>
+
+      <TextView
+        android:id="@+id/comp_center_coords"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="9sp"
+        android:alpha="0.7"/>
+
+      <TextView
+        android:id="@+id/comp_center_source_tag"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="9sp"
         android:textStyle="italic"
         android:layout_marginBottom="6dp"/>
 

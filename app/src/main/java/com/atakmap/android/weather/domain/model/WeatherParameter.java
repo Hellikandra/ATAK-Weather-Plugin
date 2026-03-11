@@ -1,13 +1,21 @@
 package com.atakmap.android.weather.domain.model;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Set;
+
 /**
  * Exhaustive enumeration of all Open-Meteo API parameter variables.
  *
- * Each constant carries:
- *  - apiKey       : the exact string used in the API URL query param
- *  - displayName  : human-readable label shown in the Parameters tab
- *  - category     : which request group it belongs to
- *  - defaultOn    : whether it is selected by default
+ * ── Sprint 2 additions ────────────────────────────────────────────────────────
+ *
+ * MINIMUM_REQUIRED_HOURLY / DAILY / CURRENT
+ *   These sets define the fields that the JSON parser in OpenMeteoSource
+ *   unconditionally reads. If the user deselects them in Tab 4, the
+ *   URL builder silently re-adds them so the parser never crashes with a
+ *   missing-key JSONException. The user sees the params unchecked in the UI;
+ *   they just cannot actually remove them from the request.
  */
 public enum WeatherParameter {
 
@@ -17,7 +25,7 @@ public enum WeatherParameter {
     HOURLY_DEWPOINT_2M          ("dewpoint_2m",                  "Dewpoint (2 m)",                       Category.HOURLY, false),
     HOURLY_APPARENT_TEMPERATURE ("apparent_temperature",         "Apparent Temperature",                 Category.HOURLY, true),
     HOURLY_PRECIP_PROBABILITY   ("precipitation_probability",    "Precipitation Probability",            Category.HOURLY, true),
-    HOURLY_PRECIPITATION        ("precipitation",               "Precipitation (rain+showers+snow)",    Category.HOURLY, false),
+    HOURLY_PRECIPITATION        ("precipitation",                "Precipitation (rain+showers+snow)",    Category.HOURLY, false),
     HOURLY_RAIN                 ("rain",                         "Rain",                                 Category.HOURLY, false),
     HOURLY_SHOWERS              ("showers",                      "Showers",                              Category.HOURLY, false),
     HOURLY_SNOWFALL             ("snowfall",                     "Snowfall",                             Category.HOURLY, false),
@@ -31,7 +39,7 @@ public enum WeatherParameter {
     HOURLY_CLOUD_COVER_HIGH     ("cloudcover_high",              "Cloud Cover High",                     Category.HOURLY, false),
     HOURLY_VISIBILITY           ("visibility",                   "Visibility",                           Category.HOURLY, true),
     HOURLY_EVAPOTRANSPIRATION   ("evapotranspiration",           "Evapotranspiration",                   Category.HOURLY, false),
-    HOURLY_ET0                  ("et0_fao_evapotranspiration",   "Reference ET₀",                        Category.HOURLY, false),
+    HOURLY_ET0                  ("et0_fao_evapotranspiration",   "Reference ET\u2080",                   Category.HOURLY, false),
     HOURLY_VPD                  ("vapour_pressure_deficit",      "Vapour Pressure Deficit",              Category.HOURLY, false),
     HOURLY_WINDSPEED_10M        ("windspeed_10m",                "Wind Speed (10 m)",                    Category.HOURLY, true),
     HOURLY_WINDSPEED_80M        ("windspeed_80m",                "Wind Speed (80 m)",                    Category.HOURLY, false),
@@ -77,14 +85,14 @@ public enum WeatherParameter {
     DAILY_WINDGUSTS_10M_MAX     ("windgusts_10m_max",            "Maximum Wind Gusts (10 m)",            Category.DAILY, false),
     DAILY_WINDDIRECTION_10M_DOM ("winddirection_10m_dominant",   "Dominant Wind Direction (10 m)",       Category.DAILY, false),
     DAILY_SHORTWAVE_RADIATION   ("shortwave_radiation_sum",      "Shortwave Radiation Sum",              Category.DAILY, false),
-    DAILY_ET0                   ("et0_fao_evapotranspiration",   "Reference ET₀",                        Category.DAILY, false),
+    DAILY_ET0                   ("et0_fao_evapotranspiration",   "Reference ET\u2080",                   Category.DAILY, false),
 
     // ── CURRENT ──────────────────────────────────────────────────────────────
     CURRENT_TEMPERATURE_2M      ("temperature_2m",               "Temperature (2 m)",                    Category.CURRENT, true),
     CURRENT_RELATIVE_HUMIDITY   ("relativehumidity_2m",          "Relative Humidity (2 m)",              Category.CURRENT, true),
     CURRENT_APPARENT_TEMP       ("apparent_temperature",         "Apparent Temperature",                 Category.CURRENT, true),
     CURRENT_IS_DAY              ("is_day",                       "Is Day or Night",                      Category.CURRENT, false),
-    CURRENT_PRECIPITATION       ("precipitation",               "Precipitation",                        Category.CURRENT, false),
+    CURRENT_PRECIPITATION       ("precipitation",                "Precipitation",                        Category.CURRENT, false),
     CURRENT_RAIN                ("rain",                         "Rain",                                 Category.CURRENT, false),
     CURRENT_SHOWERS             ("showers",                      "Showers",                              Category.CURRENT, false),
     CURRENT_SNOWFALL            ("snowfall",                     "Snowfall",                             Category.CURRENT, false),
@@ -111,4 +119,46 @@ public enum WeatherParameter {
         this.category    = category;
         this.defaultOn   = defaultOn;
     }
+
+    // ── Minimum required sets ─────────────────────────────────────────────────
+    //
+    // These are the fields that OpenMeteoSource's JSON parser unconditionally
+    // reads. They are always added to the URL even if deselected in Tab 4.
+
+    /** Hourly fields the parser always needs. */
+    public static final Set<WeatherParameter> MINIMUM_REQUIRED_HOURLY =
+            Collections.unmodifiableSet(EnumSet.of(
+                    HOURLY_TEMPERATURE_2M,
+                    HOURLY_APPARENT_TEMPERATURE,
+                    HOURLY_RELATIVE_HUMIDITY_2M,
+                    HOURLY_SURFACE_PRESSURE,
+                    HOURLY_VISIBILITY,
+                    HOURLY_WINDSPEED_10M,
+                    HOURLY_WINDDIRECTION_10M,
+                    HOURLY_PRECIP_PROBABILITY,
+                    HOURLY_WEATHERCODE
+            ));
+
+    /** Daily fields the parser always needs. */
+    public static final Set<WeatherParameter> MINIMUM_REQUIRED_DAILY =
+            Collections.unmodifiableSet(EnumSet.of(
+                    DAILY_WEATHERCODE,
+                    DAILY_TEMP_MAX,
+                    DAILY_TEMP_MIN,
+                    DAILY_PRECIPITATION_SUM,
+                    DAILY_PRECIPITATION_HOURS,
+                    DAILY_PRECIP_PROB_MAX
+            ));
+
+    /** Current fields the parser always needs. */
+    public static final Set<WeatherParameter> MINIMUM_REQUIRED_CURRENT =
+            Collections.unmodifiableSet(EnumSet.of(
+                    CURRENT_TEMPERATURE_2M,
+                    CURRENT_APPARENT_TEMP,
+                    CURRENT_RELATIVE_HUMIDITY,
+                    CURRENT_SURFACE_PRESSURE,
+                    CURRENT_WINDSPEED_10M,
+                    CURRENT_WINDDIRECTION_10M,
+                    CURRENT_WEATHERCODE
+            ));
 }

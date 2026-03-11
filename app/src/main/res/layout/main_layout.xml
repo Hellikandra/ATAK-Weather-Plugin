@@ -63,6 +63,24 @@
                   android:layout_width="match_parent"
                   android:layout_height="match_parent"/>
 
+                <include
+                  android:id="@+id/subTabWidget4"
+                  layout="@layout/tab_parameters"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"/>
+
+                <include
+                  android:id="@+id/subTabWidget5"
+                  layout="@layout/tab_charts"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"/>
+
+                <include
+                  android:id="@+id/subTabWidget6"
+                  layout="@layout/tab_comparison"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"/>
+
             </FrameLayout>
         </LinearLayout>
     </TabHost>

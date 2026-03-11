@@ -1,6 +1,8 @@
 package com.atakmap.android.weather.data.geocoding;
 
 import com.atakmap.android.weather.data.remote.HttpClient;
+import com.atakmap.android.weather.domain.model.LocationSnapshot;
+import com.atakmap.android.weather.domain.model.LocationSource;
 import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
 import com.atakmap.android.weather.util.CoordFormatter;
 import com.atakmap.coremap.log.Log;
@@ -10,28 +12,32 @@ import org.json.JSONObject;
 /**
  * IGeocodingRepository backed by Nominatim (OpenStreetMap).
  *
- * Correct URL format (jsonv2):
- *   https://nominatim.openstreetmap.org/reverse
- *     ?lat=50.697&lon=5.258&zoom=18&format=jsonv2
- *
- * Response key used: "display_name"
- * Example: "17, Avenue Guillaume Joachim, Waremme, Liège, Wallonia, 4300, Belgium"
- *
- * Short label extracted from address.town / address.city as a prefix.
+ * Sprint 1 changes:
+ *  - reverseGeocode now accepts a LocationSource and returns a LocationSnapshot
+ *  - onError fallback: instead of propagating the error, builds a snapshot
+ *    with a coords-only displayName so the UI always shows something meaningful
+ *    ("50.6971, 5.2583") rather than "Unknown location"
  */
 public class NominatimGeocodingSource implements IGeocodingRepository {
 
     private static final String TAG = "NominatimGeocoding";
 
-    // zoom=18 → building-level detail (most precise)
-    // format=jsonv2 → stable v2 response format
+    // zoom=18 → building-level detail; format=jsonv2 → stable response
     private static final String BASE_URL =
-            "https://nominatim.openstreetmap.org/reverse" +
-                    "?format=jsonv2&zoom=18";
+            "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18";
 
     @Override
     public void reverseGeocode(double latitude, double longitude,
+                               LocationSource source,
                                Callback callback) {
+
+        // Build fallback snapshot immediately — used if network/parse fails
+        // so the UI never shows "Unknown location"
+        final LocationSnapshot fallback = new LocationSnapshot(
+                latitude, longitude,
+                LocationSnapshot.coordsFallback(latitude, longitude),
+                source);
+
         String url = BASE_URL
                 + "&lat=" + CoordFormatter.format(latitude)
                 + "&lon=" + CoordFormatter.format(longitude);
@@ -42,29 +48,33 @@ public class NominatimGeocodingSource implements IGeocodingRepository {
                 try {
                     JSONObject json = new JSONObject(body);
 
-                    // Full display name e.g.
-                    // "17, Avenue Guillaume Joachim, Waremme, Liège, Wallonia, 4300, Belgium"
                     String displayName = json.optString("display_name", "");
+                    String shortName   = extractShortName(json);
 
-                    // Short label: town/city for the header TextView
-                    String shortName = extractShortName(json);
-
-                    // Combine: "Waremme — 17, Avenue Guillaume Joachim, …"
+                    // "Waremme — 17, Avenue Guillaume Joachim, …"
                     String label = shortName.isEmpty()
                             ? displayName
                             : shortName + " — " + displayName;
 
-                    callback.onSuccess(label);
+                    // If Nominatim returned nothing useful, fall back to coords
+                    if (label.trim().isEmpty()) {
+                        label = LocationSnapshot.coordsFallback(latitude, longitude);
+                    }
+
+                    callback.onSuccess(new LocationSnapshot(latitude, longitude, label, source));
 
                 } catch (Exception e) {
                     Log.e(TAG, "Geocoding parse error", e);
-                    callback.onError("Parse error: " + e.getMessage());
+                    // Fallback: coords string — never surface "Unknown location"
+                    callback.onSuccess(fallback);
                 }
             }
 
             @Override
             public void onFailure(String error) {
-                callback.onError(error);
+                Log.w(TAG, "Geocoding network failure: " + error);
+                // Fallback: coords string — still a success from the UI perspective
+                callback.onSuccess(fallback);
             }
         });
     }
@@ -75,7 +85,6 @@ public class NominatimGeocodingSource implements IGeocodingRepository {
         try {
             JSONObject address = json.optJSONObject("address");
             if (address == null) return "";
-            // Priority order for a readable short label
             String[] keys = { "town", "city", "city_district", "municipality", "county", "state" };
             for (String key : keys) {
                 String val = address.optString(key, "");

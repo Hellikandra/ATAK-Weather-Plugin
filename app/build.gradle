@@ -59,13 +59,21 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:7.4.2'
+        classpath 'com.android.tools.build:gradle:8.13.0'
         if(isDevKitEnabled()) {
             classpath "com.atakmap.gradle:atak-gradle-takdev:${takdevVersion}"
         } else {
             classpath files(takdevPlugin)
         }
     }
+}
+
+plugins {
+    id("com.android.application")
+}
+apply {
+    plugin("atak-takdev-plugin")
+    from("../gradle/typst.gradle")
 }
 
 allprojects {
@@ -80,11 +88,7 @@ allprojects {
     }
 }
 
-apply plugin: 'com.android.application'
-apply plugin: 'atak-takdev-plugin'
-
-
-def supportedFlavors = 
+def supportedFlavors =
 [
     [ name : 'civ', default: true ],
     [ name : 'mil' /** example: true **/],
@@ -109,19 +113,19 @@ def supportedFlavors =
 ]
 
 android {
-    compileSdkVersion 33
-    buildToolsVersion "33.0.0"
+    compileSdkVersion 34
+    namespace "com.atakmap.android.weather.plugin"
 
-
-    // this is required and should not be removed otherwise the TAK 
-    // innersigning check will fail and the plugin will not load
-    bundle {
-        storeArchive {
-            enable = false
-        }
+    buildFeatures {
+        buildConfig = true
     }
 
-    // this is required and should not be removed otherwise the 
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // this is required and should not be removed otherwise the
     // plugin will not be able to use native libraries
     packagingOptions {
         jniLibs {
@@ -206,8 +210,8 @@ android {
     sourceSets {
         main {
 
-            // It is strongly encouraged that plugin developers do not modify the archiveBaseName, version code logic and version 
-            // name logic to provide for consistency within the community.   
+            // It is strongly encouraged that plugin developers do not modify the archiveBaseName, version code logic and version
+            // name logic to provide for consistency within the community.
             setProperty("archivesBaseName", "ATAK-Plugin-" + rootProject.name + "-" + PLUGIN_VERSION + "-" + getVersionName() + "-" + ATAK_VERSION)
             defaultConfig.versionCode = getVersionCode()
             defaultConfig.versionName = PLUGIN_VERSION + " (" + getVersionName() + ") - [" + ATAK_VERSION + "]"
@@ -230,25 +234,31 @@ android {
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 33
+        targetSdkVersion 34
 
         def runTasks = gradle.startParameter.taskNames
         if(runTasks.toString().contains('bundle')) {
             ndk {
                 abiFilters "armeabi-v7a", "arm64-v8a"
             }
-        } else { 
+        } else {
             ndk {
                 abiFilters "armeabi-v7a", "arm64-v8a", "x86"
             }
         }
+
+         javaCompileOptions {
+             annotationProcessorOptions {
+                 arguments += ["room.schemaLocation": "$projectDir/schemas"]
+             }
+         }
     }
 }
 
 afterEvaluate {
     project.file('proguard-gradle-repackage.txt').text = "-repackageclasses atakplugin.${rootProject.getName()}"
 
-    try { 
+    try {
         tasks.named("compile" + getCommandFlavor() + "ReleaseKotlin") {
             println "modifying " + getCommandFlavor().toLowerCase() + " kotlin compile options to include: -Xsam-conversions=class"
             kotlinOptions {
@@ -283,5 +293,25 @@ def getCommandFlavor() {
 dependencies {
     implementation fileTree(dir: 'libs', include: '*.jar')
     // implementation files("${rootDir}/../../atak-javadoc.jar")
+
+    // ── AndroidX Lifecycle (ViewModel + LiveData) ─────────────────────────
+    // Required since Sprint 1 (ViewModels, LiveData, observeForever)
+    def lifecycle_version = "2.6.2"
+    implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
+
+    // ── Room (Sprint 3 — local weather cache) ─────────────────────────────
+    // WeatherDatabase, WeatherDao, @Entity classes
+    def room_version = "2.6.1"
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
+    // Optional: Room KTX helpers (not required — we use Java callbacks)
+    // implementation "androidx.room:room-ktx:$room_version"
+
+    // ── No additional dependencies for Sprints 2, 4, 5, 6 ───────────────
+    // Sprint 2: WeatherParameterPreferences uses SharedPreferences (built-in)
+    // Sprint 4: WeatherChartView uses android.graphics.Canvas (built-in)
+    // Sprint 5: WindChartView uses android.graphics.Canvas (built-in)
+    // Sprint 6: Layout-only changes, no new libraries
 }
 

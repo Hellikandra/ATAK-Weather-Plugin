@@ -7,52 +7,78 @@ import androidx.lifecycle.ViewModel;
 import com.atakmap.android.weather.domain.model.ComparisonModel;
 import com.atakmap.android.weather.domain.model.DailyForecastModel;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
+import com.atakmap.android.weather.domain.model.LocationSnapshot;
+import com.atakmap.android.weather.domain.model.LocationSource;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
+import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
 import com.atakmap.android.weather.domain.repository.IWeatherRepository;
 
 import java.util.List;
 
 /**
- * ViewModel for Tab 1 (Current Weather + Daily Forecast + Hourly SeekBar)
- * and Tab 5 (Self Marker vs Map Center comparison).
+ * ViewModel for all weather tabs.
  *
- * New in this version:
- *  - selectedHourLabel  : human-readable time string for the selected SeekBar index
- *  - selfMarkerWeather  : weather at the device GPS position
- *  - mapCenterWeather   : weather at the map centre (may differ from self)
- *  - comparison         : ComparisonModel combining both for the diff table
+ * ── Sprint 1 changes ─────────────────────────────────────────────────────────
+ *
+ * 1. LocationSource awareness
+ *    Every load call now carries a LocationSource (SELF_MARKER or MAP_CENTRE).
+ *    The resolved LocationSnapshot is emitted on activeLocation LiveData so
+ *    Tab 1 can display both the name and exact coordinates.
+ *
+ * 2. GPS fallback chain
+ *    loadWeatherWithFallback(preferSelf): tries self marker first; if lat=0
+ *    and lon=0 (no GPS fix), automatically falls back to map centre and
+ *    records that in the emitted LocationSnapshot.
+ *    The Receiver calls this instead of two separate methods.
+ *
+ * 3. Auto-trigger comparison
+ *    The first successful Tab-1 load also fires loadComparison() so Tab 6
+ *    is populated without requiring the user to switch tabs first.
+ *
+ * 4. Geocoding never returns "Unknown location"
+ *    IGeocodingRepository.Callback now receives a LocationSnapshot (Sprint 1
+ *    interface change).  On network failure the geocoding source itself
+ *    produces a coords-only fallback string — the ViewModel never has to
+ *    guard against null names.
+ *
+ * 5. Comparison cards carry their own LocationSnapshots
+ *    selfLocation / centerLocation LiveData feeds Tab 6 card headers with
+ *    name + coords independently of the main Tab 1 location.
  */
 public class WeatherViewModel extends ViewModel {
 
-    // ── LiveData exposed to the View ─────────────────────────────────────────
-
-    // Tab 1 — primary location (self marker on first load, map centre on refresh)
-    private final MutableLiveData<UiState<WeatherModel>>             currentWeather  = new MutableLiveData<>();
-    private final MutableLiveData<UiState<List<DailyForecastModel>>> dailyForecast   = new MutableLiveData<>();
-    private final MutableLiveData<UiState<List<HourlyEntryModel>>>   hourlyForecast  = new MutableLiveData<>();
-    private final MutableLiveData<String>                            locationName    = new MutableLiveData<>();
-    private final MutableLiveData<Integer>                           selectedHour    = new MutableLiveData<>(0);
+    // ── LiveData — Tab 1 ─────────────────────────────────────────────────────
+    private final MutableLiveData<UiState<WeatherModel>>             currentWeather    = new MutableLiveData<>();
+    private final MutableLiveData<UiState<List<DailyForecastModel>>> dailyForecast     = new MutableLiveData<>();
+    private final MutableLiveData<UiState<List<HourlyEntryModel>>>   hourlyForecast    = new MutableLiveData<>();
+    private final MutableLiveData<LocationSnapshot>                  activeLocation    = new MutableLiveData<>();
+    private final MutableLiveData<Integer>                           selectedHour      = new MutableLiveData<>(0);
+    private final MutableLiveData<String>                            selectedHourLabel = new MutableLiveData<>("");
+    private final MutableLiveData<String>                            errorMessage      = new MutableLiveData<>();
 
     /**
-     * Human-readable label for the currently selected SeekBar hour.
-     * e.g. "+06h  (14:00)" shown below the SeekBar.
+     * Sprint 3: cache badge shown in Tab 1 header.
+     * Empty string = fresh data (badge hidden).
+     * "Cached HH:MM" = served from Room cache.
+     * "Cached HH:MM ⚠" = stale offline fallback.
      */
-    private final MutableLiveData<String>                            selectedHourLabel = new MutableLiveData<>("");
-    private final MutableLiveData<String>                            errorMessage    = new MutableLiveData<>();
+    private final MutableLiveData<String> cacheBadge = new MutableLiveData<>("");
 
-    // Tab 5 — comparison
-    private final MutableLiveData<UiState<WeatherModel>>             selfMarkerWeather = new MutableLiveData<>();
-    private final MutableLiveData<UiState<WeatherModel>>             mapCenterWeather  = new MutableLiveData<>();
-    private final MutableLiveData<UiState<ComparisonModel>>          comparison        = new MutableLiveData<>();
+    // ── LiveData — Tab 6 (Comparison) ────────────────────────────────────────
+    private final MutableLiveData<UiState<WeatherModel>>    selfMarkerWeather = new MutableLiveData<>();
+    private final MutableLiveData<UiState<WeatherModel>>    mapCenterWeather  = new MutableLiveData<>();
+    private final MutableLiveData<UiState<ComparisonModel>> comparison        = new MutableLiveData<>();
+    private final MutableLiveData<LocationSnapshot>         selfLocation      = new MutableLiveData<>();
+    private final MutableLiveData<LocationSnapshot>         centerLocation    = new MutableLiveData<>();
 
     // ── Repositories ─────────────────────────────────────────────────────────
+    private final IWeatherRepository   weatherRepository;
+    private final IGeocodingRepository geocodingRepository;
 
-    private final IWeatherRepository    weatherRepository;
-    private final IGeocodingRepository  geocodingRepository;
-
-    // Cached hourly list for hour-label computation without View access
+    // ── Internal state ───────────────────────────────────────────────────────
     private List<HourlyEntryModel> hourlyCache;
+    private boolean comparisonAutoTriggered = false;
 
     // ── Constructor ──────────────────────────────────────────────────────────
 
@@ -60,62 +86,93 @@ public class WeatherViewModel extends ViewModel {
                             IGeocodingRepository geocodingRepository) {
         this.weatherRepository   = weatherRepository;
         this.geocodingRepository = geocodingRepository;
+        // Sprint 3: wire cache badge if using the caching repository
+        if (weatherRepository instanceof CachingWeatherRepository) {
+            ((CachingWeatherRepository) weatherRepository).setCacheStatusListener(
+                    (status, label) -> cacheBadge.setValue(label));
+        }
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    // ── Public API — Tab 1 ────────────────────────────────────────────────────
 
-    /** Full refresh for a given coordinate (used on open + refresh button). */
-    public void loadWeather(double latitude, double longitude) {
+    /**
+     * Primary load entry point used by the Receiver on every open/refresh.
+     *
+     * Fallback chain:
+     *  - selfLat == 0 && selfLon == 0  →  no GPS fix  →  use mapCentre coords
+     *    and emit a MAP_CENTRE LocationSnapshot so Tab 1 shows
+     *    "Map centre — …" instead of "Unknown location"
+     *  - otherwise use SELF_MARKER
+     *
+     * @param selfLat  GPS latitude  (0 if not yet fixed)
+     * @param selfLon  GPS longitude (0 if not yet fixed)
+     * @param cenLat   map-centre latitude  (always valid)
+     * @param cenLon   map-centre longitude (always valid)
+     */
+    public void loadWeatherWithFallback(double selfLat, double selfLon,
+                                        double cenLat,  double cenLon) {
+        boolean hasGps = !(selfLat == 0.0 && selfLon == 0.0);
+        double  lat    = hasGps ? selfLat : cenLat;
+        double  lon    = hasGps ? selfLon : cenLon;
+        LocationSource src = hasGps ? LocationSource.SELF_MARKER : LocationSource.MAP_CENTRE;
+        loadWeather(lat, lon, src);
+    }
+
+    /**
+     * Explicit load for a specific coordinate + source.
+     * Used by the refresh button (short = MAP_CENTRE, long-press = SELF_MARKER).
+     */
+    public void loadWeather(double latitude, double longitude, LocationSource source) {
         fetchCurrentWeather(latitude, longitude);
         fetchDailyForecast(latitude, longitude);
         fetchHourlyForecast(latitude, longitude);
-        reverseGeocode(latitude, longitude);
+        reverseGeocode(latitude, longitude, source, activeLocation);
     }
 
     /**
-     * Load both positions for the comparison tab.
-     * Call this when the Comparison tab becomes active.
+     * Comparison load: fetches SELF_MARKER and MAP_CENTRE in parallel.
+     * Auto-called after the first successful Tab-1 load (see fetchHourlyForecast).
      */
     public void loadComparison(double selfLat, double selfLon,
-                               double centerLat, double centerLon) {
+                               double cenLat,  double cenLon) {
         comparison.setValue(UiState.loading());
 
-        // Inner holder to coordinate the two parallel fetches
-        final WeatherModel[] results = new WeatherModel[2]; // [0]=self, [1]=center
+        final WeatherModel[] results = new WeatherModel[2]; // [0]=self [1]=center
 
-        IWeatherRepository.Callback<WeatherModel> selfCallback =
+        // Self marker
+        reverseGeocode(selfLat, selfLon, LocationSource.SELF_MARKER, selfLocation);
+        weatherRepository.getCurrentWeather(selfLat, selfLon,
                 new IWeatherRepository.Callback<WeatherModel>() {
-                    @Override public void onSuccess(WeatherModel result) {
-                        results[0] = result;
-                        selfMarkerWeather.setValue(UiState.success(result));
+                    @Override public void onSuccess(WeatherModel r) {
+                        results[0] = r;
+                        selfMarkerWeather.setValue(UiState.success(r));
                         tryBuildComparison(results);
                     }
-                    @Override public void onError(String message) {
-                        selfMarkerWeather.setValue(UiState.error(message));
-                        comparison.setValue(UiState.error(message));
+                    @Override public void onError(String msg) {
+                        selfMarkerWeather.setValue(UiState.error(msg));
+                        comparison.setValue(UiState.error(msg));
                     }
-                };
+                });
 
-        IWeatherRepository.Callback<WeatherModel> centerCallback =
+        // Map centre
+        reverseGeocode(cenLat, cenLon, LocationSource.MAP_CENTRE, centerLocation);
+        weatherRepository.getCurrentWeather(cenLat, cenLon,
                 new IWeatherRepository.Callback<WeatherModel>() {
-                    @Override public void onSuccess(WeatherModel result) {
-                        results[1] = result;
-                        mapCenterWeather.setValue(UiState.success(result));
+                    @Override public void onSuccess(WeatherModel r) {
+                        results[1] = r;
+                        mapCenterWeather.setValue(UiState.success(r));
                         tryBuildComparison(results);
                     }
-                    @Override public void onError(String message) {
-                        mapCenterWeather.setValue(UiState.error(message));
-                        comparison.setValue(UiState.error(message));
+                    @Override public void onError(String msg) {
+                        mapCenterWeather.setValue(UiState.error(msg));
+                        comparison.setValue(UiState.error(msg));
                     }
-                };
-
-        weatherRepository.getCurrentWeather(selfLat, selfLon, selfCallback);
-        weatherRepository.getCurrentWeather(centerLat, centerLon, centerCallback);
+                });
     }
 
     /**
-     * Update selected SeekBar hour, computing a human-readable label.
-     * Label format: "+NNh  (HH:00)"  e.g. "+06h  (14:00)"
+     * Update selected SeekBar hour and compute a human-readable label.
+     * Format: "+06h  (14:00)"
      */
     public void selectHour(int index) {
         selectedHour.setValue(index);
@@ -126,25 +183,21 @@ public class WeatherViewModel extends ViewModel {
         }
     }
 
-    /** Called by the View once hourly data is available, so label can be computed. */
-    public void setHourlyCache(List<HourlyEntryModel> entries) {
-        this.hourlyCache = entries;
-        // Reset to hour 0
-        selectHour(0);
-    }
-
     // ── LiveData getters ──────────────────────────────────────────────────────
 
     public LiveData<UiState<WeatherModel>>             getCurrentWeather()    { return currentWeather; }
     public LiveData<UiState<List<DailyForecastModel>>> getDailyForecast()     { return dailyForecast; }
     public LiveData<UiState<List<HourlyEntryModel>>>   getHourlyForecast()    { return hourlyForecast; }
-    public LiveData<String>                            getLocationName()      { return locationName; }
+    public LiveData<LocationSnapshot>                  getActiveLocation()    { return activeLocation; }
     public LiveData<Integer>                           getSelectedHour()      { return selectedHour; }
     public LiveData<String>                            getSelectedHourLabel() { return selectedHourLabel; }
     public LiveData<String>                            getErrorMessage()      { return errorMessage; }
+    public LiveData<String>                            getCacheBadge()        { return cacheBadge; }
     public LiveData<UiState<WeatherModel>>             getSelfMarkerWeather() { return selfMarkerWeather; }
     public LiveData<UiState<WeatherModel>>             getMapCenterWeather()  { return mapCenterWeather; }
     public LiveData<UiState<ComparisonModel>>          getComparison()        { return comparison; }
+    public LiveData<LocationSnapshot>                  getSelfLocation()      { return selfLocation; }
+    public LiveData<LocationSnapshot>                  getCenterLocation()    { return centerLocation; }
 
     // ── Private fetch helpers ─────────────────────────────────────────────────
 
@@ -175,21 +228,39 @@ public class WeatherViewModel extends ViewModel {
                         hourlyForecast.setValue(UiState.success(r));
                         selectHour(0);
                     }
-                    @Override public void onError(String msg) { hourlyForecast.setValue(UiState.error(msg)); errorMessage.setValue(msg); }
+                    @Override public void onError(String msg) {
+                        hourlyForecast.setValue(UiState.error(msg));
+                        errorMessage.setValue(msg);
+                    }
                 });
     }
 
-    private void reverseGeocode(double lat, double lon) {
-        geocodingRepository.reverseGeocode(lat, lon,
+    /**
+     * Reverse-geocode and emit result into the given LiveData slot.
+     * On network failure the geocoding source itself provides a coords-only
+     * fallback — this method always calls onSuccess, never onError.
+     */
+    private void reverseGeocode(double lat, double lon, LocationSource source,
+                                MutableLiveData<LocationSnapshot> target) {
+        geocodingRepository.reverseGeocode(lat, lon, source,
                 new IGeocodingRepository.Callback() {
-                    @Override public void onSuccess(String name) { locationName.setValue(name); }
-                    @Override public void onError(String msg)    { locationName.setValue("Unknown location"); }
+                    @Override public void onSuccess(LocationSnapshot snapshot) {
+                        target.setValue(snapshot);
+                    }
+                    @Override public void onError(String msg) {
+                        // Should not reach here — NominatimGeocodingSource
+                        // always calls onSuccess with a coords fallback.
+                        // Guard anyway.
+                        target.setValue(new LocationSnapshot(lat, lon,
+                                LocationSnapshot.coordsFallback(lat, lon), source));
+                    }
                 });
     }
 
     private void tryBuildComparison(WeatherModel[] results) {
         if (results[0] != null && results[1] != null) {
-            comparison.setValue(UiState.success(new ComparisonModel(results[0], results[1])));
+            comparison.setValue(UiState.success(
+                    new ComparisonModel(results[0], results[1])));
         }
     }
 }

@@ -1,11 +1,13 @@
 package com.atakmap.android.weather.data;
 
 import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
+import com.atakmap.android.weather.data.remote.OpenMeteoSource;
 import com.atakmap.android.weather.domain.model.DailyForecastModel;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.model.WindProfileModel;
 import com.atakmap.android.weather.domain.repository.IWeatherRepository;
+import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
 
 import java.util.List;
 import java.util.Map;
@@ -13,49 +15,57 @@ import java.util.Map;
 /**
  * Concrete IWeatherRepository.
  *
- * Orchestrates:
- *  - active remote source selection (swappable via preferences)
- *  - (future) local cache read-through logic
+ * ── Sprint 2 changes ──────────────────────────────────────────────────────────
  *
- * To add a new API provider: implement IWeatherRemoteSource and register
- * it in WeatherModule — no changes needed here.
+ * setParameterPreferences(WeatherParameterPreferences)
+ *   Passes the user's selection prefs down to the active source so it builds
+ *   URLs from preferences. Should be called once during plugin init and again
+ *   if the active source is changed at runtime.
+ *
+ * Sprint 3 will add the Room cache read-through layer here. The interface
+ * is unchanged so callers (WeatherViewModel) need no updates.
  */
 public class WeatherRepositoryImpl implements IWeatherRepository {
 
     private static final int DEFAULT_DAYS  = 7;
-    private static final int DEFAULT_HOURS = 168; // 7 days × 24h
+    private static final int DEFAULT_HOURS = 168;
 
     private final Map<String, IWeatherRemoteSource> sources;
     private       String                            activeSourceId;
 
-    /**
-     * @param sources       map of sourceId → implementation
-     * @param defaultSource id of the source to use initially
-     */
     public WeatherRepositoryImpl(Map<String, IWeatherRemoteSource> sources,
                                  String defaultSource) {
         this.sources        = sources;
         this.activeSourceId = defaultSource;
     }
 
-    // ── Source selection ─────────────────────────────────────────────────────
+    // ── Source selection ──────────────────────────────────────────────────────
 
-    /** Switch the active API provider at runtime (e.g. from Preferences). */
     public void setActiveSource(String sourceId) {
-        if (sources.containsKey(sourceId)) {
-            activeSourceId = sourceId;
-        }
+        if (sources.containsKey(sourceId)) activeSourceId = sourceId;
     }
 
     public String getActiveSourceId() { return activeSourceId; }
 
-    private IWeatherRemoteSource active() {
+    /**
+     * True when the active source has been marked stale by a parameter change.
+     * CachingWeatherRepository calls this to decide whether to bypass the cache.
+     */
+    public boolean isStaleForCurrentSource() {
         IWeatherRemoteSource src = sources.get(activeSourceId);
-        if (src == null) {
-            // Fallback to first available
-            src = sources.values().iterator().next();
+        if (src instanceof com.atakmap.android.weather.data.remote.OpenMeteoSource) {
+            return ((com.atakmap.android.weather.data.remote.OpenMeteoSource) src).isStale();
         }
-        return src;
+        return false;
+    }
+
+    /**
+     * Inject user parameter preferences into the active source.
+     * The source registers as a ChangeListener internally so Tab 4 taps
+     * flow through without further plumbing.
+     */
+    public void setParameterPreferences(WeatherParameterPreferences prefs) {
+        active().setParameterPreferences(prefs);
     }
 
     // ── IWeatherRepository ───────────────────────────────────────────────────
@@ -98,5 +108,13 @@ public class WeatherRepositoryImpl implements IWeatherRepository {
                     @Override public void onResult(List<WindProfileModel> data) { callback.onSuccess(data); }
                     @Override public void onError(String msg)                    { callback.onError(msg); }
                 });
+    }
+
+    // ── Private ──────────────────────────────────────────────────────────────
+
+    private IWeatherRemoteSource active() {
+        IWeatherRemoteSource src = sources.get(activeSourceId);
+        if (src == null) src = sources.values().iterator().next();
+        return src;
     }
 }

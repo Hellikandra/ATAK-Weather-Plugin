@@ -1,43 +1,100 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    tab_wind_profile.xml
-    Tab 3 — Multi-altitude wind profile display.
+    tab_wind_profile.xml — Tab 2: Multi-altitude Wind Profile
+
+    Sprint 5 layout:
+    ┌─────────────────────────────────────────┐
+    │ Wind Profile (Multi-Altitude)   [Request]│
+    ├─────────────────────────────────────────┤
+    │  WindChartView (barb column)             │  ← wind_chart_frame FrameLayout
+    │  4 altitudes × height 56dp each = 224dp  │
+    ├─────────────────────────────────────────┤
+    │  Hour SeekBar  ← wind_seekbar            │
+    ├─────────────────────────────────────────┤
+    │  Monospaced text table (ScrollView)      │  ← kept for data-dense access
+    └─────────────────────────────────────────┘
 -->
 <LinearLayout
   xmlns:android="http://schemas.android.com/apk/res/android"
-  android:id="@+id/subTabWidget3"
+  android:id="@+id/subTabWidget2"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:orientation="vertical"
   android:padding="8dp">
 
-  <TextView
+  <!-- ── Header row ─────────────────────────────────────────────────── -->
+  <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="@string/wind_profile_title"
-    android:textSize="14sp"
-    android:textStyle="bold"
-    android:layout_marginBottom="8dp" />
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginBottom="6dp">
 
-  <Button
-    android:id="@+id/wind_update_information_button"
+    <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="@string/wind_profile_title"
+      android:textSize="13sp"
+      android:textStyle="bold"/>
+
+    <Button
+      android:id="@+id/wind_update_information_button"
+      style="@style/darkButton"
+      android:layout_width="wrap_content"
+      android:layout_height="48dp"
+      android:text="@string/wind_request_button"
+      android:textSize="11sp"/>
+
+  </LinearLayout>
+
+  <!-- ── WindChartView placeholder — injected by WindProfileView ─────── -->
+  <!--    Height = 4 altitudes × 56dp                                     -->
+  <FrameLayout
+    android:id="@+id/wind_chart_frame"
+    android:layout_width="match_parent"
+    android:layout_height="224dp"
+    android:background="@drawable/image_view_bg"
+    android:layout_marginBottom="6dp"/>
+
+  <!-- ── Hour scrubber ──────────────────────────────────────────────── -->
+  <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="@string/wind_request_button" />
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginBottom="4dp">
 
-  <!-- Monospaced font for the altitude table -->
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/wind_hour_label"
+      android:textSize="10sp"
+      android:layout_marginEnd="6dp"/>
+
+    <SeekBar
+      android:id="@+id/wind_seekbar"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:max="167"/>
+
+  </LinearLayout>
+
+  <!-- ── Monospaced text table (power-user detail) ──────────────────── -->
   <ScrollView
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="8dp">
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:layout_marginTop="4dp">
 
     <TextView
       android:id="@+id/textview_tab3_waiting_json_data"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:fontFamily="monospace"
-      android:textSize="12sp"
-      android:padding="4dp" />
+      android:textSize="11sp"
+      android:padding="4dp"/>
 
   </ScrollView>
 

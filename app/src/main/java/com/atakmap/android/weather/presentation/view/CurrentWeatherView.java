@@ -8,6 +8,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
+import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.util.WmoCodeMapper;
 import com.atakmap.android.weather.plugin.R;
@@ -15,18 +16,19 @@ import com.atakmap.android.weather.plugin.R;
 /**
  * View helper for Tab 1 — current conditions panel.
  *
- * Changes vs. previous version:
- *  1. Weather title TextView removed from the layout (improvement #1).
- *  2. textSeekBarLabel added — shows "+NNh  (HH:00)" below the SeekBar (improvement #2).
- *  3. bindHourlyEntry() now also updates the WMO icon + description when the
- *     SeekBar is dragged, using the hourly weathercode field (improvement #6).
- *     (The hourly WMO is sourced from HourlyEntryModel.getWeatherCode().)
+ * Sprint 1 changes:
+ *  - bindLocation(LocationSnapshot) replaces bindLocationName(String)
+ *    Shows name on textView_town and coordinates on textview_coords
+ *  - showSourceLabel() shows "Self" or "Map centre" as a small tag
+ *    so the user always knows which position the data describes
  */
 public class CurrentWeatherView {
 
     // ── Bound views ───────────────────────────────────────────────────────────
     private final TextView  textDate;
     private final TextView  textTown;
+    private final TextView  textCoords;      // NEW: "50.6971° N,  5.2583° E"
+    private final TextView  textSourceLabel; // NEW: "Self" / "Map centre"
     private final ImageView imageWeatherIcon;
     private final TextView  textAirTemp;
     private final TextView  textRealFeel;
@@ -37,7 +39,6 @@ public class CurrentWeatherView {
     private final TextView  textWind;
     private final TextView  textPrecipitation;
     private final SeekBar   seekBar;
-    /** NEW: displays "+NNh  (HH:00)" under the SeekBar */
     private final TextView  textSeekBarLabel;
 
     private final Context context;
@@ -48,6 +49,8 @@ public class CurrentWeatherView {
         this.context         = context;
         textDate             = root.findViewById(R.id.textView_date);
         textTown             = root.findViewById(R.id.textView_town);
+        textCoords           = root.findViewById(R.id.textview_coords);
+        textSourceLabel      = root.findViewById(R.id.textview_source_label);
         imageWeatherIcon     = root.findViewById(R.id.image);
         textAirTemp          = root.findViewById(R.id.textview_airT);
         textRealFeel         = root.findViewById(R.id.textview_airTrf);
@@ -64,79 +67,93 @@ public class CurrentWeatherView {
     // ── Bind methods ──────────────────────────────────────────────────────────
 
     public void showLoading() {
-        textDate.setText(R.string.wait);
+        if (textDate != null) textDate.setText(R.string.wait);
     }
 
     public void showError(String message) {
-        textDate.setText(context.getString(R.string.error_prefix) + message);
+        if (textDate != null)
+            textDate.setText(context.getString(R.string.error_prefix) + message);
     }
 
-    /** Bind the initial (current) weather card. */
+    /**
+     * Bind the current weather card.
+     */
     @SuppressLint("SetTextI18n")
     public void bindCurrentWeather(WeatherModel weather, String requestTime) {
-        textDate.setText(context.getString(R.string.now) + requestTime);
+        if (textDate != null)
+            textDate.setText(context.getString(R.string.now) + requestTime);
 
-        textAirTemp.setText(String.format("%.1f°C / %.1f°C",
-                weather.getTemperatureMin(), weather.getTemperatureMax()));
-        textRealFeel.setText(String.format("%.1f°C", weather.getApparentTemperature()));
-        textVisibility.setText(String.format("%.0f m", weather.getVisibility()));
-        textHumidity.setText(String.format("%.0f %%", weather.getHumidity()));
-        textPressure.setText(String.format("%.1f hPa", weather.getPressure()));
-        textWind.setText(String.format("%.1f m/s / %.0f°",
-                weather.getWindSpeed(), weather.getWindDirection()));
+        if (textAirTemp != null)
+            textAirTemp.setText(String.format("%.1f°C / %.1f°C",
+                    weather.getTemperatureMin(), weather.getTemperatureMax()));
+        if (textRealFeel != null)
+            textRealFeel.setText(String.format("%.1f°C", weather.getApparentTemperature()));
+        if (textVisibility != null)
+            textVisibility.setText(String.format("%.0f m", weather.getVisibility()));
+        if (textHumidity != null)
+            textHumidity.setText(String.format("%.0f %%", weather.getHumidity()));
+        if (textPressure != null)
+            textPressure.setText(String.format("%.1f hPa", weather.getPressure()));
+        if (textWind != null)
+            textWind.setText(String.format("%.1f m/s / %.0f°",
+                    weather.getWindSpeed(), weather.getWindDirection()));
 
         bindPrecipitation(weather.getPrecipitationSum(), weather.getPrecipitationHours());
         applyWmoCode(weather.getWeatherCode());
     }
 
-    /** Bind location name text. */
-    public void bindLocationName(String name) {
-        textTown.setText(name);
+    /**
+     * Bind a resolved LocationSnapshot to the header.
+     * Shows: name on textView_town, coords on textview_coords,
+     * source label ("Self" / "Map centre") on textview_source_label.
+     */
+    public void bindLocation(LocationSnapshot snapshot) {
+        if (textTown != null)
+            textTown.setText(snapshot.getDisplayName());
+        if (textCoords != null)
+            textCoords.setText(snapshot.getCoordsLabel());
+        if (textSourceLabel != null) {
+            textSourceLabel.setText(snapshot.getSource().label);
+            textSourceLabel.setVisibility(View.VISIBLE);
+        }
     }
 
     /**
-     * Bind the hourly detail panel to a specific HourlyEntryModel.
-     * Called whenever the SeekBar position changes.
-     *
-     * Improvement #2: updates textSeekBarLabel with the hour label.
-     * Improvement #6: updates WMO icon + description from hourly weathercode.
+     * Bind the hourly detail panel when the SeekBar position changes.
      */
     @SuppressLint("SetTextI18n")
     public void bindHourlyEntry(HourlyEntryModel entry, String hourLabel) {
-        // Update time label below SeekBar
-        textSeekBarLabel.setText(hourLabel);
-
-        // Update numeric fields
-        textRealFeel.setText(String.format("%.1f°C", entry.getApparentTemperature()));
-        textVisibility.setText(String.format("%.0f m", entry.getVisibility()));
-        textHumidity.setText(String.format("%.0f %%", entry.getHumidity()));
-        textPressure.setText(String.format("%.1f hPa", entry.getPressure()));
-        textWind.setText(String.format("%.1f m/s / %.0f°",
+        if (textSeekBarLabel != null) textSeekBarLabel.setText(hourLabel);
+        if (textRealFeel   != null) textRealFeel.setText(String.format("%.1f°C",  entry.getApparentTemperature()));
+        if (textVisibility != null) textVisibility.setText(String.format("%.0f m", entry.getVisibility()));
+        if (textHumidity   != null) textHumidity.setText(String.format("%.0f %%",  entry.getHumidity()));
+        if (textPressure   != null) textPressure.setText(String.format("%.1f hPa", entry.getPressure()));
+        if (textWind       != null) textWind.setText(String.format("%.1f m/s / %.0f°",
                 entry.getWindSpeed(), entry.getWindDirection()));
-
-        // Improvement #6: WMO code update from hourly data
         applyWmoCode(entry.getWeatherCode());
     }
 
     /**
-     * Configure the SeekBar max = number of hourly entries − 1.
-     * The ViewModel computes the label; the listener just calls selectHour().
+     * Configure SeekBar max and change listener.
      */
     public void configureSeekBar(int maxIndex, SeekBar.OnSeekBarChangeListener listener) {
-        seekBar.setMax(maxIndex);
-        seekBar.setProgress(0);
-        seekBar.setOnSeekBarChangeListener(listener);
+        if (seekBar != null) {
+            seekBar.setMax(maxIndex);
+            seekBar.setProgress(0);
+            seekBar.setOnSeekBarChangeListener(listener);
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private void applyWmoCode(int code) {
         WmoCodeMapper.WmoInfo info = WmoCodeMapper.resolve(code);
-        textWeatherDesc.setText(info.labelResId);
-        imageWeatherIcon.setImageResource(info.drawableResId);
+        if (textWeatherDesc  != null) textWeatherDesc.setText(info.labelResId);
+        if (imageWeatherIcon != null) imageWeatherIcon.setImageResource(info.drawableResId);
     }
 
     private void bindPrecipitation(double sum, double hours) {
+        if (textPrecipitation == null) return;
         if (sum == 0.0) {
             textPrecipitation.setText(R.string.nopre);
         } else {

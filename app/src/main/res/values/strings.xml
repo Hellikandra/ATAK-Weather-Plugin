@@ -4,7 +4,7 @@
     <string name="app_name">Weather</string>
     <!-- description -->
     <string name="app_desc">This plugin gets weather data from open-meteo API and parses it for the user</string>
-    <string name="set_gps">No GPS, set selfmarker</string>
+<!--    <string name="set_gps">No GPS, set selfmarker</string>-->
     <string name="wait">Wait…</string>
     <string name="forecast">Forecast:  </string>
     <string name="now">TODAY:  </string>
@@ -71,11 +71,11 @@
     <!-- ── Tab 3: Map Overlay ──────────────────────────────────────────────── -->
     <string name="overlay_coming_soon">Radar Overlay — Coming Soon</string>
     <string name="overlay_description">Weather radar tiles and wind vector overlays
-    will appear on the ATAK map from this tab.</string>
+        will appear on the ATAK map from this tab.</string>
 
     <!-- ── Tab 4: Parameters ───────────────────────────────────────────────── -->
     <string name="params_info_banner">Select which variables to request from Open-Meteo.
-    Changes apply on the next refresh.</string>
+        Changes apply on the next refresh.</string>
     <string name="params_section_hourly">Hourly Weather Variables</string>
     <string name="params_section_daily">Daily Weather Variables</string>
     <string name="params_section_current">Current Weather Variables</string>
@@ -94,5 +94,41 @@
     <string name="comp_col_center">🗺 Map Center</string>
     <string name="comp_row_temp">Temperature</string>
     <string name="comp_delta_header">Δ Map Center − Self Marker</string>
+
+
+    <!-- ── Sprint 1: Location resolution ──────────────────────────────────── -->
+    <string name="no_gps_fix">No GPS fix — check device location settings</string>
+    <string name="no_gps_using_map_centre">No GPS fix — loading map centre position</string>
+    <string name="loading_map_centre">Loading weather for map centre…</string>
+    <string name="loading_self_marker">Loading weather for self marker (GPS)…</string>
+    <string name="set_gps">Set GPS position first</string>
+    <string name="source_self">Self</string>
+    <string name="source_map_centre">Map centre</string>
+    <string name="tap_for_map_centre">Tap: map centre  |  Long-press: GPS position</string>
+
+
+    <!-- ── Sprint 2: Parameters ────────────────────────────────────────────── -->
+    <string name="params_change_hint">Changes apply automatically after 1 second. 🔒 fields are always included.</string>
+    <string name="params_reloading">Parameters updated — refreshing…</string>
+    <string name="params_locked_hint">Required by the data parser — cannot be removed</string>
+
+
+    <!-- ── Sprint 3: Cache ─────────────────────────────────────────────────── -->
+    <string name="cache_badge_cached">Cached</string>
+    <string name="cache_badge_stale_suffix"> ⚠</string>
+    <string name="cache_no_internet">No internet — showing cached data</string>
+
+    <!-- ── Sprint 4: Chart Extension ──────────────────────────────────────── -->
+    <string name="chart_no_data">No hourly data — refresh to load chart</string>
+    <string name="chart_series_hidden">Series hidden</string>
+
+    <!-- ── Sprint 5: Wind Visualisation ───────────────────────────────────── -->
+    <string name="wind_hour_label">Hour:</string>
+    <string name="wind_chart_calm">Calm</string>
+    <string name="wind_chart_barb_legend">Arrow points upwind · Colour = speed tier</string>
+
+    <!-- ── Sprint 6: UI Polish ────────────────────────────────────────────── -->
+    <string name="seekbar_now_tick">▼ Now</string>
+    <string name="seekbar_hint">Drag to scrub hourly forecast</string>
 
 </resources>
