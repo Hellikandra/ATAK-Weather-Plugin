@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    weather_marker.xml  —  Custom radial menu for weather markers.
+    Deploy to:  app/src/main/assets/menus/weather_marker.xml
+
+    ATAK radial menu format:
+      Each <item> defines one button in the radial ring.
+      'onclick' fires an AtakBroadcast intent (action string).
+      Extras are passed as intent string extras via <extra> child elements.
+      The token {uid} is replaced at runtime by ATAK with the marker's UID.
+
+    Actions handled by WeatherDropDownReceiver:
+      SHOW_PLUGIN     → open plugin, jump to the FCST tab for this marker
+      SHARE_MARKER    → send CoT over all TAK network connections
+      REMOVE_MARKER   → remove this weather marker from the map
+
+    The "Navigate to" button uses ATAK's built-in navigate action so we
+    do not need to implement it.
+-->
+<menu>
+
+  <item
+    title="WX Details"
+    icon="@drawable/ic_launcher"
+    onclick="com.atakmap.android.weather.SHOW_PLUGIN">
+    <extra key="targetUID" value="{uid}"/>
+    <extra key="requestedTab" value="fcst"/>
+  </item>
+
+  <item
+    title="Share WX"
+    icon="@android:drawable/ic_menu_share"
+    onclick="com.atakmap.android.weather.SHARE_MARKER">
+    <extra key="targetUID" value="{uid}"/>
+  </item>
+
+  <item
+    title="Navigate"
+    icon="@android:drawable/ic_menu_directions"
+    onclick="com.atakmap.android.maps.GOTO_DETAILS">
+    <extra key="uid" value="{uid}"/>
+  </item>
+
+  <item
+    title="Remove"
+    icon="@android:drawable/ic_menu_delete"
+    onclick="com.atakmap.android.weather.REMOVE_MARKER">
+    <extra key="targetUID" value="{uid}"/>
+  </item>
+
+</menu>

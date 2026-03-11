@@ -11,6 +11,7 @@ import android.widget.Toast;
 import com.atak.plugins.impl.PluginLayoutInflater;
 import com.atakmap.android.dropdown.DropDown.OnStateListener;
 import com.atakmap.android.dropdown.DropDownReceiver;
+import com.atakmap.android.maps.MapGroup;
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.weather.data.WeatherRepositoryImpl;
 import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
@@ -22,8 +23,10 @@ import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import com.atakmap.android.weather.domain.model.LocationSource;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
-import com.atakmap.android.weather.domain.repository.IWeatherRepository;
 import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
+import com.atakmap.android.weather.overlay.WeatherMapOverlay;
+import com.atakmap.android.weather.overlay.marker.WeatherMarkerManager;
+import com.atakmap.android.weather.overlay.wind.WindMarkerManager;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.weather.presentation.view.ComparisonView;
 import com.atakmap.android.weather.presentation.view.CurrentWeatherView;
@@ -33,7 +36,12 @@ import com.atakmap.android.weather.presentation.view.WeatherChartView;
 import com.atakmap.android.weather.presentation.view.WindProfileView;
 import com.atakmap.android.weather.presentation.viewmodel.WeatherViewModel;
 import com.atakmap.android.weather.presentation.viewmodel.WindProfileViewModel;
+import com.atakmap.android.weather.domain.model.LocationSnapshot;
 
+import com.atakmap.android.cot.CotMapComponent;
+import com.atakmap.android.importexport.CotEventFactory;
+import com.atakmap.android.maps.MapItem;
+import com.atakmap.coremap.cot.event.CotEvent;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,7 +80,14 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         implements OnStateListener {
 
     public static final String TAG         = WeatherDropDownReceiver.class.getSimpleName();
-    public static final String SHOW_PLUGIN = "com.atakmap.android.weather.SHOW_PLUGIN";
+    public static final String SHOW_PLUGIN     = "com.atakmap.android.weather.SHOW_PLUGIN";
+    public static final String SHARE_MARKER   = "com.atakmap.android.weather.SHARE_MARKER";
+    public static final String REMOVE_MARKER  = "com.atakmap.android.weather.REMOVE_MARKER";
+
+    /** Intent extra key carrying the marker UID (from radial menu {uid} token). */
+    public static final String EXTRA_TARGET_UID    = "targetUID";
+    /** Intent extra key requesting a specific tab name: "fcst","wind","chrt","prm","map","cmp". */
+    public static final String EXTRA_REQUESTED_TAB = "requestedTab";
 
     // ── Layout ───────────────────────────────────────────────────────────────
     private final View    templateView;
@@ -97,19 +112,35 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     // ── Init guard ───────────────────────────────────────────────────────────
     private boolean initialized = false;
 
+    // ── TabHost reference (needed for programmatic tab switching) ────────────
+    private android.widget.TabHost tabHost;
+
+    // ── Marker manager (Tab 3) ───────────────────────────────────────────────
+    private WeatherMarkerManager markerManager;
+    private WindMarkerManager windMarkerManager;
+
+    // ── Last known good weather + location (for marker placement) ────────────
+    private WeatherModel        lastWeather;
+    private LocationSnapshot    lastLocation;
+
     // ── Cached hourly list for SeekBar scrubbing ─────────────────────────────
     private List<HourlyEntryModel> hourlyCache;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
-    public WeatherDropDownReceiver(final MapView mapView, final Context context) {
+    public WeatherDropDownReceiver(final MapView mapView,
+                                   final Context context,
+                                   final WeatherMarkerManager markerManager,
+                                   final WindMarkerManager windMarkerManager) {
         super(mapView);
-        this.pluginContext = context;
+        this.pluginContext  = context;
         // mapView.getContext() returns the host application's context which has a
         // valid ApplicationContext — required by Room.databaseBuilder().
         // pluginContext.getApplicationContext() returns null in the ATAK plugin
         // sandbox and must never be passed to Room.
-        this.appContext    = mapView.getContext();
+        this.appContext     = mapView.getContext();
+        this.markerManager      = markerManager;
+        this.windMarkerManager  = windMarkerManager;
         templateView = PluginLayoutInflater.inflate(context, R.layout.main_layout, null);
     }
 
@@ -118,7 +149,28 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     @Override
     public void onReceive(final Context context, Intent intent) {
         final String action = intent.getAction();
-        if (action == null || !action.equals(SHOW_PLUGIN)) return;
+        if (action == null) return;
+
+        // ── SHARE_MARKER — broadcast this marker's CoT over the TAK network ──
+        if (SHARE_MARKER.equals(action)) {
+            handleShareMarker(intent.getStringExtra(EXTRA_TARGET_UID));
+            return;
+        }
+
+        // ── REMOVE_MARKER — remove this weather or wind marker from the map ───
+        if (REMOVE_MARKER.equals(action)) {
+            final String uid = intent.getStringExtra(EXTRA_TARGET_UID);
+            if (uid != null) {
+                if (uid.startsWith("wx_wind") && windMarkerManager != null)
+                    windMarkerManager.removeMarker(uid);
+                else if (markerManager != null)
+                    markerManager.removeMarker(uid);
+            }
+            return;
+        }
+
+        // ── SHOW_PLUGIN — open the drop-down (optionally jump to a tab) ──────
+        if (!SHOW_PLUGIN.equals(action)) return;
 
         showDropDown(templateView,
                 HALF_WIDTH, FULL_HEIGHT,
@@ -130,11 +182,27 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             initTabs();
             initViewHelpers();
             observeViewModels();
+            // Register the radial-menu intent actions so onReceive() is called
+            // when the user taps Share or Remove from the marker radial menu.
+            com.atakmap.android.ipc.AtakBroadcast.DocumentedIntentFilter extras =
+                    new com.atakmap.android.ipc.AtakBroadcast.DocumentedIntentFilter();
+            extras.addAction(SHARE_MARKER);
+            extras.addAction(REMOVE_MARKER);
+            com.atakmap.android.ipc.AtakBroadcast.getInstance()
+                    .registerReceiver(this, extras);
             initialized = true;
         }
 
-        // Fallback chain: GPS → map centre
-        triggerAutoLoad();
+        // If we arrived from a marker radial menu, pre-populate from that
+        // marker's stored weather meta-data and jump to the requested tab.
+        final String targetUid  = intent.getStringExtra(EXTRA_TARGET_UID);
+        final String requestTab = intent.getStringExtra(EXTRA_REQUESTED_TAB);
+        if (targetUid != null) {
+            handleMarkerDetails(targetUid, requestTab);
+        } else {
+            // Normal open — run the GPS → map-centre fallback chain
+            triggerAutoLoad();
+        }
     }
 
     // ── Dependency wiring ─────────────────────────────────────────────────────
@@ -164,37 +232,37 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     @SuppressWarnings("deprecation")
     private void initTabs() {
-        android.widget.TabHost tabHost = templateView.findViewById(R.id.mainTabHost);
+        tabHost = templateView.findViewById(R.id.mainTabHost);
         tabHost.setup();
 
         android.widget.TabHost.TabSpec spec;
 
-        spec = tabHost.newTabSpec("Fcst");
+        spec = tabHost.newTabSpec("fcst");
         spec.setContent(R.id.subTabWidget1);
         spec.setIndicator("Fcst");
         tabHost.addTab(spec);
 
-        spec = tabHost.newTabSpec("Wind");
+        spec = tabHost.newTabSpec("wind");
         spec.setContent(R.id.subTabWidget2);
         spec.setIndicator("Wind");
         tabHost.addTab(spec);
 
-        spec = tabHost.newTabSpec("Map");
+        spec = tabHost.newTabSpec("map");
         spec.setContent(R.id.subTabWidget3);
         spec.setIndicator("Map");
         tabHost.addTab(spec);
 
-        spec = tabHost.newTabSpec("Prm");
+        spec = tabHost.newTabSpec("prm");
         spec.setContent(R.id.subTabWidget4);
         spec.setIndicator("Prm");
         tabHost.addTab(spec);
 
-        spec = tabHost.newTabSpec("Chrt");
+        spec = tabHost.newTabSpec("chrt");
         spec.setContent(R.id.subTabWidget5);
         spec.setIndicator("Chrt");
         tabHost.addTab(spec);
 
-        spec = tabHost.newTabSpec("Cmp");
+        spec = tabHost.newTabSpec("cmp");
         spec.setContent(R.id.subTabWidget6);
         spec.setIndicator("Cmp");
         tabHost.addTab(spec);
@@ -253,6 +321,57 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             wireChartToggleButtons();
         }
 
+        // Tab 3 — Map / Marker controls
+        // ── Wind tab: drop wind marker button ────────────────────────────────
+        android.widget.Button btnDropWindMarker = templateView.findViewById(R.id.btn_drop_wind_marker);
+        if (btnDropWindMarker != null) {
+            btnDropWindMarker.setOnClickListener(v -> {
+                if (lastWeather != null && lastLocation != null && windMarkerManager != null) {
+                    windMarkerManager.placeMarker(lastLocation, lastWeather);
+                    Toast.makeText(pluginContext, "Wind marker dropped", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        android.widget.Button btnDropMarker = templateView.findViewById(R.id.btn_drop_weather_marker);
+        android.widget.Button btnShareMarker = templateView.findViewById(R.id.btn_share_marker);
+        android.widget.Button btnRemoveAll  = templateView.findViewById(R.id.btn_remove_all_markers);
+
+        if (btnDropMarker != null) {
+            btnDropMarker.setOnClickListener(v -> {
+                if (lastWeather != null && lastLocation != null) {
+                    markerManager.placeMarker(lastLocation, lastWeather);
+                    updateMarkerStatus(lastLocation);
+                } else {
+                    Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+
+        if (btnShareMarker != null) {
+            btnShareMarker.setOnClickListener(v -> {
+                // Share the last-placed marker by constructing its UID and
+                // dispatching SHARE_MARKER — same path as the radial menu button.
+                if (lastLocation == null) {
+                    Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                android.content.Intent shareIntent = new android.content.Intent(SHARE_MARKER);
+                shareIntent.putExtra(EXTRA_TARGET_UID, buildMarkerUid(lastLocation));
+                com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(shareIntent);
+            });
+        }
+
+        if (btnRemoveAll != null) {
+            btnRemoveAll.setOnClickListener(v -> {
+                markerManager.removeAllMarkers();
+                android.widget.TextView statusView = templateView.findViewById(R.id.textview_marker_status);
+                if (statusView != null) statusView.setText(R.string.map_marker_none_placed);
+            });
+        }
+
         // Tab 6 — Comparison
         comparisonView = new ComparisonView(templateView);
         templateView.findViewById(R.id.comp_refresh_button)
@@ -270,7 +389,10 @@ public class WeatherDropDownReceiver extends DropDownReceiver
                 currentWeatherView.showLoading();
             } else if (state.isSuccess() && state.getData() != null) {
                 WeatherModel w = state.getData();
+                lastWeather = w;
                 currentWeatherView.bindCurrentWeather(w, w.getRequestTimestamp());
+                // Refresh chart timestamp header if location is already known
+                if (lastLocation != null) updateChartLocationHeader(lastLocation);
             } else if (state.isError()) {
                 currentWeatherView.showError(state.getErrorMessage());
             }
@@ -278,7 +400,12 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
         // Tab 1 — location header (name + coords + source tag)
         weatherViewModel.getActiveLocation().observeForever(snapshot -> {
-            if (snapshot != null) currentWeatherView.bindLocation(snapshot);
+            if (snapshot != null) {
+                lastLocation = snapshot;
+                currentWeatherView.bindLocation(snapshot);
+                // Update chart tab header so the user knows which point the data is for
+                updateChartLocationHeader(snapshot);
+            }
         });
 
         // Tab 1 — daily forecast strip
@@ -386,11 +513,22 @@ public class WeatherDropDownReceiver extends DropDownReceiver
      * Toast if we had to fall back so the user is not confused.
      */
     private void triggerAutoLoad() {
-        double selfLat = getMapView().getSelfMarker().getPoint().getLatitude();
-        double selfLon = getMapView().getSelfMarker().getPoint().getLongitude();
         double cenLat  = getMapView().getCenterPoint().get().getLatitude();
         double cenLon  = getMapView().getCenterPoint().get().getLongitude();
 
+        // getSelfMarker() can be null on cold start before ATAK has initialised
+        // the self-marker. Guard against NPE and fall back to map centre.
+        double selfLat = 0.0, selfLon = 0.0;
+        try {
+            if (getMapView().getSelfMarker() != null) {
+                selfLat = getMapView().getSelfMarker().getPoint().getLatitude();
+                selfLon = getMapView().getSelfMarker().getPoint().getLongitude();
+            }
+        } catch (Exception e) {
+            com.atakmap.coremap.log.Log.w(TAG, "getSelfMarker() threw: " + e.getMessage());
+        }
+
+        // A position of exactly 0,0 means "no fix yet" in ATAK.
         boolean hasGps = !(selfLat == 0.0 && selfLon == 0.0);
         if (!hasGps) {
             Toast.makeText(pluginContext, R.string.no_gps_using_map_centre, Toast.LENGTH_SHORT).show();
@@ -454,6 +592,174 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     private static void setReadout(android.widget.TextView tv, double val, String fmt) {
         if (tv != null && !Double.isNaN(val)) tv.setText(String.format(fmt, val));
+    }
+
+    /**
+     * Mirrors WeatherMarkerManager.buildUid() so the Tab-3 Share button can
+     * reference the UID of the last-placed marker without holding a reference
+     * to the marker object itself.
+     */
+    private String buildMarkerUid(LocationSnapshot snapshot) {
+        if (snapshot.getSource() == LocationSource.SELF_MARKER) return "wx_self";
+        return String.format(java.util.Locale.US, "wx_centre_%.4f_%.4f",
+                snapshot.getLatitude(), snapshot.getLongitude());
+    }
+
+    /** Update the Tab 3 status text after placing a marker. */
+    private void updateMarkerStatus(LocationSnapshot snapshot) {
+        android.widget.TextView statusView = templateView.findViewById(R.id.textview_marker_status);
+        if (statusView == null) return;
+        statusView.setText(String.format("%s\n%s  [%s]",
+                snapshot.getDisplayName(),
+                snapshot.getCoordsLabel(),
+                snapshot.getSource().label));
+    }
+
+    /**
+     * Update the Tab 5 chart header with the location name and data timestamp.
+     * Called whenever a new location snapshot arrives.
+     */
+    private void updateChartLocationHeader(LocationSnapshot snapshot) {
+        android.widget.TextView locLabel = templateView.findViewById(R.id.chart_location_label);
+        android.widget.TextView tsLabel  = templateView.findViewById(R.id.chart_timestamp_label);
+        if (locLabel != null) locLabel.setText(snapshot.getDisplayName());
+        if (tsLabel  != null && lastWeather != null) {
+            tsLabel.setText(lastWeather.getRequestTimestamp());
+        }
+    }
+
+    // ── Marker intent handlers ────────────────────────────────────────────────
+
+    /**
+     * Called when the user taps "WX Details" on a weather marker's radial menu.
+     *
+     * Looks up the marker by UID, extracts the stored weather meta-strings, and
+     * reloads WeatherViewModel with those values so the drop-down shows data
+     * for the tapped marker's position rather than the GPS/map-centre position.
+     *
+     * Then switches the TabHost to the requested tab (default: "fcst").
+     *
+     * @param uid          UID of the tapped weather marker (e.g. "wx_self")
+     * @param requestedTab Tab name: "fcst" | "wind" | "chrt" | "prm" | "map" | "cmp"
+     */
+    private void handleMarkerDetails(final String uid, final String requestedTab) {
+        if (uid == null) { triggerAutoLoad(); return; }
+
+        // Look up the marker — check both WX Markers group and Wind Markers group
+        MapItem item = null;
+        {
+            MapGroup root = getMapView().getRootGroup();
+            // Try weather markers group first
+            MapGroup wxGrp = root.findMapGroup(
+                    WeatherMapOverlay.GROUP_NAME);
+            if (wxGrp != null) item = wxGrp.deepFindUID(uid);
+            // If not found, try wind markers group
+            if (item == null) {
+                MapGroup windGrp = root.findMapGroup(
+                        com.atakmap.android.weather.overlay.WindMapOverlay.GROUP_NAME);
+                if (windGrp != null) item = windGrp.deepFindUID(uid);
+            }
+        }
+
+        if (item == null) {
+            // Marker not found — fall back to auto load
+            Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
+            triggerAutoLoad();
+            return;
+        }
+
+        // Extract the geographic position stored in the marker
+        final double lat = item.getMetaDouble("latitude",  Double.NaN);
+        final double lon = item.getMetaDouble("longitude", Double.NaN);
+        final String src = item.getMetaString("wx_source",  "MAP_CENTRE");
+
+        if (Double.isNaN(lat) || Double.isNaN(lon)) {
+            // Fallback: re-trigger from the marker's map point if meta is missing
+            if (item instanceof com.atakmap.android.maps.PointMapItem) {
+                com.atakmap.android.maps.PointMapItem pmi =
+                        (com.atakmap.android.maps.PointMapItem) item;
+                LocationSource source = LocationSource.SELF_MARKER.name().equals(src)
+                        ? LocationSource.SELF_MARKER : LocationSource.MAP_CENTRE;
+                weatherViewModel.loadWeather(
+                        pmi.getPoint().getLatitude(),
+                        pmi.getPoint().getLongitude(),
+                        source);
+            } else {
+                triggerAutoLoad();
+            }
+        } else {
+            LocationSource source = LocationSource.SELF_MARKER.name().equals(src)
+                    ? LocationSource.SELF_MARKER : LocationSource.MAP_CENTRE;
+            weatherViewModel.loadWeather(lat, lon, source);
+        }
+
+        // Wind markers default to the wind tab
+        String defaultTab = (uid != null && uid.startsWith("wx_wind")) ? "wind" : "fcst";
+        jumpToTab(requestedTab != null ? requestedTab : defaultTab);
+    }
+
+    /**
+     * Called when the user taps "Share WX" on a weather marker's radial menu.
+     *
+     * Converts the marker to a CoT XML event via CotEventFactory, then
+     * broadcasts it to all connected TAK servers and peer-to-peer connections
+     * via CotMapComponent.getExternalDispatcher().dispatchToBroadcast().
+     *
+     * The CoT event includes all standard fields (type, how, time, point) plus
+     * the wx_* meta-strings as a <detail><weather ...> element via marker metadata.
+     */
+    private void handleShareMarker(final String uid) {
+        if (uid == null) {
+            Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        MapItem item = null;
+        {
+            MapGroup root = getMapView().getRootGroup();
+            MapGroup wxGrp = root.findMapGroup(
+                    WeatherMapOverlay.GROUP_NAME);
+            if (wxGrp != null) item = wxGrp.deepFindUID(uid);
+            if (item == null) {
+                MapGroup windGrp = root.findMapGroup(
+                        com.atakmap.android.weather.overlay.WindMapOverlay.GROUP_NAME);
+                if (windGrp != null) item = windGrp.deepFindUID(uid);
+            }
+        }
+
+        if (item == null) {
+            Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // CotEventFactory.createCotEvent() serialises the MapItem to a CoT XML event.
+        // It reads type, how, point, title and all meta-strings automatically.
+        final CotEvent event = CotEventFactory.createCotEvent(item);
+        if (event == null || !event.isValid()) {
+            Toast.makeText(pluginContext, "Could not create CoT event for marker", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // dispatchToBroadcast() sends to ALL connections: TAK servers + peer-to-peer
+        CotMapComponent.getExternalDispatcher().dispatchToBroadcast(event);
+
+        final String callsign = item.getMetaString("callsign", uid);
+        Toast.makeText(pluginContext,
+                "Shared: " + callsign, Toast.LENGTH_SHORT).show();
+    }
+
+    /**
+     * Switches the TabHost to the named tab.
+     * Valid names: "fcst", "wind", "map", "prm", "chrt", "cmp"
+     */
+    @SuppressWarnings("deprecation")
+    private void jumpToTab(final String tabName) {
+        if (tabHost == null) return;
+        try {
+            tabHost.setCurrentTabByTag(tabName);
+        } catch (Exception e) {
+            // setCurrentTabByTag throws if tag not found — fail silently
+        }
     }
 
     // ── DropDownReceiver / OnStateListener ────────────────────────────────────

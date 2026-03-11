@@ -1,93 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    tab_wind_profile.xml — Tab 2: Multi-altitude Wind Profile
+    tab_wind_profile.xml — Tab 2: Multi-Altitude Wind Profile
 
-    Sprint 5 layout:
-    ┌─────────────────────────────────────────┐
-    │ Wind Profile (Multi-Altitude)   [Request]│
-    ├─────────────────────────────────────────┤
-    │  WindChartView (barb column)             │  ← wind_chart_frame FrameLayout
-    │  4 altitudes × height 56dp each = 224dp  │
-    ├─────────────────────────────────────────┤
-    │  Hour SeekBar  ← wind_seekbar            │
-    ├─────────────────────────────────────────┤
-    │  Monospaced text table (ScrollView)      │  ← kept for data-dense access
-    └─────────────────────────────────────────┘
+    Fix: The previous layout had a LinearLayout root with the ScrollView getting
+    layout_weight="1" / layout_height="0dp". This only works if the parent chain
+    all have definite heights down to the root. Inside ATAK's TabHost the content
+    view can be height-constrained in ways that collapse the weight-based child.
+
+    Solution: Wrap the ENTIRE tab content in a NestedScrollView so ALL content
+    scrolls as one unit. The WindChartView gets a fixed height (224dp) since it
+    is a custom Canvas view that measures itself exactly. The text table gets
+    wrap_content inside the scroll.
 -->
-<LinearLayout
+<androidx.core.widget.NestedScrollView
   xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/subTabWidget2"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
-  android:orientation="vertical"
-  android:padding="8dp">
+  android:fillViewport="true">
 
-  <!-- ── Header row ─────────────────────────────────────────────────── -->
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:layout_marginBottom="6dp">
+    android:orientation="vertical"
+    android:padding="8dp">
 
-    <TextView
-      android:layout_width="0dp"
+    <!-- ── Header row ─────────────────────────────────────────────────── -->
+    <LinearLayout
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_weight="1"
-      android:text="@string/wind_profile_title"
-      android:textSize="13sp"
-      android:textStyle="bold"/>
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:layout_marginBottom="6dp">
 
+      <TextView
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:text="@string/wind_profile_title"
+        android:textSize="13sp"
+        android:textStyle="bold"/>
+
+      <Button
+        android:id="@+id/wind_update_information_button"
+        style="@style/darkButton"
+        android:layout_width="wrap_content"
+        android:layout_height="48dp"
+        android:text="@string/wind_request_button"
+        android:textSize="11sp"/>
+
+    </LinearLayout>
+
+    <!-- ── Wind Marker button ─────────────────────────────────────────── -->
     <Button
-      android:id="@+id/wind_update_information_button"
+      android:id="@+id/btn_drop_wind_marker"
       style="@style/darkButton"
-      android:layout_width="wrap_content"
-      android:layout_height="48dp"
-      android:text="@string/wind_request_button"
-      android:textSize="11sp"/>
+      android:layout_width="match_parent"
+      android:layout_height="44dp"
+      android:text="@string/wind_btn_drop_marker"
+      android:textSize="11sp"
+      android:layout_marginBottom="6dp"/>
 
-  </LinearLayout>
+    <!-- ── WindChartView — injected by WindProfileView ────────────────── -->
+    <!--    Fixed height: 4 altitudes × 56dp = 224dp                      -->
+    <FrameLayout
+      android:id="@+id/wind_chart_frame"
+      android:layout_width="match_parent"
+      android:layout_height="224dp"
+      android:background="@drawable/image_view_bg"
+      android:layout_marginBottom="6dp"/>
 
-  <!-- ── WindChartView placeholder — injected by WindProfileView ─────── -->
-  <!--    Height = 4 altitudes × 56dp                                     -->
-  <FrameLayout
-    android:id="@+id/wind_chart_frame"
-    android:layout_width="match_parent"
-    android:layout_height="224dp"
-    android:background="@drawable/image_view_bg"
-    android:layout_marginBottom="6dp"/>
-
-  <!-- ── Hour scrubber ──────────────────────────────────────────────── -->
-  <LinearLayout
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:layout_marginBottom="4dp">
-
-    <TextView
-      android:layout_width="wrap_content"
+    <!-- ── Hour scrubber ──────────────────────────────────────────────── -->
+    <LinearLayout
+      android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:text="@string/wind_hour_label"
-      android:textSize="10sp"
-      android:layout_marginEnd="6dp"/>
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:layout_marginBottom="6dp">
 
-    <SeekBar
-      android:id="@+id/wind_seekbar"
-      android:layout_width="0dp"
-      android:layout_height="wrap_content"
-      android:layout_weight="1"
-      android:max="167"/>
+      <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/wind_hour_label"
+        android:textSize="10sp"
+        android:layout_marginEnd="6dp"/>
 
-  </LinearLayout>
+      <SeekBar
+        android:id="@+id/wind_seekbar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:max="167"/>
 
-  <!-- ── Monospaced text table (power-user detail) ──────────────────── -->
-  <ScrollView
-    android:layout_width="match_parent"
-    android:layout_height="0dp"
-    android:layout_weight="1"
-    android:layout_marginTop="4dp">
+    </LinearLayout>
 
+    <!-- ── Divider ───────────────────────────────────────────────────── -->
+    <View
+      android:layout_width="match_parent"
+      android:layout_height="1dp"
+      android:background="#33FFFFFF"
+      android:layout_marginBottom="6dp"/>
+
+    <!-- ── Monospaced text table (all rows, no inner scroll needed) ─── -->
     <TextView
       android:id="@+id/textview_tab3_waiting_json_data"
       android:layout_width="match_parent"
@@ -96,6 +110,6 @@
       android:textSize="11sp"
       android:padding="4dp"/>
 
-  </ScrollView>
+  </LinearLayout>
 
-</LinearLayout>
+</androidx.core.widget.NestedScrollView>

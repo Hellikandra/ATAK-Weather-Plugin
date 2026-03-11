@@ -48,6 +48,7 @@
     <string name="data1">\"Date: \"</string>
     <string name="dailyForecast_title">Daily Forecast</string>
 
+
     <!-- ── Tab 1: Current Weather ──────────────────────────────────────────── -->
     <string name="currently">Currently</string>
     <string name="refresh_weather">Refresh weather</string>
@@ -131,4 +132,25 @@
     <string name="seekbar_now_tick">▼ Now</string>
     <string name="seekbar_hint">Drag to scrub hourly forecast</string>
 
+
+    <!-- ── Map / Marker tab ────────────────────────────────────────────────── -->
+    <string name="map_marker_section_title">Weather Markers</string>
+    <string name="map_marker_description">Drop a marker at the current weather position. Tap the marker on the map to reopen the Weather Tool, or long-press for navigation options.</string>
+    <string name="map_btn_drop_marker">📍 Drop Weather Marker Here</string>
+    <string name="map_btn_remove_markers">🗑 Remove All Weather Markers</string>
+    <string name="map_marker_status_label">Last placed:</string>
+    <string name="map_marker_none_placed">No markers placed yet</string>
+    <string name="map_marker_no_data">Load weather data first</string>
+
+
+    <!-- ── Radial menu labels ──────────────────────────────────────────────── -->
+    <string name="menu_wx_details">WX Details</string>
+    <string name="menu_wx_share">Share WX</string>
+    <string name="menu_wx_navigate">Navigate</string>
+    <string name="menu_wx_remove">Remove</string>
+
+    <!-- ── Map tab: Share button ───────────────────────────────────────────── -->
+    <string name="map_btn_share_marker">📡 Share over Network</string>
+
+    <string name="wind_btn_drop_marker">🌬 Drop Wind Marker</string>
 </resources>

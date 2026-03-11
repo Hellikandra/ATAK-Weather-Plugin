@@ -1,32 +1,95 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    tab_map_overlay.xml
-    Tab 2 — Map radar/overlay controls (placeholder for future extension).
+    tab_map_overlay.xml — Tab 3: Map / Marker controls
+
+    Buttons:
+      1. Drop Weather Marker  — places WMO-icon marker at current position
+      2. Share over Network   — broadcasts CoT for the last-placed marker
+      3. Remove All Markers   — clears all wx_* markers
+
+    Status readout shows the last-placed marker's location and source.
 -->
-<LinearLayout
+<ScrollView
   xmlns:android="http://schemas.android.com/apk/res/android"
-  android:id="@+id/subTabWidget2"
+  android:id="@+id/subTabWidget3"
   android:layout_width="match_parent"
-  android:layout_height="match_parent"
-  android:orientation="vertical"
-  android:padding="12dp"
-  android:gravity="center_horizontal">
+  android:layout_height="match_parent">
 
-  <TextView
-    android:layout_width="wrap_content"
+  <LinearLayout
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="@string/overlay_coming_soon"
-    android:textSize="14sp"
-    android:layout_marginTop="24dp" />
+    android:orientation="vertical"
+    android:padding="12dp">
 
-  <TextView
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="@string/overlay_description"
-    android:textSize="11sp"
-    android:gravity="center"
-    android:layout_marginTop="8dp"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp" />
+    <!-- ── Section title ─────────────────────────────────────────── -->
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_section_title"
+      android:textSize="13sp"
+      android:textStyle="bold"
+      android:layout_marginBottom="4dp"/>
 
-</LinearLayout>
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_description"
+      android:textSize="11sp"
+      android:layout_marginBottom="12dp"/>
+
+    <!-- ── Drop marker ───────────────────────────────────────────── -->
+    <Button
+      android:id="@+id/btn_drop_weather_marker"
+      style="@style/darkButton"
+      android:layout_width="match_parent"
+      android:layout_height="48dp"
+      android:text="@string/map_btn_drop_marker"
+      android:textSize="12sp"
+      android:layout_marginBottom="8dp"/>
+
+    <!-- ── Share current marker over TAK network ─────────────────── -->
+    <Button
+      android:id="@+id/btn_share_marker"
+      style="@style/darkButton"
+      android:layout_width="match_parent"
+      android:layout_height="48dp"
+      android:text="@string/map_btn_share_marker"
+      android:textSize="12sp"
+      android:layout_marginBottom="8dp"/>
+
+    <!-- ── Remove all weather markers ────────────────────────────── -->
+    <Button
+      android:id="@+id/btn_remove_all_markers"
+      style="@style/darkButton"
+      android:layout_width="match_parent"
+      android:layout_height="48dp"
+      android:text="@string/map_btn_remove_markers"
+      android:textSize="12sp"
+      android:layout_marginBottom="16dp"/>
+
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View
+      android:layout_width="match_parent"
+      android:layout_height="1dp"
+      android:background="#33FFFFFF"
+      android:layout_marginBottom="12dp"/>
+
+    <!-- ── Status ────────────────────────────────────────────────── -->
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_status_label"
+      android:textSize="11sp"
+      android:textStyle="bold"
+      android:layout_marginBottom="4dp"/>
+
+    <TextView
+      android:id="@+id/textview_marker_status"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/map_marker_none_placed"
+      android:textSize="11sp"
+      android:fontFamily="monospace"/>
+
+  </LinearLayout>
+</ScrollView>
