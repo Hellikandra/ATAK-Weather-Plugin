@@ -114,7 +114,7 @@ def supportedFlavors =
 
 android {
     compileSdkVersion 34
-    namespace "org.dtakc.weather.atak.plugin"
+    namespace "com.atakmap.android.weather.plugin"
 
     buildFeatures {
         buildConfig = true
