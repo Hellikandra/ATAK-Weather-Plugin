@@ -18,55 +18,7 @@
     android:orientation="vertical"
     android:padding="10dp">
 
-    <!-- ══ SECTION 0: DATA SOURCE SELECTOR ══════════════════════════ -->
-    <TextView
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text="@string/source_section_title"
-      android:textSize="13sp"
-      android:textStyle="bold"
-      android:layout_marginBottom="4dp"/>
-
-    <LinearLayout
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
-      android:layout_marginBottom="12dp">
-
-      <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/source_provider_label"
-        android:textSize="12sp"
-        android:layout_marginEnd="8dp"/>
-
-      <!--
-          Spinner populated programmatically from WeatherSourceManager.getAvailableSources().
-          Entries: "Open-Meteo (free)" initially, future sources appended at runtime.
-      -->
-      <Spinner
-        android:id="@+id/spinner_weather_source"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:background="@drawable/image_view_bg"/>
-
-    </LinearLayout>
-
-    <TextView
-      android:id="@+id/textview_source_status"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text=""
-      android:textSize="10sp"
-      android:textStyle="italic"
-      android:alpha="0.7"
-      android:layout_marginBottom="10dp"/>
-
-    <!-- ── Divider ───────────────────────────────────────────────── -->
-    <View android:layout_width="match_parent" android:layout_height="1dp"
-      android:background="#55FFFFFF" android:layout_marginBottom="12dp"/>
+    <!-- Source/provider selection is in the PARM tab. -->
 
     <!-- ══ SECTION 1: MAP MARKER ════════════════════════════════════ -->
     <TextView
@@ -125,65 +77,105 @@
     <View android:layout_width="match_parent" android:layout_height="1dp"
       android:background="#55FFFFFF" android:layout_marginBottom="12dp"/>
 
-    <!-- ══ SECTION 2: PARAMETERS ════════════════════════════════════ -->
+    <!-- ══ SECTION 2: RADAR OVERLAY ═══════════════════════════════════ -->
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:text="@string/params_info_banner" android:textSize="11sp"
-      android:textStyle="italic" android:layout_marginBottom="4dp"/>
+      android:text="@string/radar_section_title" android:textSize="13sp"
+      android:textStyle="bold" android:layout_marginBottom="4dp"/>
 
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-      android:text="@string/params_change_hint" android:textSize="10sp"
-      android:textStyle="italic" android:alpha="0.7" android:layout_marginBottom="8dp"/>
+      android:text="@string/radar_section_desc" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="4dp"/>
 
-    <!-- HOURLY -->
+    <!-- Radar source selector -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
       android:orientation="horizontal" android:gravity="center_vertical"
-      android:background="@drawable/image_view_bg" android:padding="4dp">
-      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-        android:text="@string/params_section_hourly" android:textSize="13sp" android:textStyle="bold"/>
-      <Button android:id="@+id/params_all_hourly" style="@style/darkButton"
-        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
-        android:text="@string/params_select_all" android:textSize="10sp" android:layout_marginEnd="4dp"/>
-      <Button android:id="@+id/params_none_hourly" style="@style/darkButton"
-        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
-        android:text="@string/params_select_none" android:textSize="10sp"/>
+      android:layout_marginBottom="6dp">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/radar_source_label" android:textSize="11sp"
+        android:layout_marginEnd="8dp"/>
+      <Spinner android:id="@+id/spinner_radar_source" android:spinnerMode="dropdown"
+        android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"/>
+      <Button android:id="@+id/btn_refresh_radar_sources" style="@style/darkButton"
+        android:layout_width="44dp" android:layout_height="44dp"
+        android:text="⟳" android:textSize="16sp" android:layout_marginStart="4dp"
+        android:padding="0dp"/>
     </LinearLayout>
-    <ListView android:id="@+id/params_list_hourly" android:layout_width="match_parent"
-      android:layout_height="wrap_content" android:choiceMode="multipleChoice"
-      android:dividerHeight="0dp" android:layout_marginBottom="10dp"/>
 
-    <!-- DAILY -->
+    <TextView android:id="@+id/textview_radar_source_info"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="" android:textSize="9sp" android:alpha="0.65"
+      android:fontFamily="monospace" android:layout_marginBottom="4dp"/>
+
+    <!-- 2D-only notice -->
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/radar_2d_only_notice" android:textSize="9sp"
+      android:textColor="#FFFF9800" android:layout_marginBottom="8dp"
+      android:drawablePadding="4dp"/>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:layout_marginBottom="8dp">
+      <Button android:id="@+id/btn_radar_show" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+        android:text="@string/radar_btn_show" android:textSize="11sp"
+        android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/btn_radar_hide" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+        android:text="@string/radar_btn_hide" android:textSize="11sp"/>
+    </LinearLayout>
+
+    <!-- Frame scrubber -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
       android:orientation="horizontal" android:gravity="center_vertical"
-      android:background="@drawable/image_view_bg" android:padding="4dp">
-      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-        android:text="@string/params_section_daily" android:textSize="13sp" android:textStyle="bold"/>
-      <Button android:id="@+id/params_all_daily" style="@style/darkButton"
-        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
-        android:text="@string/params_select_all" android:textSize="10sp" android:layout_marginEnd="4dp"/>
-      <Button android:id="@+id/params_none_daily" style="@style/darkButton"
-        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
-        android:text="@string/params_select_none" android:textSize="10sp"/>
+      android:layout_marginBottom="2dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:text="@string/radar_frame_label"
+        android:textSize="11sp"/>
+      <TextView android:id="@+id/textview_radar_time" android:layout_width="wrap_content"
+        android:layout_height="wrap_content" android:text="—" android:textSize="11sp"
+        android:textStyle="bold" android:fontFamily="monospace"/>
     </LinearLayout>
-    <ListView android:id="@+id/params_list_daily" android:layout_width="match_parent"
-      android:layout_height="wrap_content" android:choiceMode="multipleChoice"
-      android:dividerHeight="0dp" android:layout_marginBottom="10dp"/>
+    <SeekBar android:id="@+id/seekbar_radar_frame" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:max="0" android:progress="0"
+      android:layout_marginBottom="8dp"/>
 
-    <!-- CURRENT -->
+    <!-- Opacity -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
       android:orientation="horizontal" android:gravity="center_vertical"
-      android:background="@drawable/image_view_bg" android:padding="4dp">
-      <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-        android:text="@string/params_section_current" android:textSize="13sp" android:textStyle="bold"/>
-      <Button android:id="@+id/params_all_current" style="@style/darkButton"
-        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
-        android:text="@string/params_select_all" android:textSize="10sp" android:layout_marginEnd="4dp"/>
-      <Button android:id="@+id/params_none_current" style="@style/darkButton"
-        android:layout_width="wrap_content" android:layout_height="48dp" android:minWidth="72dp"
-        android:text="@string/params_select_none" android:textSize="10sp"/>
+      android:layout_marginBottom="2dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:text="@string/radar_opacity_label"
+        android:textSize="11sp"/>
+      <TextView android:id="@+id/textview_radar_opacity" android:layout_width="44dp"
+        android:layout_height="wrap_content" android:text="60%" android:textSize="11sp"
+        android:textStyle="bold" android:gravity="end"/>
     </LinearLayout>
-    <ListView android:id="@+id/params_list_current" android:layout_width="match_parent"
-      android:layout_height="wrap_content" android:choiceMode="multipleChoice"
-      android:dividerHeight="0dp" android:layout_marginBottom="10dp"/>
+    <SeekBar android:id="@+id/seekbar_radar_opacity" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:max="100" android:progress="60"
+      android:layout_marginBottom="4dp"/>
+
+    <TextView android:id="@+id/textview_radar_status" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:text="@string/radar_status_idle"
+      android:textSize="10sp" android:textStyle="italic" android:alpha="0.7"
+      android:layout_marginBottom="4dp"/>
+
+    <!-- Tile diagnostics: zoom, tile count, coverage area, centre coords -->
+    <TextView android:id="@+id/textview_radar_diagnostics"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="9sp"
+      android:fontFamily="monospace"
+      android:alpha="0.65"
+      android:layout_marginBottom="6dp"/>
+
+    <!-- Re-center: fetch tiles for the current map viewport -->
+    <Button android:id="@+id/btn_radar_recenter"
+      style="@style/darkButton"
+      android:layout_width="match_parent"
+      android:layout_height="36dp"
+      android:text="@string/radar_btn_recenter"
+      android:textSize="11sp"
+      android:layout_marginBottom="10dp"/>
 
   </LinearLayout>
 </ScrollView>

@@ -55,3 +55,9 @@
 -dontwarn androidx.**
 
 -repackageclasses atakplugin.weathertool
+
+-dontwarn com.google.api.client.**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.Nullable
+-dontwarn javax.annotation.concurrent.**
+-dontwarn org.joda.time.**

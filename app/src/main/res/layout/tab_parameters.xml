@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     tab_parameters.xml — Tab 4: Parameter Selector
-    Multi-select list per section (Hourly / Daily / Current).
-    Each section has a "Select All / None" toggle and a fixed-height
-    ListView. Selections are persisted immediately to SharedPreferences.
+
+    Sources come from two places (priority order):
+      1. Plugin assets:  assets/weather_sources/*.json  (built-in)
+      2. User overrides: /sdcard/atak/tools/weather_sources/*.json  (tap ⟳ to reload)
+
+    The Hourly / Daily / Current sections are DYNAMIC — they rebuild whenever the
+    active source changes or the user taps the Refresh button.  The static layout
+    provides only the container IDs that ParametersView populates at runtime.
+
+    Spinner rule: always spinnerMode="dropdown" + appContext adapter to avoid
+    BadTokenException (ATAK plugin context has no Activity window token).
 -->
 <ScrollView
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -17,14 +25,96 @@
     android:orientation="vertical"
     android:padding="6dp">
 
-    <!-- ── Info banner ─────────────────────────────────────────────── -->
+    <!-- ══ DATA SOURCE SELECTOR ══════════════════════════════════════════
+         Source spinner + ⟳ Refresh button in one row.
+         Tapping ⟳ rescans assets/ and /sdcard/atak/tools/weather_sources/
+         without restarting the plugin.
+    -->
+    <TextView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/source_section_title"
+      android:textSize="13sp"
+      android:textStyle="bold"
+      android:layout_marginBottom="4dp"/>
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:layout_marginBottom="4dp">
+
+      <Spinner
+        android:id="@+id/spinner_parm_source"
+        android:layout_width="0dp"
+        android:layout_height="44dp"
+        android:layout_weight="1"
+        android:spinnerMode="dropdown"
+        android:background="@drawable/image_view_bg"/>
+
+      <!-- Flight-category chip: hidden for Open-Meteo, coloured for AWC -->
+      <TextView
+        android:id="@+id/badge_parm_flt_cat"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:layout_marginStart="6dp"
+        android:background="#555555"
+        android:visibility="gone"/>
+
+      <!-- Refresh sources — rescans assets + /sdcard folder without restart -->
+      <Button
+        android:id="@+id/btn_refresh_sources"
+        style="@style/darkButton"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:text="⟳"
+        android:textSize="16sp"
+        android:layout_marginStart="4dp"
+        android:padding="0dp"/>
+
+    </LinearLayout>
+
+    <TextView
+      android:id="@+id/textview_parm_source_status"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="10sp"
+      android:textStyle="italic"
+      android:alpha="0.7"
+      android:layout_marginBottom="4dp"/>
+
+    <!-- Source description (from JSON "description" field) -->
+    <TextView
+      android:id="@+id/textview_parm_source_desc"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="9sp"
+      android:alpha="0.6"
+      android:layout_marginBottom="8dp"/>
+
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginBottom="10dp"/>
+
+    <!-- ── Refresh hint ─────────────────────────────────────────── -->
     <TextView
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:text="@string/params_info_banner"
       android:textSize="11sp"
       android:textStyle="italic"
-      android:layout_marginBottom="8dp"/>
+      android:layout_marginBottom="4dp"/>
 
     <TextView
       android:layout_width="match_parent"
@@ -35,136 +125,166 @@
       android:alpha="0.7"
       android:layout_marginBottom="8dp"/>
 
-    <!-- ══ HOURLY ══════════════════════════════════════════════════ -->
-    <LinearLayout
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
-      android:background="@drawable/image_view_bg"
-      android:padding="4dp">
-      <TextView
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:text="@string/params_section_hourly"
-        android:textSize="13sp"
-        android:textStyle="bold"/>
-      <Button
-        android:id="@+id/params_all_hourly"
-        style="@style/darkButton"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:minWidth="72dp"
-        android:text="@string/params_select_all"
-        android:textSize="10sp"
-        android:layout_marginEnd="4dp"/>
-      <Button
-        android:id="@+id/params_none_hourly"
-        style="@style/darkButton"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:minWidth="72dp"
-        android:text="@string/params_select_none"
-        android:textSize="10sp"/>
-    </LinearLayout>
+    <!-- ══ DYNAMIC PARAMETER SECTIONS ══════════════════════════════
+         These three sections are rebuilt by ParametersView.setDefinitionParams()
+         or ParametersView.setAvailableParameters() whenever the active source
+         changes.  The section headers (HOURLY / DAILY / CURRENT) and their
+         ListView + All/None buttons are the same for every source — only the
+         items inside the ListViews change.
 
-    <!--
-        ListView with CHOICE_MODE_MULTIPLE.
-        Height is set programmatically by ParametersView after adapter
-        population to avoid nested-scroll truncation.
+         For sources with no "daily" or "current" parameters, the corresponding
+         section header + ListView are hidden programmatically.
     -->
-    <ListView
-      android:id="@+id/params_list_hourly"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:choiceMode="multipleChoice"
-      android:dividerHeight="0dp"
-      android:layout_marginBottom="10dp"/>
 
-    <!-- ══ DAILY ═══════════════════════════════════════════════════ -->
-    <LinearLayout
+    <!-- ══ HOURLY ═══════════════════════════════════════════════ -->
+    <LinearLayout android:id="@+id/section_hourly"
       android:layout_width="match_parent"
+      android:visibility="gone"
       android:layout_height="wrap_content"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
-      android:background="@drawable/image_view_bg"
-      android:padding="4dp">
-      <TextView
-        android:layout_width="0dp"
+      android:orientation="vertical">
+
+      <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:text="@string/params_section_daily"
-        android:textSize="13sp"
-        android:textStyle="bold"/>
-      <Button
-        android:id="@+id/params_all_daily"
-        style="@style/darkButton"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:minWidth="72dp"
-        android:text="@string/params_select_all"
-        android:textSize="10sp"
-        android:layout_marginEnd="4dp"/>
-      <Button
-        android:id="@+id/params_none_daily"
-        style="@style/darkButton"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:minWidth="72dp"
-        android:text="@string/params_select_none"
-        android:textSize="10sp"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/image_view_bg"
+        android:padding="4dp">
+        <TextView
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="@string/params_section_hourly"
+          android:textSize="13sp"
+          android:textStyle="bold"/>
+        <Button
+          android:id="@+id/params_all_hourly"
+          style="@style/darkButton"
+          android:layout_width="wrap_content"
+          android:layout_height="48dp"
+          android:minWidth="72dp"
+          android:text="@string/params_select_all"
+          android:textSize="10sp"
+          android:layout_marginEnd="4dp"/>
+        <Button
+          android:id="@+id/params_none_hourly"
+          style="@style/darkButton"
+          android:layout_width="wrap_content"
+          android:layout_height="48dp"
+          android:minWidth="72dp"
+          android:text="@string/params_select_none"
+          android:textSize="10sp"/>
+      </LinearLayout>
+
+      <!-- CheckBox items added dynamically by ParametersView.bindSection() -->
+      <LinearLayout
+        android:id="@+id/params_list_hourly"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="10dp"/>
+
     </LinearLayout>
 
-    <ListView
-      android:id="@+id/params_list_daily"
+    <!-- ══ DAILY ════════════════════════════════════════════════ -->
+    <LinearLayout android:id="@+id/section_daily"
       android:layout_width="match_parent"
+      android:visibility="gone"
       android:layout_height="wrap_content"
-      android:choiceMode="multipleChoice"
-      android:dividerHeight="0dp"
-      android:layout_marginBottom="10dp"/>
+      android:orientation="vertical">
 
-    <!-- ══ CURRENT ════════════════════════════════════════════════ -->
-    <LinearLayout
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
-      android:background="@drawable/image_view_bg"
-      android:padding="4dp">
-      <TextView
-        android:layout_width="0dp"
+      <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:text="@string/params_section_current"
-        android:textSize="13sp"
-        android:textStyle="bold"/>
-      <Button
-        android:id="@+id/params_all_current"
-        style="@style/darkButton"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:minWidth="72dp"
-        android:text="@string/params_select_all"
-        android:textSize="10sp"
-        android:layout_marginEnd="4dp"/>
-      <Button
-        android:id="@+id/params_none_current"
-        style="@style/darkButton"
-        android:layout_width="wrap_content"
-        android:layout_height="48dp"
-        android:minWidth="72dp"
-        android:text="@string/params_select_none"
-        android:textSize="10sp"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/image_view_bg"
+        android:padding="4dp">
+        <TextView
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="@string/params_section_daily"
+          android:textSize="13sp"
+          android:textStyle="bold"/>
+        <Button
+          android:id="@+id/params_all_daily"
+          style="@style/darkButton"
+          android:layout_width="wrap_content"
+          android:layout_height="48dp"
+          android:minWidth="72dp"
+          android:text="@string/params_select_all"
+          android:textSize="10sp"
+          android:layout_marginEnd="4dp"/>
+        <Button
+          android:id="@+id/params_none_daily"
+          style="@style/darkButton"
+          android:layout_width="wrap_content"
+          android:layout_height="48dp"
+          android:minWidth="72dp"
+          android:text="@string/params_select_none"
+          android:textSize="10sp"/>
+      </LinearLayout>
+
+      <!-- CheckBox items added dynamically by ParametersView.bindSection() -->
+      <LinearLayout
+        android:id="@+id/params_list_daily"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="10dp"/>
+
     </LinearLayout>
 
-    <ListView
-      android:id="@+id/params_list_current"
+    <!-- ══ CURRENT ═══════════════════════════════════════════════ -->
+    <LinearLayout android:id="@+id/section_current"
       android:layout_width="match_parent"
+      android:visibility="gone"
       android:layout_height="wrap_content"
-      android:choiceMode="multipleChoice"
-      android:dividerHeight="0dp"
-      android:layout_marginBottom="10dp"/>
+      android:orientation="vertical">
+
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/image_view_bg"
+        android:padding="4dp">
+        <TextView
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="@string/params_section_current"
+          android:textSize="13sp"
+          android:textStyle="bold"/>
+        <Button
+          android:id="@+id/params_all_current"
+          style="@style/darkButton"
+          android:layout_width="wrap_content"
+          android:layout_height="48dp"
+          android:minWidth="72dp"
+          android:text="@string/params_select_all"
+          android:textSize="10sp"
+          android:layout_marginEnd="4dp"/>
+        <Button
+          android:id="@+id/params_none_current"
+          style="@style/darkButton"
+          android:layout_width="wrap_content"
+          android:layout_height="48dp"
+          android:minWidth="72dp"
+          android:text="@string/params_select_none"
+          android:textSize="10sp"/>
+      </LinearLayout>
+
+      <!-- CheckBox items added dynamically by ParametersView.bindSection() -->
+      <LinearLayout
+        android:id="@+id/params_list_current"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="10dp"/>
+
+    </LinearLayout>
 
   </LinearLayout>
 </ScrollView>

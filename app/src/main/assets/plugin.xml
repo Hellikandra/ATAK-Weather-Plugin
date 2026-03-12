@@ -4,6 +4,6 @@
 
     <extension
         type="gov.tak.api.plugin.IPlugin"
-        impl="com.atakmap.android.weather.plugin.WeatherLifecycle"
+        impl="org.dtakc.weather.atak.plugin.WeatherLifecycle"
         singleton="true" />
 </plugin>

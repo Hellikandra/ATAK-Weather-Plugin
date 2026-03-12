@@ -8,8 +8,8 @@
 
 buildscript {
 
-    ext.PLUGIN_VERSION = "2.0.0"
-    ext.ATAK_VERSION = "5.6.0"
+    ext.PLUGIN_VERSION = "3.0.0"
+    ext.ATAK_VERSION   = "5.6.0"
 
     def takdevVersion = '3.+'
 
@@ -89,32 +89,32 @@ allprojects {
 }
 
 def supportedFlavors =
-[
-    [ name : 'civ', default: true ],
-    [ name : 'mil' /** example: true **/],
-    [ name : 'aus' ],
-    [ name : 'nzl' ],
-    [ name : 'prt' ],
-    [ name : 'nor' ],
-    [ name : 'swe' ],
-    [ name : 'gbr' ],
-    [ name : 'can' ],
-    [ name : 'hun' ],
-    [ name : 'bel' ],
-    [ name : 'est' ],
-    [ name : 'ltu' ],
-    [ name : 'ukr' ],
-    [ name : 'pol' ],
-    [ name : 'nld' ],
-    [ name : 'esp' ],
-    [ name : 'aeronet' ],
-    [ name : 'gov' ],
-    [ name : 'natosof' ],
-]
+        [
+                [ name : 'civ', default: true ],
+                [ name : 'mil' /** example: true **/],
+                [ name : 'aus' ],
+                [ name : 'nzl' ],
+                [ name : 'prt' ],
+                [ name : 'nor' ],
+                [ name : 'swe' ],
+                [ name : 'gbr' ],
+                [ name : 'can' ],
+                [ name : 'hun' ],
+                [ name : 'bel' ],
+                [ name : 'est' ],
+                [ name : 'ltu' ],
+                [ name : 'ukr' ],
+                [ name : 'pol' ],
+                [ name : 'nld' ],
+                [ name : 'esp' ],
+                [ name : 'aeronet' ],
+                [ name : 'gov' ],
+                [ name : 'natosof' ],
+        ]
 
 android {
     compileSdkVersion 34
-    namespace "com.atakmap.android.weather.plugin"
+    namespace "org.dtakc.weather.atak.plugin"
 
     buildFeatures {
         buildConfig = true
@@ -179,7 +179,7 @@ android {
 
                 // retain existing application identifiers for civ and mil
                 if (!flav.name.equals("civ") && !flav.name.equals("mil")) {
-                     applicationIdSuffix = ".${flav.name}"
+                    applicationIdSuffix = ".${flav.name}"
                 }
                 // resolve CIV dependency if flavor specific dependency is not available
                 matchingFallbacks = ['civ']
@@ -192,16 +192,15 @@ android {
                 // buildConfigField 'boolean', 'EXAMPLE', "${flav.example}"
             }
         }
-         // additional variables associated with all flavors can be set here
-         applicationVariants.all { variant ->
-             variant.resValue "string", "versionName", variant.versionName
-             buildConfigField 'String', 'ATAK_PACKAGE_NAME', '"com.atakmap.app.civ"'
+        // additional variables associated with all flavors can be set here
+        applicationVariants.all { variant ->
+            variant.resValue "string", "versionName", variant.versionName
+            buildConfigField 'String', 'ATAK_PACKAGE_NAME', '"com.atakmap.app.civ"'
         }
     }
 
     packagingOptions {
         exclude 'META-INF/INDEX.LIST'
-
 
         // Extract native libraries from the APK - required for plugin loading
         jniLibs.useLegacyPackaging true
@@ -247,11 +246,17 @@ android {
             }
         }
 
-         javaCompileOptions {
-             annotationProcessorOptions {
-                 arguments += ["room.schemaLocation": "$projectDir/schemas"]
-             }
-         }
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments += ["room.schemaLocation": "$projectDir/schemas"]
+            }
+        }
+    }
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            all { jvmArgs '-noverify' }
+        }
     }
 }
 
@@ -290,28 +295,52 @@ def getCommandFlavor() {
 }
 
 
+// ── Dependency versions ───────────────────────────────────────────────────────
+def lifecycle_version  = "2.6.2"
+def room_version       = "2.6.1"
+def junit5_version     = "5.10.1"
+def mockito_version    = "5.8.0"
+def robolectric_version= "4.11.1"
+def archunit_version   = "1.3.0"
+def mockwebserver_ver  = "4.12.0"
+
 dependencies {
     implementation fileTree(dir: 'libs', include: '*.jar')
-    // implementation files("${rootDir}/../../atak-javadoc.jar")
 
-    // ── AndroidX Lifecycle (ViewModel + LiveData) ─────────────────────────
-    // Required since Sprint 1 (ViewModels, LiveData, observeForever)
-    def lifecycle_version = "2.6.2"
+    // ── AndroidX Lifecycle ────────────────────────────────────────────────
     implementation "androidx.lifecycle:lifecycle-viewmodel:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-livedata:$lifecycle_version"
 
-    // ── Room (Sprint 3 — local weather cache) ─────────────────────────────
-    // WeatherDatabase, WeatherDao, @Entity classes
-    def room_version = "2.6.1"
-    implementation "androidx.room:room-runtime:$room_version"
+    // ── Room ──────────────────────────────────────────────────────────────
+    implementation  "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-runtime:$room_version"
     annotationProcessor "androidx.room:room-compiler:$room_version"
-    // Optional: Room KTX helpers (not required — we use Java callbacks)
-    // implementation "androidx.room:room-ktx:$room_version"
+    // Room in-memory for tests
+    testImplementation "androidx.room:room-testing:$room_version"
 
-    // ── No additional dependencies for Sprints 2, 4, 5, 6 ───────────────
-    // Sprint 2: WeatherParameterPreferences uses SharedPreferences (built-in)
-    // Sprint 4: WeatherChartView uses android.graphics.Canvas (built-in)
-    // Sprint 5: WindChartView uses android.graphics.Canvas (built-in)
-    // Sprint 6: Layout-only changes, no new libraries
+    // ── Security (EncryptedSharedPreferences) — ISS-46 ───────────────────
+    implementation "androidx.security:security-crypto:1.1.0-alpha06"
+
+    // ── Unit test stack (Wave 1–5) ────────────────────────────────────────
+    testImplementation "org.junit.jupiter:junit-jupiter-api:$junit5_version"
+    testImplementation "org.junit.jupiter:junit-jupiter-params:$junit5_version"
+    testRuntimeOnly    "org.junit.jupiter:junit-jupiter-engine:$junit5_version"
+
+    testImplementation "org.mockito:mockito-core:$mockito_version"
+    testImplementation "org.mockito:mockito-junit-jupiter:$mockito_version"
+
+    testImplementation "org.robolectric:robolectric:$robolectric_version"
+    testImplementation "androidx.test:core:1.5.0"
+    testImplementation "androidx.arch.core:core-testing:2.2.0"   // InstantTaskExecutorRule
+
+    testImplementation "com.squareup.okhttp3:mockwebserver:$mockwebserver_ver"
+
+    // ArchUnit — Wave 1 structural rules
+    testImplementation "com.tngtech.archunit:archunit-junit5:$archunit_version"
+
+    // ── Integration test stack (Wave 6) ──────────────────────────────────
+    androidTestImplementation "androidx.test.ext:junit:1.1.5"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.5.1"
+    androidTestImplementation "androidx.test.uiautomator:uiautomator:2.3.0"
+    androidTestImplementation "androidx.room:room-testing:$room_version"
 }
-
