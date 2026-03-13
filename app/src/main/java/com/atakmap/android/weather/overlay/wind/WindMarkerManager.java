@@ -67,7 +67,7 @@ public class WindMarkerManager {
 
     private static final String TAG          = "WindMarkerManager";
     public  static final String MARKER_TYPE  = "a-n-G-E-V-w";
-    private static final String UID_PREFIX   = "wx_wind";
+    public static final String UID_PREFIX   = "wx_wind";
 
     private static final int ICON_SIZE = 96;  // px — large enough for clear barbs
 

@@ -193,11 +193,11 @@ public class WindProfileView {
     private String shortLabel(WindProfileViewModel.WindSlot slot) {
         // Build a short source abbreviation: first letters of each word in sourceId
         String src = "";
-        if (slot.sourceId != null && !slot.sourceId.isEmpty()) {
+        if (slot.getSourceId() != null && !slot.getSourceId().isEmpty()) {
             // e.g. "open-meteo" → "OM", "aviation-weather" → "AW", "dwd-icon" → "DI"
             StringBuilder abbr = new StringBuilder();
             boolean nextUpper = true;
-            for (char ch : slot.sourceId.toCharArray()) {
+            for (char ch : slot.getSourceId().toCharArray()) {
                 if (ch == '-' || ch == '_' || ch == ' ') { nextUpper = true; }
                 else if (nextUpper) { abbr.append(Character.toUpperCase(ch)); nextUpper = false; }
             }
