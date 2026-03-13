@@ -106,6 +106,11 @@ public class WeatherMapComponent extends DropDownMapComponent {
         registerDropDownReceiver(ddr, ddFilter);
         Log.d(TAG, "WeatherDropDownReceiver registered");
 
+        // Register the ATAK Tool for map-tap placement of weather/wind markers.
+        // Must be registered here (not in DDR) because Tool registration is global
+        // and must survive the DDR's push/popListeners lifecycle.
+        com.atakmap.android.weather.util.WeatherPlaceTool.register(context, view);
+
         // Optional: register preference fragment
         ToolsPreferenceFragment.register(
                 new ToolsPreferenceFragment.ToolPreference(
@@ -119,10 +124,21 @@ public class WeatherMapComponent extends DropDownMapComponent {
 
     @Override
     protected void onDestroyImpl(final Context context, final MapView view) {
+        // Unregister the placement tool
+        com.atakmap.android.weather.util.WeatherPlaceTool.unregister();
+
         // Unregister menu factory
         if (menuFactory != null) {
             MapMenuReceiver.getInstance().unregisterMapMenuFactory(menuFactory);
             Log.d(TAG, "WeatherMenuFactory unregistered");
+        }
+
+        // Remove any 3D wind-cone shapes still on the map before the overlay
+        // group is disconnected from the renderer.  Without this the Polyline
+        // and SensorFOV items become orphaned and survive across sessions.
+        if (ddr != null) {
+            ddr.clearWindShapes();
+            Log.d(TAG, "Wind shapes cleared");
         }
 
         // Unregister overlay — removes it from the Overlay Manager and

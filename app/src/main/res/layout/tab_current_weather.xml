@@ -193,6 +193,83 @@
       </TableRow>
     </TableLayout>
 
+    <!-- ── METAR detail card (visible only when source is AWC) ───────────── -->
+    <!-- Shown when WeatherModel.isMetarSource() == true; hidden for Open-Meteo -->
+    <LinearLayout
+      android:id="@+id/metar_card"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:background="@drawable/image_view_bg"
+      android:padding="8dp"
+      android:layout_marginTop="8dp"
+      android:layout_marginBottom="4dp"
+      android:visibility="gone">
+
+      <!-- Header row: station badge + fltCat chip -->
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <!-- ICAO station identifier e.g. "EBLG" -->
+        <TextView
+          android:id="@+id/textview_metar_station"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="—"
+          android:textSize="16sp"
+          android:textStyle="bold"
+          android:fontFamily="monospace"
+          android:layout_marginEnd="8dp"/>
+
+        <!-- Flight category chip: coloured background set in code -->
+        <TextView
+          android:id="@+id/textview_metar_fltcat"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="—"
+          android:textSize="12sp"
+          android:textStyle="bold"
+          android:textColor="#FFFFFFFF"
+          android:paddingStart="8dp"
+          android:paddingEnd="8dp"
+          android:paddingTop="3dp"
+          android:paddingBottom="3dp"
+          android:background="@drawable/image_view_bg"/>
+
+        <android.widget.Space
+          android:layout_width="0dp"
+          android:layout_height="match_parent"
+          android:layout_weight="1"/>
+
+        <!-- AWC source tag -->
+        <TextView
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:text="AWC METAR"
+          android:textSize="9sp"
+          android:textStyle="italic"
+          android:alpha="0.6"/>
+
+      </LinearLayout>
+
+      <!-- Raw METAR string — monospaced, full-width, wraps naturally -->
+      <TextView
+        android:id="@+id/textview_metar_raw"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="—"
+        android:textSize="10sp"
+        android:fontFamily="monospace"
+        android:textIsSelectable="true"
+        android:background="#1AFFFFFF"
+        android:padding="6dp"/>
+
+    </LinearLayout>
+
     <!-- ── Hourly SeekBar with time label (#2) ────────────────────── -->
     <TextView
       android:layout_width="match_parent"

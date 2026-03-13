@@ -162,41 +162,9 @@
       </TableLayout>
     </LinearLayout>
 
-    <!-- ── Shared hourly SeekBar ──────────────────────────────────────────── -->
-    <TextView
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text="@string/hourly_scrubber_label"
-      android:textSize="10sp"
-      android:layout_marginTop="6dp"/>
-
-    <TextView
-      android:id="@+id/textview_now_tick"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text="@string/seekbar_now_tick"
-      android:textSize="9sp"
-      android:textColor="#FFFFFFFF"
-      android:paddingStart="2dp"/>
-
-    <SeekBar
-      android:id="@+id/seekBar"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:max="167"
-      android:progress="0"/>
-
-    <TextView
-      android:id="@+id/textview_seekbar_label"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text="+00h  (00:00)"
-      android:textSize="10sp"
-      android:gravity="center_horizontal"
-      android:textStyle="italic"
-      android:layout_marginBottom="6dp"/>
-
     <!-- ── Chart section ──────────────────────────────────────────────────── -->
+    <!-- Outer seekBar removed: the chart_frame carries seekbar_chart_overlay  -->
+    <!-- directly inside its FrameLayout, so scrubbing is done via the chart.  -->
     <View
       android:layout_width="match_parent"
       android:layout_height="1dp"

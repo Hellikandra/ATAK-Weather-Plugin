@@ -12,17 +12,16 @@ import java.util.List;
 /**
  * Pluggable API source contract.
  *
- * ── Sprint 2 additions ────────────────────────────────────────────────────────
+ * REFACTORING CHANGE: Added {@code isStale()} default method.
  *
- * getSupportedParameters()
- *   Returns the parameters this source is capable of providing. Used by
- *   ParametersView to populate only the variables the active source supports,
- *   instead of the hardcoded WeatherParameter enum which is Open-Meteo specific.
+ * Previously, WeatherRepositoryImpl.isStaleForCurrentSource() contained an
+ * {@code instanceof OpenMeteoSource} check to reach the stale flag — tying the
+ * repository layer to a concrete implementation detail.
  *
- * setParameterPreferences(WeatherParameterPreferences)
- *   Injects the user's selection set so the source builds API URLs from prefs
- *   instead of hardcoded constants. Called once from WeatherRepositoryImpl
- *   after construction and again whenever the active source changes.
+ * The new default method returns {@code false} for all sources that don't
+ * declare themselves stale. OpenMeteoSource overrides it to return its
+ * internal volatile boolean. WeatherRepositoryImpl calls {@code active().isStale()}
+ * without any instanceof cast.
  */
 public interface IWeatherRemoteSource {
 
@@ -32,7 +31,6 @@ public interface IWeatherRemoteSource {
     /**
      * Human-readable name shown in the CONF tab Spinner.
      * Default implementation title-cases the source ID.
-     * Override in concrete sources for a friendlier label.
      */
     default String getDisplayName() {
         String id = getSourceId();
@@ -42,8 +40,7 @@ public interface IWeatherRemoteSource {
 
     /**
      * Returns all WeatherParameters this source can provide.
-     * ParametersView calls this to build its section lists, so a different
-     * source (e.g. OpenWeatherMap) can declare a different parameter set.
+     * ParametersView calls this to build its section lists.
      */
     List<WeatherParameter> getSupportedParameters();
 
@@ -53,6 +50,21 @@ public interface IWeatherRemoteSource {
      * A null value resets to source-internal defaults.
      */
     void setParameterPreferences(WeatherParameterPreferences prefs);
+
+    /**
+     * Returns true when the user has changed parameter selections since the
+     * last successful fetch and the cache should be bypassed.
+     *
+     * Default: false (most sources are not parameter-selectable).
+     * OpenMeteoSource overrides this.
+     *
+     * REFACTORING: Replaces the {@code instanceof OpenMeteoSource} check in
+     * WeatherRepositoryImpl.isStaleForCurrentSource(). The repository can now
+     * call {@code active().isStale()} without knowing the concrete type.
+     */
+    default boolean isStale() {
+        return false;
+    }
 
     // ── Fetch callbacks ───────────────────────────────────────────────────────
 

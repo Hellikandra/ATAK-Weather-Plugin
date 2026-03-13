@@ -41,6 +41,51 @@
         android:text="@string/wind_request_button" android:textSize="11sp"/>
     </LinearLayout>
 
+    <!-- ── 1b. Per-slot source selector — shown right below Request button ── -->
+    <LinearLayout android:id="@+id/wind_source_row"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:layout_marginBottom="6dp" android:visibility="gone">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/wind_source_label" android:textSize="11sp"
+        android:alpha="0.85" android:layout_marginEnd="8dp"/>
+      <Spinner android:id="@+id/spinner_wind_source"
+        android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+        android:spinnerMode="dropdown"/>
+    </LinearLayout>
+
+    <!-- ── 1c. Slot tab strip (hidden when no slots loaded) ──────── --> (hidden when no slots loaded) ──────── -->
+    <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:scrollbars="none" android:layout_marginBottom="4dp">
+      <LinearLayout android:id="@+id/wind_slot_tab_strip"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:gravity="center_vertical"
+        android:visibility="gone"/>
+    </HorizontalScrollView>
+
+
+    <!-- ── 1d. Active slot data-source badge ──────────────────────── -->
+    <TextView
+      android:id="@+id/textview_wind_source_badge"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="10sp"
+      android:textStyle="italic"
+      android:alpha="0.75"
+      android:paddingStart="4dp"
+      android:paddingBottom="4dp"
+      android:visibility="gone"/>
+
+    <!-- ── "No slots yet" empty state hint ──────────────────────── -->
+    <TextView android:id="@+id/textview_wind_empty"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/wind_no_slots_hint"
+      android:textSize="11sp" android:textStyle="italic"
+      android:alpha="0.6" android:gravity="center"
+      android:paddingTop="24dp" android:paddingBottom="24dp"
+      android:visibility="visible"/>
+
     <!-- ── 2. WindChartView ───────────────────────────────────────── -->
     <FrameLayout android:id="@+id/wind_chart_frame" android:layout_width="match_parent"
       android:layout_height="224dp" android:background="@drawable/image_view_bg"
@@ -111,11 +156,18 @@
         android:text="@string/wind_effect_clear_btn" android:textSize="11sp"/>
     </LinearLayout>
 
-    <!-- Drop Wind Marker -->
-    <Button android:id="@+id/btn_drop_wind_marker" style="@style/darkButton"
-      android:layout_width="match_parent" android:layout_height="44dp"
-      android:text="@string/wind_btn_drop_marker" android:textSize="11sp"
-      android:layout_marginBottom="4dp"/>
+    <!-- Drop Wind Marker + active slot coords -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="vertical" android:layout_marginBottom="4dp">
+      <Button android:id="@+id/btn_drop_wind_marker" style="@style/darkButton"
+        android:layout_width="match_parent" android:layout_height="44dp"
+        android:text="@string/wind_btn_drop_marker" android:textSize="11sp"/>
+      <TextView android:id="@+id/textview_wind_marker_coord"
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:text="@string/wind_marker_no_slot" android:textSize="9sp"
+        android:textColor="#FFAAAAAA" android:gravity="center_horizontal"
+        android:layout_marginTop="2dp"/>
+    </LinearLayout>
 
     <!-- ── Divider ────────────────────────────────────────────────── -->
     <View android:layout_width="match_parent" android:layout_height="1dp"

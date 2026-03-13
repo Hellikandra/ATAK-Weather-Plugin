@@ -67,7 +67,7 @@
 
     <!-- ── Tab 2: Wind Profile ─────────────────────────────────────────────── -->
     <string name="wind_profile_title">Wind Profile (Multi-Altitude)</string>
-    <string name="wind_request_button">Request Wind Information</string>
+    <string name="wind_request_button">Tap Map → Wind Profile</string>
 
     <!-- ── Tab 3: Map Overlay ──────────────────────────────────────────────── -->
     <string name="overlay_coming_soon">Radar Overlay — Coming Soon</string>
@@ -153,6 +153,13 @@
     <string name="map_btn_share_marker">📡 Share over Network</string>
 
     <string name="wind_btn_drop_marker">🌬 Drop Wind Marker</string>
+    <string name="wind_marker_no_slot">No slot selected — tap ⟳ Request Wind at Map Center first</string>
+    <!-- WeatherPlaceTool prompts (shown in TextContainer banner) -->
+    <string name="tool_prompt_weather">Tap map to place Weather Marker — tap again to cancel</string>
+    <string name="tool_prompt_wind">Tap map to fetch Wind Profile at that point — tap again to cancel</string>
+    <!-- Wind tab source info -->
+    <string name="wind_source_prefix">Source: </string>
+    <string name="wind_source_unknown">unknown</string>
 
     <!-- ADD these entries to res/values/strings.xml -->
 
@@ -180,5 +187,26 @@
 
     <!-- ── Wind effect drawn with no profile loaded ───────────────────── -->
     <string name="wind_effect_drawn_no_profile">Wind effect drawn (surface speed only — tap &#34;Request Wind Info&#34; for multi-altitude)</string>
+
+    <!-- ── Sprint 22: Radar Overlay ──────────────────────────────────── -->
+    <string name="radar_section_title">🌧 Radar Overlay</string>
+    <string name="radar_section_desc">RainViewer precipitation radar. Scrub the slider to replay the last ~2 hours or preview the 30-min nowcast. Tiles load automatically.</string>
+    <string name="radar_2d_only_notice">⚠ Radar overlay is 2D only — it will appear flat on the screen in 3D/tilt mode and does not follow terrain. Switch to top-down view for accurate geo-registration.</string>
+    <string name="radar_source_label">Source:</string>
+    <string name="sources_refreshed">Sources refreshed — %1$d definitions loaded</string>
+    <string name="radar_sources_refreshed">Radar sources refreshed — %1$d definitions loaded</string>
+    <string name="radar_btn_show">▶ Show Radar</string>
+    <string name="radar_btn_hide">✕ Hide Radar</string>
+    <string name="radar_btn_recenter">⟳ Re-center Radar on Current View</string>
+    <string name="radar_frame_label">Frame:</string>
+    <string name="radar_opacity_label">Opacity:</string>
+    <string name="radar_status_idle">Tap ▶ Show Radar to load tiles</string>
+    <string name="radar_status_loading">Loading radar manifest…</string>
+    <string name="radar_status_ready">%d frames loaded</string>
+    <string name="radar_status_error">Error — check connection</string>
+
+    <!-- WIND tab -->
+    <string name="wind_source_label">Source:</string>
+    <string name="wind_no_slots_hint">Tap ⟳ Request Wind to load wind data for a point.</string>
 
 </resources>

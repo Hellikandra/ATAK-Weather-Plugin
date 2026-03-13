@@ -1,0 +1,81 @@
+{
+  "_comment": "Weather source definition template for the ATAK Weather Plugin v3.",
+  "_doc": "Drop this file into /sdcard/atak/tools/weather_sources/ and tap ⟳ in the PARM tab to load it.",
+  "_schema_version": "1.0",
+
+  "sourceId": "my-source",
+  "displayName": "My Custom Source",
+  "apiBaseUrl": "https://api.example.com/v1",
+  "requiresApiKey": false,
+  "apiKey": "",
+  "description": "Short description shown below the spinner in the PARM tab.",
+
+  "hourlyParams": [
+    {
+      "key":       "temperature_2m",
+      "label":     "Temperature 2m",
+      "unit":      "°C",
+      "defaultOn": true
+    },
+    {
+      "key":       "relative_humidity_2m",
+      "label":     "Relative Humidity",
+      "unit":      "%",
+      "defaultOn": true
+    },
+    {
+      "key":       "wind_speed_10m",
+      "label":     "Wind Speed 10m",
+      "unit":      "m/s",
+      "defaultOn": true
+    },
+    {
+      "key":       "wind_direction_10m",
+      "label":     "Wind Direction 10m",
+      "unit":      "°",
+      "defaultOn": true
+    },
+    {
+      "key":       "precipitation",
+      "label":     "Precipitation",
+      "unit":      "mm",
+      "defaultOn": false
+    }
+  ],
+
+  "dailyParams": [
+    {
+      "key":       "temperature_2m_max",
+      "label":     "Max Temperature",
+      "unit":      "°C",
+      "defaultOn": true
+    },
+    {
+      "key":       "temperature_2m_min",
+      "label":     "Min Temperature",
+      "unit":      "°C",
+      "defaultOn": true
+    },
+    {
+      "key":       "precipitation_sum",
+      "label":     "Total Precipitation",
+      "unit":      "mm",
+      "defaultOn": false
+    }
+  ],
+
+  "currentParams": [
+    {
+      "key":       "temperature_2m",
+      "label":     "Current Temperature",
+      "unit":      "°C",
+      "defaultOn": true
+    },
+    {
+      "key":       "weather_code",
+      "label":     "Weather Code (WMO)",
+      "unit":      "",
+      "defaultOn": true
+    }
+  ]
+}

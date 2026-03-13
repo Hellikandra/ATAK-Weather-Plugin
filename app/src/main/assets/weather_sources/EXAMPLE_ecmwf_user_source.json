@@ -1,0 +1,40 @@
+{
+  "_comment": "EXAMPLE: Drop this file into /sdcard/atak/tools/weather_sources/ then tap ⟳ in PARM tab.",
+
+  "sourceId": "open-meteo-ecmwf",
+  "displayName": "Open-Meteo ECMWF IFS",
+  "description": "European Centre for Medium-Range Weather Forecasts (ECMWF) IFS model via Open-Meteo. Higher accuracy over Europe.",
+  "type": "weather",
+  "windProfileType": "model_levels",
+  "windAltitudesM": [10, 900, 1500, 3000, 5000],
+
+  "hourlyParams": [
+    { "key": "temperature_2m",            "label": "Temperature 2m (°C)",         "defaultOn": true  },
+    { "key": "dewpoint_2m",               "label": "Dew Point 2m (°C)",           "defaultOn": false },
+    { "key": "relativehumidity_2m",       "label": "Relative Humidity 2m (%)",    "defaultOn": true  },
+    { "key": "apparent_temperature",      "label": "Apparent Temperature (°C)",   "defaultOn": false },
+    { "key": "precipitation",             "label": "Precipitation (mm)",          "defaultOn": true  },
+    { "key": "weathercode",               "label": "WMO Weather Code",            "defaultOn": true  },
+    { "key": "surface_pressure",          "label": "Surface Pressure (hPa)",      "defaultOn": false },
+    { "key": "cloudcover",                "label": "Total Cloud Cover (%)",       "defaultOn": false },
+    { "key": "windspeed_10m",             "label": "Wind Speed 10m (m/s)",        "defaultOn": true  },
+    { "key": "winddirection_10m",         "label": "Wind Direction 10m (°)",      "defaultOn": true  },
+    { "key": "windgusts_10m",             "label": "Wind Gusts 10m (m/s)",        "defaultOn": false },
+    { "key": "windspeed_100m",            "label": "Wind Speed 100m (m/s)",       "defaultOn": false },
+    { "key": "winddirection_100m",        "label": "Wind Direction 100m (°)",     "defaultOn": false },
+    { "key": "soil_temperature_0cm",      "label": "Soil Temperature 0cm (°C)",   "defaultOn": false },
+    { "key": "soil_temperature_6cm",      "label": "Soil Temperature 6cm (°C)",   "defaultOn": false },
+    { "key": "soil_moisture_0_1cm",       "label": "Soil Moisture 0-1cm (m³/m³)","defaultOn": false }
+  ],
+
+  "dailyParams": [
+    { "key": "temperature_2m_max",        "label": "Max Temperature 2m (°C)",     "defaultOn": true  },
+    { "key": "temperature_2m_min",        "label": "Min Temperature 2m (°C)",     "defaultOn": true  },
+    { "key": "weathercode",               "label": "WMO Weather Code",            "defaultOn": true  },
+    { "key": "precipitation_sum",         "label": "Precipitation Sum (mm)",      "defaultOn": true  },
+    { "key": "windspeed_10m_max",         "label": "Max Wind Speed 10m (m/s)",    "defaultOn": false },
+    { "key": "winddirection_10m_dominant","label": "Dominant Wind Direction (°)",  "defaultOn": false }
+  ],
+
+  "currentParams": []
+}

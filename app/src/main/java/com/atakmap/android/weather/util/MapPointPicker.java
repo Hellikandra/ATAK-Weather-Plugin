@@ -12,41 +12,59 @@ import com.atakmap.coremap.maps.coords.GeoPointMetaData;
 /**
  * MapPointPicker — one-shot map-tap listener used by "Drop Weather Marker".
  *
- * ── Flow ──────────────────────────────────────────────────────────────────────
+ * ── Why addMapEventListenerToBase, not addMapEventListener ────────────────────
  *
- *   1. Caller closes the drop-down (collapses the panel so the map is visible).
- *   2. Caller calls MapPointPicker.pick(mapView, callback).
- *   3. ATAK fires MAP_CONFIRMED_CLICK when the user taps the map.
- *      (MAP_CONFIRMED_CLICK, not MAP_CLICK, avoids the first tap of a double-tap.)
- *   4. This class converts the screen PointF → GeoPoint via
- *      mapView.inverseWithElevation() (deprecated but the only plugin-accessible
- *      screen→geo API) and delivers it to the callback.
- *   5. The listener unregisters itself after the first valid tap.
+ * MapEventDispatcher has a listener STACK.  When a DropDownReceiver opens it
+ * calls pushListeners() and when it closes popListeners() — so any listener
+ * registered with addMapEventListener() is on the CURRENT (top) set and gets
+ * discarded by the pop.
  *
- * ── Cancellation ──────────────────────────────────────────────────────────────
+ * addMapEventListenerToBase() registers on the BASE set that persists across
+ * push/pop operations.  This is required for map-tap-after-dropdown-close flows.
  *
- *   Call cancel() if the user reopens the drop-down without picking a point,
- *   or if the component is destroyed.  Safe to call multiple times.
+ * ── Why MAP_CLICK, not MAP_CONFIRMED_CLICK ────────────────────────────────────
+ *
+ * MAP_CONFIRMED_CLICK is designed to distinguish single from double-tap. In
+ * practice the 300 ms wait before it fires can cause the PointF screen coordinate
+ * to become stale if the map redraws (e.g. after the dropdown collapses and the
+ * MapView relays out to full-screen).  MAP_CLICK fires immediately with the
+ * raw touch position, giving a correct screen coord to feed to
+ * inverseWithElevation().
+ *
+ * ── Debounce ──────────────────────────────────────────────────────────────────
+ *
+ * closeDropDown() sends a touch-up event that fires MAP_CLICK ~0–100 ms after
+ * pick() is called.  We suppress any MAP_CLICK that arrives within DEBOUNCE_MS
+ * of picker creation so only the user's INTENTIONAL tap registers.
+ *
+ * ── Thread safety ─────────────────────────────────────────────────────────────
+ *
+ * onMapEvent() fires on the main thread (ATAK's MapEventDispatcher dispatches
+ * on the UI thread).  The callback is delivered on the same thread.
  */
 public class MapPointPicker implements MapEventDispatcher.MapEventDispatchListener {
 
-    private static final String TAG = "MapPointPicker";
+    private static final String TAG         = "MapPointPicker";
+    /** Ignore MAP_CLICK events that arrive within this many ms of registration. */
+    private static final long   DEBOUNCE_MS = 350L;
 
     /** Receives the picked geographic point on the main thread. */
     public interface Callback {
         void onPointPicked(GeoPoint point);
     }
 
-    private final MapView mapView;
+    private final MapView  mapView;
     private final Callback callback;
+    private final long     registeredAt = System.currentTimeMillis();
     private volatile boolean active = true;
 
     private MapPointPicker(MapView mapView, Callback callback) {
         this.mapView  = mapView;
         this.callback = callback;
+        // Use the BASE listener set so it persists after the dropdown's popListeners()
         mapView.getMapEventDispatcher()
-                .addMapEventListener(MapEvent.MAP_CONFIRMED_CLICK, this);
-        Log.d(TAG, "registered — waiting for tap");
+                .addMapEventListenerToBase(MapEvent.MAP_CLICK, this);
+        Log.d(TAG, "registered (base) — waiting for tap");
     }
 
     /**
@@ -71,25 +89,36 @@ public class MapPointPicker implements MapEventDispatcher.MapEventDispatchListen
     @Override
     public void onMapEvent(MapEvent event) {
         if (!active) return;
-        if (!MapEvent.MAP_CONFIRMED_CLICK.equals(event.getType())) return;
+        if (!MapEvent.MAP_CLICK.equals(event.getType())) return;
+
+        // Debounce: ignore events that fire within DEBOUNCE_MS of registration.
+        // These are typically the touch-up event from the tap that caused
+        // closeDropDown() to be called, not the user's intended placement tap.
+        long age = System.currentTimeMillis() - registeredAt;
+        if (age < DEBOUNCE_MS) {
+            Log.d(TAG, "MAP_CLICK suppressed (debounce: " + age + "ms < " + DEBOUNCE_MS + "ms)");
+            return;
+        }
 
         unregister();
 
         final PointF screen = event.getPointF();
         if (screen == null) {
-            Log.w(TAG, "MAP_CONFIRMED_CLICK: null PointF — ignoring");
+            Log.w(TAG, "MAP_CLICK: null PointF — ignoring");
             return;
         }
 
-        // inverseWithElevation is the only screen→geo API accessible from a plugin.
-        // The modern MapRenderer2.inverse path is not reachable without casting
-        // to internal types.  @SuppressWarnings silences the IDE deprecation warning.
+        // inverseWithElevation() is the only screen→geo API accessible from a
+        // plugin without casting to internal ATAK types.
+        // Deprecated since 4.1 but functional; the replacement (MapRenderer2.inverse)
+        // is not reachable from plugin code in this SDK.
         @SuppressWarnings("deprecation")
         GeoPointMetaData gpmd = mapView.inverseWithElevation(screen.x, screen.y);
         GeoPoint geo = (gpmd != null) ? gpmd.get() : null;
 
         if (geo == null || !geo.isValid()) {
-            Log.w(TAG, "inverseWithElevation returned invalid point");
+            Log.w(TAG, "inverseWithElevation returned invalid point for screen "
+                    + screen.x + "," + screen.y);
             return;
         }
 
@@ -102,6 +131,6 @@ public class MapPointPicker implements MapEventDispatcher.MapEventDispatchListen
     private void unregister() {
         active = false;
         mapView.getMapEventDispatcher()
-                .removeMapEventListener(MapEvent.MAP_CONFIRMED_CLICK, this);
+                .removeMapEventListenerFromBase(MapEvent.MAP_CLICK, this);
     }
 }

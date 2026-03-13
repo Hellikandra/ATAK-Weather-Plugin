@@ -1,0 +1,17 @@
+{
+  "_comment": "Radar source definition template for the ATAK Weather Plugin v3.",
+  "_doc": "Drop this file into /sdcard/atak/tools/weather_sources/ and tap ⟳ in the CONF tab to load it.",
+  "_schema_version": "1.0",
+
+  "radarSourceId": "my-radar",
+  "displayName": "My Radar Provider",
+  "description": "Tile-based radar overlay. Must provide a RainViewer-compatible manifest.",
+
+  "manifestUrl": "https://api.myprovider.com/radar/manifest.json",
+
+  "tileUrlTemplate": "https://tiles.myprovider.com/radar/{timestamp}/256/{z}/{x}/{y}/2/1_1.png",
+
+  "tileSize": 256,
+  "defaultZoom": 5,
+  "attribution": "© My Radar Provider"
+}

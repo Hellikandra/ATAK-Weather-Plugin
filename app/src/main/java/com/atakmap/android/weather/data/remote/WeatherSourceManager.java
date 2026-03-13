@@ -69,8 +69,11 @@ public class WeatherSourceManager {
     private WeatherSourceManager(Context ctx) {
         appContext = ctx;
         prefs      = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        // Register built-in provider
-        register(new OpenMeteoSource());
+        // Register built-in providers — order = Spinner display order.
+        register(new OpenMeteoSource());          // index 0 — default (GFS global)
+        register(new OpenMeteoECMWFSource());     // index 1 — ECMWF pressure levels
+        register(new OpenMeteoDWDSource());       // index 2 — DWD ICON high-res Europe
+        register(new AviationWeatherSource());    // index 3 — AWC METAR real obs
     }
 
     // ── Registration ──────────────────────────────────────────────────────────
@@ -115,6 +118,11 @@ public class WeatherSourceManager {
         return Collections.unmodifiableList(list);
     }
 
+    /** Returns the IWeatherRemoteSource for the given ID, or null if not registered. */
+    public IWeatherRemoteSource getSourceById(String sourceId) {
+        return sources.get(sourceId);
+    }
+
     /** Total number of registered sources. */
     public int getSourceCount() { return sources.size(); }
 
@@ -127,5 +135,15 @@ public class WeatherSourceManager {
             i++;
         }
         return 0;
+    }
+
+    /** Returns the index of any source by ID, or -1 if not found. */
+    public int getIndexForSourceId(String sourceId) {
+        int i = 0;
+        for (String id : sources.keySet()) {
+            if (id.equals(sourceId)) return i;
+            i++;
+        }
+        return -1;
     }
 }

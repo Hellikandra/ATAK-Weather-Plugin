@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.atakmap.android.weather.data.cache.CacheStatusProvider;
 import com.atakmap.android.weather.domain.model.ComparisonModel;
 import com.atakmap.android.weather.domain.model.DailyForecastModel;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
@@ -11,7 +12,6 @@ import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.LocationSource;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
-import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
 import com.atakmap.android.weather.domain.repository.IWeatherRepository;
 
 import java.util.List;
@@ -19,36 +19,19 @@ import java.util.List;
 /**
  * ViewModel for all weather tabs.
  *
- * ── Sprint 1 changes ─────────────────────────────────────────────────────────
- *
- * 1. LocationSource awareness
- *    Every load call now carries a LocationSource (SELF_MARKER or MAP_CENTRE).
- *    The resolved LocationSnapshot is emitted on activeLocation LiveData so
- *    Tab 1 can display both the name and exact coordinates.
- *
- * 2. GPS fallback chain
- *    loadWeatherWithFallback(preferSelf): tries self marker first; if lat=0
- *    and lon=0 (no GPS fix), automatically falls back to map centre and
- *    records that in the emitted LocationSnapshot.
- *    The Receiver calls this instead of two separate methods.
- *
- * 3. Auto-trigger comparison
- *    The first successful Tab-1 load also fires loadComparison() so Tab 6
- *    is populated without requiring the user to switch tabs first.
- *
- * 4. Geocoding never returns "Unknown location"
- *    IGeocodingRepository.Callback now receives a LocationSnapshot (Sprint 1
- *    interface change).  On network failure the geocoding source itself
- *    produces a coords-only fallback string — the ViewModel never has to
- *    guard against null names.
- *
- * 5. Comparison cards carry their own LocationSnapshots
- *    selfLocation / centerLocation LiveData feeds Tab 6 card headers with
- *    name + coords independently of the main Tab 1 location.
+ * <h3>Refactoring changes (vs original)</h3>
+ * <ul>
+ *   <li>{@code instanceof CachingWeatherRepository} replaced with
+ *       {@code instanceof CacheStatusProvider} — WeatherViewModel no longer
+ *       imports the concrete caching class, keeping it decoupled from the
+ *       data layer.</li>
+ *   <li>{@code comparisonAutoTriggered} dead field removed.</li>
+ *   <li>{@code hourlyCache} is now only held here (removed duplicate in DDR).</li>
+ * </ul>
  */
 public class WeatherViewModel extends ViewModel {
 
-    // ── LiveData — Tab 1 ─────────────────────────────────────────────────────
+    // ── LiveData — Tab 1 ──────────────────────────────────────────────────────
     private final MutableLiveData<UiState<WeatherModel>>             currentWeather    = new MutableLiveData<>();
     private final MutableLiveData<UiState<List<DailyForecastModel>>> dailyForecast     = new MutableLiveData<>();
     private final MutableLiveData<UiState<List<HourlyEntryModel>>>   hourlyForecast    = new MutableLiveData<>();
@@ -58,7 +41,7 @@ public class WeatherViewModel extends ViewModel {
     private final MutableLiveData<String>                            errorMessage      = new MutableLiveData<>();
 
     /**
-     * Sprint 3: cache badge shown in Tab 1 header.
+     * Cache badge shown in Tab 1 header.
      * Empty string = fresh data (badge hidden).
      * "Cached HH:MM" = served from Room cache.
      * "Cached HH:MM ⚠" = stale offline fallback.
@@ -72,23 +55,24 @@ public class WeatherViewModel extends ViewModel {
     private final MutableLiveData<LocationSnapshot>         selfLocation      = new MutableLiveData<>();
     private final MutableLiveData<LocationSnapshot>         centerLocation    = new MutableLiveData<>();
 
-    // ── Repositories ─────────────────────────────────────────────────────────
+    // ── Repositories ──────────────────────────────────────────────────────────
     private final IWeatherRepository   weatherRepository;
     private final IGeocodingRepository geocodingRepository;
 
-    // ── Internal state ───────────────────────────────────────────────────────
+    // ── Internal state ────────────────────────────────────────────────────────
+    /** Authoritative hourly cache — DDR reads from here via getHourlyForecast(). */
     private List<HourlyEntryModel> hourlyCache;
-    private boolean comparisonAutoTriggered = false;
 
-    // ── Constructor ──────────────────────────────────────────────────────────
+    // ── Constructor ───────────────────────────────────────────────────────────
 
     public WeatherViewModel(IWeatherRepository weatherRepository,
                             IGeocodingRepository geocodingRepository) {
         this.weatherRepository   = weatherRepository;
         this.geocodingRepository = geocodingRepository;
-        // Sprint 3: wire cache badge if using the caching repository
-        if (weatherRepository instanceof CachingWeatherRepository) {
-            ((CachingWeatherRepository) weatherRepository).setCacheStatusListener(
+
+        // Wire cache badge via the CacheStatusProvider interface — no concrete import needed.
+        if (weatherRepository instanceof CacheStatusProvider) {
+            ((CacheStatusProvider) weatherRepository).setCacheStatusListener(
                     (status, label) -> cacheBadge.setValue(label));
         }
     }
@@ -98,16 +82,14 @@ public class WeatherViewModel extends ViewModel {
     /**
      * Primary load entry point used by the Receiver on every open/refresh.
      *
-     * Fallback chain:
-     *  - selfLat == 0 && selfLon == 0  →  no GPS fix  →  use mapCentre coords
-     *    and emit a MAP_CENTRE LocationSnapshot so Tab 1 shows
-     *    "Map centre — …" instead of "Unknown location"
-     *  - otherwise use SELF_MARKER
+     * <p>Fallback chain: if {@code selfLat == 0 && selfLon == 0} (no GPS fix)
+     * the map-centre coordinates are used and a {@link LocationSource#MAP_CENTRE}
+     * snapshot is emitted.</p>
      *
-     * @param selfLat  GPS latitude  (0 if not yet fixed)
-     * @param selfLon  GPS longitude (0 if not yet fixed)
-     * @param cenLat   map-centre latitude  (always valid)
-     * @param cenLon   map-centre longitude (always valid)
+     * @param selfLat GPS latitude  (0 if not yet fixed)
+     * @param selfLon GPS longitude (0 if not yet fixed)
+     * @param cenLat  map-centre latitude  (always valid)
+     * @param cenLon  map-centre longitude (always valid)
      */
     public void loadWeatherWithFallback(double selfLat, double selfLon,
                                         double cenLat,  double cenLon) {
@@ -119,7 +101,7 @@ public class WeatherViewModel extends ViewModel {
     }
 
     /**
-     * Explicit load for a specific coordinate + source.
+     * Explicit load for a specific coordinate and source.
      * Used by the refresh button (short = MAP_CENTRE, long-press = SELF_MARKER).
      */
     public void loadWeather(double latitude, double longitude, LocationSource source) {
@@ -139,7 +121,6 @@ public class WeatherViewModel extends ViewModel {
 
         final WeatherModel[] results = new WeatherModel[2]; // [0]=self [1]=center
 
-        // Self marker
         reverseGeocode(selfLat, selfLon, LocationSource.SELF_MARKER, selfLocation);
         weatherRepository.getCurrentWeather(selfLat, selfLon,
                 new IWeatherRepository.Callback<WeatherModel>() {
@@ -154,7 +135,6 @@ public class WeatherViewModel extends ViewModel {
                     }
                 });
 
-        // Map centre
         reverseGeocode(cenLat, cenLon, LocationSource.MAP_CENTRE, centerLocation);
         weatherRepository.getCurrentWeather(cenLat, cenLon,
                 new IWeatherRepository.Callback<WeatherModel>() {
@@ -172,7 +152,7 @@ public class WeatherViewModel extends ViewModel {
 
     /**
      * Update selected SeekBar hour and compute a human-readable label.
-     * Format: "+06h  (14:00)"
+     * Format: {@code "+06h  (14:00)"}
      */
     public void selectHour(int index) {
         selectedHour.setValue(index);
@@ -205,8 +185,13 @@ public class WeatherViewModel extends ViewModel {
         currentWeather.setValue(UiState.loading());
         weatherRepository.getCurrentWeather(lat, lon,
                 new IWeatherRepository.Callback<WeatherModel>() {
-                    @Override public void onSuccess(WeatherModel r) { currentWeather.setValue(UiState.success(r)); }
-                    @Override public void onError(String msg)       { currentWeather.setValue(UiState.error(msg)); errorMessage.setValue(msg); }
+                    @Override public void onSuccess(WeatherModel r) {
+                        currentWeather.setValue(UiState.success(r));
+                    }
+                    @Override public void onError(String msg) {
+                        currentWeather.setValue(UiState.error(msg));
+                        errorMessage.setValue(msg);
+                    }
                 });
     }
 
@@ -214,8 +199,13 @@ public class WeatherViewModel extends ViewModel {
         dailyForecast.setValue(UiState.loading());
         weatherRepository.getDailyForecast(lat, lon,
                 new IWeatherRepository.Callback<List<DailyForecastModel>>() {
-                    @Override public void onSuccess(List<DailyForecastModel> r) { dailyForecast.setValue(UiState.success(r)); }
-                    @Override public void onError(String msg)                    { dailyForecast.setValue(UiState.error(msg)); errorMessage.setValue(msg); }
+                    @Override public void onSuccess(List<DailyForecastModel> r) {
+                        dailyForecast.setValue(UiState.success(r));
+                    }
+                    @Override public void onError(String msg) {
+                        dailyForecast.setValue(UiState.error(msg));
+                        errorMessage.setValue(msg);
+                    }
                 });
     }
 
@@ -237,8 +227,8 @@ public class WeatherViewModel extends ViewModel {
 
     /**
      * Reverse-geocode and emit result into the given LiveData slot.
-     * On network failure the geocoding source itself provides a coords-only
-     * fallback — this method always calls onSuccess, never onError.
+     * On network failure the geocoding source provides a coords-only fallback —
+     * this method always calls onSuccess, never onError.
      */
     private void reverseGeocode(double lat, double lon, LocationSource source,
                                 MutableLiveData<LocationSnapshot> target) {
@@ -248,9 +238,7 @@ public class WeatherViewModel extends ViewModel {
                         target.setValue(snapshot);
                     }
                     @Override public void onError(String msg) {
-                        // Should not reach here — NominatimGeocodingSource
-                        // always calls onSuccess with a coords fallback.
-                        // Guard anyway.
+                        // NominatimGeocodingSource always calls onSuccess with a coords fallback.
                         target.setValue(new LocationSnapshot(lat, lon,
                                 LocationSnapshot.coordsFallback(lat, lon), source));
                     }

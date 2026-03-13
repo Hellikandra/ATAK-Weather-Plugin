@@ -1,0 +1,68 @@
+# aviation-weather.yaml
+# Aviation Weather Center (AWC) — FAA METAR observations
+#
+# Copy this file to /sdcard/atak/tools/weather_sources/ and tap ⟳ in the PARM
+# tab to load it.  The plugin will merge it with the built-in JSON definitions.
+#
+# ── Field reference ───────────────────────────────────────────────────────────
+# sourceId        Unique key (used internally and in SharedPrefs).
+#                 Must match the Java class ID if backed by a hard-coded source.
+# displayName     Human-readable name shown in all spinners and charts.
+# description     One-line description shown under the spinner.
+# type            "weather" | "radar" — selects which tab this source appears in.
+# windProfileType "metar_windtemp" uses METAR surface + AWC wind-aloft tiers.
+#                 "model_levels" uses pressure-level model output.
+# windAltitudesM  Integer list. For METAR these are standard aviation altitudes:
+#                   10 m = surface METAR
+#                  760 m ≈ 3 000 ft (925 hPa)
+#                 1500 m ≈ 6 000 ft (850 hPa)
+#                 3000 m ≈ 10 000 ft (700 hPa)
+#                 4200 m ≈ 14 000 ft (600 hPa)
+#
+# Parameters: only "current" section is meaningful for METAR (no forecast).
+# Leave hourlyParams and dailyParams empty (or omit them) for obs-only sources.
+# ─────────────────────────────────────────────────────────────────────────────
+
+sourceId: aviation-weather-center
+displayName: AWC METAR / Wind Aloft
+description: FAA Aviation Weather Center – real METAR surface obs + wind-aloft forecast tiers.
+
+type: weather
+windProfileType: metar_windtemp
+windAltitudesM: [10, 760, 1500, 3000, 4200]
+
+hourlyParams: []
+
+dailyParams: []
+
+currentParams:
+  - key: temp
+    label: "Temperature (°C)"
+    defaultOn: true
+  - key: dewp
+    label: "Dew Point (°C)"
+    defaultOn: true
+  - key: wspd
+    label: "Wind Speed (kt)"
+    defaultOn: true
+  - key: wdir
+    label: "Wind Direction (° true)"
+    defaultOn: true
+  - key: wgst
+    label: "Wind Gusts (kt)"
+    defaultOn: false
+  - key: visib
+    label: "Visibility (SM)"
+    defaultOn: true
+  - key: altim
+    label: "Altimeter Setting (hPa)"
+    defaultOn: true
+  - key: clouds
+    label: "Cloud Layers (cover/base)"
+    defaultOn: true
+  - key: flight_category
+    label: "Flight Category (VFR/MVFR/IFR/LIFR)"
+    defaultOn: true
+  - key: wx_string
+    label: "Present Weather (e.g. RA, TSRA, FG)"
+    defaultOn: false

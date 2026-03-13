@@ -14,6 +14,13 @@
   android:layout_height="match_parent"
   android:orientation="vertical">
 
+    <!--
+      ══ 4-TAB LAYOUT ══════════════════════════════════════════════════════
+      Tab 1 "WTHR"  subTabWidget1  tab_weather.xml       (forecast + chart)
+      Tab 2 "WIND"  subTabWidget2  tab_wind_profile.xml  (wind + comparison)
+      Tab 3 "CONF"  subTabWidget3  tab_config.xml        (map + radar)
+      Tab 4 "PARM"  subTabWidget4  tab_parameters.xml    (source + params)
+    -->
     <TabHost
       android:id="@+id/mainTabHost"
       android:layout_width="match_parent"
@@ -50,6 +57,12 @@
                 <include
                   android:id="@+id/subTabWidget3"
                   layout="@layout/tab_config"
+                  android:layout_width="match_parent"
+                  android:layout_height="match_parent"/>
+
+                <include
+                  android:id="@+id/subTabWidget4"
+                  layout="@layout/tab_parameters"
                   android:layout_width="match_parent"
                   android:layout_height="match_parent"/>
 

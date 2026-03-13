@@ -67,7 +67,7 @@ public class WindMarkerManager {
 
     private static final String TAG          = "WindMarkerManager";
     public  static final String MARKER_TYPE  = "a-n-G-E-V-w";
-    private static final String UID_PREFIX   = "wx_wind";
+    public static final String UID_PREFIX   = "wx_wind";
 
     private static final int ICON_SIZE = 96;  // px — large enough for clear barbs
 
@@ -163,14 +163,31 @@ public class WindMarkerManager {
         marker.setClickable(true);
         marker.setVisible(true);
 
-        // ── Wind barb icon ────────────────────────────────────────────────────
-        // Write the canvas-drawn Bitmap to a temp PNG file, then use
-        // IconUtilities.setIcon(Context, Marker, filePath) — the ATAK-confirmed
-        // working path for custom bitmap icons in plugins.
-        // Base64 / iconUri meta-string is NOT guaranteed across ATAK builds.
+        // ── Wind barb icon ─────────────────────────────────────────────────────
+        // Write the composed bitmap (tinted swirl + direction arrow + speed label)
+        // to a per-UID cache file and set iconUri to its file:// path.
+        //
+        // Do NOT call IconUtilities.setIcon() before setting iconUri — ATAK caches
+        // the icon on the first set and subsequent iconUri writes are ignored.
+        // iconUri alone is the reliable path for per-marker canvas bitmaps.
         Bitmap barb = drawWindBarb(speedMs, dirDeg);
-        setWindBarbIcon(barb, marker);
-        barb.recycle();
+        try {
+            java.io.File dir  = pluginContext.getCacheDir();
+            java.io.File file = new java.io.File(dir,
+                    "wind_barb_" + uid.replace(":", "_") + ".png");
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
+                barb.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, fos);
+            }
+            marker.setMetaString("iconUri", android.net.Uri.fromFile(file).toString());
+        } catch (Exception e) {
+            Log.e(TAG, "wind barb icon write failed — falling back to resource icon", e);
+            com.atakmap.android.util.IconUtilities.setIcon(
+                    pluginContext, marker,
+                    com.atakmap.android.weather.plugin.R.drawable.ic_wind_marker,
+                    false);
+        } finally {
+            barb.recycle();
+        }
 
         marker.persist(mapView.getMapEventDispatcher(), null, getClass());
         Log.d(TAG, "Wind marker placed: uid=" + uid + " speed=" + speedMs + " dir=" + dirDeg);
@@ -179,129 +196,195 @@ public class WindMarkerManager {
     // ── Icon drawing ──────────────────────────────────────────────────────────
 
     /**
-     * Write bitmap to a temp PNG file and set it as the marker icon.
+     * Draw a meteorological wind barb icon as a Bitmap.
      *
-     * IconUtilities.setIcon(Context, Marker, drawableResId, adapt) is the
-     * resource-ID overload.  For arbitrary bitmaps, write to
-     * getCacheDir()/wind_barb_<uid>.png and call the string-path overload:
-     *   IconUtilities.setIcon(context, marker, absolutePath, false)
+     * Design follows the ic_wind_barb.xml SVG reference:
+     *   • Shaft: from the centre dot pointing FROM the wind source direction
+     *   • Full barb = 10 kt, half barb = 5 kt, pennant = 50 kt
+     *   • Station model circle at the shaft foot
+     *   • Colour-coded by speed tier (same palette as WindEffectShape cones)
+     *   • Shadow layer for map contrast
+     *   • Speed label ("x.x m/s") below the icon
      *
-     * If that overload is not available (older ATAK SDK), we fall back to
-     * encoding as a Base64 data URI in the "iconUri" meta-string which is
-     * checked by ATAK's PointMapItem renderer as a secondary path.
+     * The whole icon is rotated by {@code dirDeg} so the shaft always points
+     * FROM the wind source.  Convention: 0° = from North → shaft upward.
      */
     /**
-     * Encode bitmap as a Base64 PNG data-URI and store it in the marker's
-     * "iconUri" meta-string.  ATAK's PointMapItem / GLMarker renderer checks
-     * this field and uses it as the icon source when no @DrawableRes is set.
-     *
-     * The ATAK SDK only exposes setIcon(Context, Marker, @DrawableRes int, boolean)
-     * — there is no String-path overload — so we bypass IconUtilities entirely
-     * and write the encoded bitmap straight to the meta-string.
-     */
-    private void setWindBarbIcon(Bitmap bmp, Marker marker) {
-        try {
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, baos);
-            String b64 = android.util.Base64.encodeToString(
-                    baos.toByteArray(), android.util.Base64.NO_WRAP);
-            marker.setMetaString("iconUri", "base64://" + b64);
-        } catch (Exception e) {
-            Log.e(TAG, "setWindBarbIcon failed", e);
-        }
-    }
-
-
-    /**
-     * Draw a meteorological wind barb icon.
-     *
-     * Convention: the barb shaft points FROM the wind source direction.
-     * A north wind (FROM north, blowing south) points UP (0° rotation).
-     * The whole icon is rotated by windDirDeg.
+     * Render the wind marker icon by:
+     *  1. Loading {@code ic_wind_marker.png} from the plugin's drawable resources —
+     *     this is the user-supplied wind-swirl icon (white silhouette on transparent BG).
+     *  2. Colorising every non-transparent pixel with the speed-tier colour via a
+     *     PorterDuff ColorFilter.
+     *  3. Drawing the speed label below the icon.
+     *  4. For wind direction: we do NOT rotate the swirl icon itself (it's a stylised
+     *     symbol, not a directional arrow).  Direction is encoded in the title/meta
+     *     and displayed in the wind chart rows.  The wind barb approach is kept for
+     *     cases where ic_wind_marker.png cannot be loaded.
      */
     private Bitmap drawWindBarb(float speedMs, float dirDeg) {
-        Bitmap bmp = Bitmap.createBitmap(ICON_SIZE, ICON_SIZE, Bitmap.Config.ARGB_8888);
+        final int SZ    = ICON_SIZE;
+        int       color = speedColor(speedMs);
+
+        // ── Try to render from the wind-swirl drawable ──────────────────────
+        try {
+            // Load ic_wind_marker.png via BitmapFactory (raster PNG, no VectorDrawable needed)
+            android.content.res.Resources res = pluginContext.getResources();
+            int resId = com.atakmap.android.weather.plugin.R.drawable.ic_wind_marker;
+            Bitmap src = android.graphics.BitmapFactory.decodeResource(res, resId);
+            if (src != null) {
+                // Scale to ICON_SIZE if needed
+                if (src.getWidth() != SZ || src.getHeight() != SZ) {
+                    Bitmap scaled = Bitmap.createScaledBitmap(src, SZ, SZ, true);
+                    src.recycle();
+                    src = scaled;
+                }
+
+                // Tint: create a colour-multiplied version of the icon
+                Bitmap tinted = Bitmap.createBitmap(SZ, SZ, Bitmap.Config.ARGB_8888);
+                Canvas tc = new Canvas(tinted);
+                Paint tintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                tintPaint.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                        color, android.graphics.PorterDuff.Mode.SRC_IN));
+                tc.drawBitmap(src, 0, 0, tintPaint);
+                src.recycle();
+
+                // Composite onto final canvas with shadow + arrow + label
+                Bitmap bmp = Bitmap.createBitmap(SZ, SZ + 20, Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(bmp);
+
+                // Shadow pass
+                Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                shadowPaint.setAlpha(80);
+                canvas.drawBitmap(tinted, 2, 2, shadowPaint);
+
+                // Main icon
+                canvas.drawBitmap(tinted, 0, 0, null);
+                tinted.recycle();
+
+                // Direction arrow below the swirl
+                drawDirectionArrow(canvas, dirDeg, SZ, color);
+
+                drawSpeedLabel(canvas, speedMs, SZ + 20, color);
+                return bmp;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "ic_wind_marker load failed, falling back to canvas barb: " + e.getMessage());
+        }
+
+        // ── Fallback: canvas-drawn meteorological barb ───────────────────────
+        return drawFallbackBarb(speedMs, dirDeg, color);
+    }
+
+    /**
+     * Draw a small arrow below the swirl icon pointing FROM the wind source direction.
+     * Provides the directional information that the swirl symbol itself doesn't convey.
+     */
+    private void drawDirectionArrow(Canvas canvas, float dirDeg, int iconSz, int color) {
+        final float CX   = iconSz / 2f;
+        final float TOP  = iconSz - 18f;
+        final float LEN  = 14f;
+
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(color);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2.5f);
+        p.setStrokeCap(Paint.Cap.ROUND);
+
+        canvas.save();
+        canvas.rotate(dirDeg, CX, TOP);
+        // Shaft pointing up (FROM North = 0°, rotated by dirDeg)
+        canvas.drawLine(CX, TOP + LEN * 0.4f, CX, TOP - LEN * 0.5f, p);
+        // Arrowhead
+        p.setStyle(Paint.Style.STROKE);
+        canvas.drawLine(CX, TOP - LEN * 0.5f, CX - 4f, TOP - LEN * 0.1f, p);
+        canvas.drawLine(CX, TOP - LEN * 0.5f, CX + 4f, TOP - LEN * 0.1f, p);
+        canvas.restore();
+    }
+
+    /**
+     * Fallback canvas-drawn meteorological barb (used if ic_wind_marker.png is unavailable).
+     */
+    private Bitmap drawFallbackBarb(float speedMs, float dirDeg, int color) {
+        final int   SZ    = ICON_SIZE;
+        final float CX    = SZ / 2f;
+        final float CY    = SZ / 2f;
+        final float SHAFT = SZ * 0.40f;
+        final float BARB  = SZ * 0.24f;
+        final float STEP  = SZ * 0.10f;
+
+        Bitmap bmp = Bitmap.createBitmap(SZ, SZ, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bmp);
 
-        int color = speedColor(speedMs);
+        Paint shadow = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shadow.setColor(0x55000000);
+        shadow.setStyle(Paint.Style.STROKE);
+        shadow.setStrokeWidth(4.5f);
+        shadow.setStrokeCap(Paint.Cap.ROUND);
 
-        // Calm: just a double circle
         if (speedMs < 2.5f) {
-            Paint p = barbPaint(color);
-            float cx = ICON_SIZE / 2f, cy = ICON_SIZE / 2f;
-            canvas.drawCircle(cx, cy, 12f, p);
-            canvas.drawCircle(cx, cy, 6f, p);
+            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            p.setColor(color); p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3f);
+            canvas.drawCircle(CX + 1, CY + 1, 12f, shadow);
+            canvas.drawCircle(CX + 1, CY + 1,  6f, shadow);
+            canvas.drawCircle(CX, CY, 12f, p);
+            canvas.drawCircle(CX, CY,  6f, p);
+            drawSpeedLabel(canvas, speedMs, SZ, color);
             return bmp;
         }
 
-        // Rotate canvas so that shaft points FROM wind direction
-        // meteorological: 0° = from North → shaft points upward = -90° canvas rotation
         canvas.save();
-        canvas.rotate(dirDeg - 90f, ICON_SIZE / 2f, ICON_SIZE / 2f);
+        canvas.rotate(dirDeg, CX, CY);
+        Paint linePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        linePaint.setColor(color); linePaint.setStyle(Paint.Style.STROKE);
+        linePaint.setStrokeWidth(3.5f); linePaint.setStrokeCap(Paint.Cap.ROUND);
 
-        Paint p = barbPaint(color);
-        float cx   = ICON_SIZE / 2f;
-        float cy   = ICON_SIZE / 2f;
-        float len  = ICON_SIZE * 0.38f;   // shaft half-length
-        float barbW = ICON_SIZE * 0.22f;   // barb lateral reach
-        float barbStep = ICON_SIZE * 0.09f; // spacing between barbs
+        float footY = CY + SHAFT * 0.15f;
+        float tipY  = CY - SHAFT;
+        canvas.drawLine(CX + 1, footY + 1, CX + 1, tipY + 1, shadow);
+        canvas.drawLine(CX, footY, CX, tipY, linePaint);
 
-        // Draw shaft (upward from centre)
-        canvas.drawLine(cx, cy + len * 0.2f, cx, cy - len, p);
+        Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+        dot.setColor(color); dot.setStyle(Paint.Style.FILL);
+        canvas.drawCircle(CX + 1, footY + 1, 5.5f, shadow);
+        canvas.drawCircle(CX, footY, 5.5f, dot);
 
-        // Draw barbs at the top of the shaft
-        int kt = (int) (speedMs * 1.944f);  // m/s → knots (approximate for barb count)
-        float y = cy - len;
-        int pennants = kt / 50;
-        kt %= 50;
-        int fullBarbs = kt / 10;
-        kt %= 10;
-        boolean halfBarb = kt >= 5;
-
-        // Pennants (filled triangle = 50 kt)
+        int kt = Math.max(0, Math.round(speedMs * 1.944f));
+        float y = tipY;
+        int pennants = kt / 50; kt %= 50;
         for (int i = 0; i < pennants; i++) {
             Path tri = new Path();
-            tri.moveTo(cx, y);
-            tri.lineTo(cx + barbW, y + barbStep);
-            tri.lineTo(cx, y + barbStep * 2);
-            tri.close();
+            tri.moveTo(CX, y); tri.lineTo(CX + BARB, y + STEP * 0.9f);
+            tri.lineTo(CX, y + STEP * 1.8f); tri.close();
             Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-            fill.setColor(color);
-            fill.setStyle(Paint.Style.FILL);
+            fill.setColor(color); fill.setStyle(Paint.Style.FILL);
             canvas.drawPath(tri, fill);
-            y += barbStep * 2;
+            y += STEP * 2f;
         }
-
-        // Full barbs
+        int fullBarbs = kt / 10; kt %= 10;
         for (int i = 0; i < fullBarbs; i++) {
-            canvas.drawLine(cx, y, cx + barbW, y - barbStep * 0.6f, p);
-            y += barbStep;
+            canvas.drawLine(CX + 1, y + 1, CX + BARB + 1, y - STEP * 0.55f + 1, shadow);
+            canvas.drawLine(CX, y, CX + BARB, y - STEP * 0.55f, linePaint);
+            y += STEP;
         }
-
-        // Half barb
-        if (halfBarb) {
-            canvas.drawLine(cx, y, cx + barbW * 0.5f, y - barbStep * 0.3f, p);
+        if (kt >= 5) {
+            canvas.drawLine(CX + 1, y + 1, CX + BARB * 0.5f + 1, y - STEP * 0.28f + 1, shadow);
+            canvas.drawLine(CX, y, CX + BARB * 0.5f, y - STEP * 0.28f, linePaint);
         }
-
-        // Circle at tip
-        Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
-        dot.setColor(color);
-        dot.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(cx, cy + len * 0.2f, 5f, dot);
-
         canvas.restore();
-
-        // Draw speed label below icon
-        Paint txtPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        txtPaint.setColor(Color.WHITE);
-        txtPaint.setTextSize(14f);
-        txtPaint.setTextAlign(Paint.Align.CENTER);
-        txtPaint.setTypeface(Typeface.DEFAULT_BOLD);
-        txtPaint.setShadowLayer(2f, 0, 0, Color.BLACK);
-        canvas.drawText(String.format(Locale.US, "%.0fm/s", speedMs),
-                ICON_SIZE / 2f, ICON_SIZE - 4f, txtPaint);
-
+        drawSpeedLabel(canvas, speedMs, SZ, color);
         return bmp;
+    }
+
+    /** Draw speed label below the icon, white with shadow for map contrast. */
+    private void drawSpeedLabel(Canvas canvas, float speedMs, int sz, int color) {
+        Paint txt = new Paint(Paint.ANTI_ALIAS_FLAG);
+        txt.setColor(Color.WHITE);
+        txt.setTextSize(15f);
+        txt.setTextAlign(Paint.Align.CENTER);
+        txt.setTypeface(Typeface.DEFAULT_BOLD);
+        txt.setShadowLayer(3f, 1f, 1f, Color.BLACK);
+        canvas.drawText(String.format(Locale.US, "%.0fm/s", speedMs),
+                sz / 2f, sz - 3f, txt);
     }
 
     private Paint barbPaint(int color) {

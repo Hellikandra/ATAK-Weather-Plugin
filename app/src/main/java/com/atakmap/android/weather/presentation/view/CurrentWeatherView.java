@@ -2,8 +2,10 @@ package com.atakmap.android.weather.presentation.view;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.graphics.Color;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
@@ -41,6 +43,12 @@ public class CurrentWeatherView {
     private final SeekBar   seekBar;
     private final TextView  textSeekBarLabel;
 
+    // ── METAR card (visible only when source is AWC) ───────────────────────
+    private final LinearLayout metarCard;
+    private final TextView     textMetarStation;
+    private final TextView     textMetarFltCat;
+    private final TextView     textMetarRaw;
+
     private final Context context;
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -62,6 +70,11 @@ public class CurrentWeatherView {
         textPrecipitation    = root.findViewById(R.id.textview_precipitation);
         seekBar              = root.findViewById(R.id.seekBar);
         textSeekBarLabel     = root.findViewById(R.id.textview_seekbar_label);
+        // METAR card
+        metarCard            = root.findViewById(R.id.metar_card);
+        textMetarStation     = root.findViewById(R.id.textview_metar_station);
+        textMetarFltCat      = root.findViewById(R.id.textview_metar_fltcat);
+        textMetarRaw         = root.findViewById(R.id.textview_metar_raw);
     }
 
     // ── Bind methods ──────────────────────────────────────────────────────────
@@ -100,6 +113,54 @@ public class CurrentWeatherView {
 
         bindPrecipitation(weather.getPrecipitationSum(), weather.getPrecipitationHours());
         applyWmoCode(weather.getWeatherCode());
+
+        // Show METAR card only when data comes from AWC
+        if (weather.isMetarSource()) {
+            bindMetar(weather);
+        } else {
+            hideMetarCard();
+        }
+    }
+
+    /**
+     * Populate and reveal the AWC METAR detail card.
+     *
+     * Flight category colours (FAA standard):
+     *   VFR  → Green  #00AA00
+     *   MVFR → Blue   #0066FF
+     *   IFR  → Red    #CC0000
+     *   LIFR → Magenta #AA00AA
+     */
+    public void bindMetar(WeatherModel weather) {
+        if (metarCard == null) return;
+        metarCard.setVisibility(View.VISIBLE);
+
+        if (textMetarStation != null)
+            textMetarStation.setText(weather.getIcaoId().isEmpty() ? "—" : weather.getIcaoId());
+
+        if (textMetarFltCat != null) {
+            String cat = weather.getFlightCategory();
+            textMetarFltCat.setText(cat.isEmpty() ? "—" : cat);
+            int bg;
+            switch (cat) {
+                case "VFR":  bg = Color.parseColor("#00AA00"); break;
+                case "MVFR": bg = Color.parseColor("#0066FF"); break;
+                case "IFR":  bg = Color.parseColor("#CC0000"); break;
+                case "LIFR": bg = Color.parseColor("#AA00AA"); break;
+                default:     bg = Color.parseColor("#555555"); break;
+            }
+            textMetarFltCat.setBackgroundColor(bg);
+        }
+
+        if (textMetarRaw != null) {
+            String raw = weather.getRawMetar();
+            textMetarRaw.setText(raw.isEmpty() ? "Raw METAR not available" : raw);
+        }
+    }
+
+    /** Hide the METAR card (used when source is Open-Meteo). */
+    public void hideMetarCard() {
+        if (metarCard != null) metarCard.setVisibility(View.GONE);
     }
 
     /**
