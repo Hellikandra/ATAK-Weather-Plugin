@@ -205,6 +205,21 @@
     <string name="radar_status_ready">%d frames loaded</string>
     <string name="radar_status_error">Error — check connection</string>
 
+    <!-- ── Sprint 1.1c: Radar Color Controls ─────────────────────────── -->
+    <string name="radar_color_section_title">Radar Appearance</string>
+    <string name="radar_color_section_desc">Adjust saturation, brightness, and intensity of the radar overlay. Mirrors ATAK\'s HeatMapOverlay colour model.</string>
+    <string name="radar_saturation_label">Saturation:</string>
+    <string name="radar_value_label">Brightness:</string>
+    <string name="radar_intensity_label">Intensity:</string>
+
+    <!-- ── Sprint 1.1b: Radar Tile Cache ──────────────────────────────── -->
+    <string name="radar_cache_section_title">Radar Tile Cache</string>
+    <string name="radar_cache_section_desc">Tiles are cached to disk for offline access and faster frame switching. Cache expires after 15 minutes per tile.</string>
+    <string name="radar_cache_size_label">Disk cache: %1$s  (%2$d tiles)</string>
+    <string name="radar_cache_disabled">Disk cache: disabled</string>
+    <string name="radar_cache_clear_btn">🗑 Clear Radar Cache</string>
+    <string name="radar_cache_cleared">Radar tile cache cleared</string>
+
     <!-- WIND tab -->
     <string name="wind_source_label">Source:</string>
     <string name="wind_no_slots_hint">Tap ⟳ Request Wind to load wind data for a point.</string>

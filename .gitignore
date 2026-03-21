@@ -86,3 +86,10 @@ lint/tmp/
 
 # takdev folder generated under docker environment
 .takdev
+
+# Claude conversation exports & references (large reference materials)
+claude/
+references/
+
+# Generated reports (can be regenerated)
+reports/

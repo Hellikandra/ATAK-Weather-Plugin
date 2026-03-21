@@ -66,7 +66,7 @@ public class WindTabCoordinator {
     private double  windEffectRangeM  = 2_000.0;
     private double  windEffectHeightM =   500.0;
     private boolean windEffectActive  = false;
-    private int     windHourIndex     = 0;
+    private int     windHourIndex     = 0;  // mirrors windHourIndex
 
     private double  lastWindLat    = Double.NaN;
     private double  lastWindLon    = Double.NaN;
@@ -101,6 +101,24 @@ public class WindTabCoordinator {
         wireHourSeekBar();
         wireWindSourceSpinner();
         updateWindEmptyState(windViewModel.getSlotList());
+
+        // Observe the shared hour index so the DDR seekbar tracks HUD scrubbing.
+        windViewModel.getSelectedHour().observeForever(this::onSharedHourChanged);
+    }
+
+    /**
+     * Called when the shared hour index changes — from either the DDR seekbar
+     * or the HUD SliderWidget. Syncs the DDR SeekBar position without feedback loop.
+     */
+    private void onSharedHourChanged(Integer hourIndex) {
+        if (hourIndex == null) return;
+        windHourIndex = hourIndex;
+        SeekBar windHourSeek = rootView.findViewById(R.id.wind_seekbar);
+        if (windHourSeek != null && windHourSeek.getProgress() != hourIndex) {
+            windHourSeek.setProgress(hourIndex);
+        }
+        if (windProfileView != null) windProfileView.onHourChanged(hourIndex);
+        redrawIfActive();
     }
 
     // ── Public state setters (called by DDR observer callbacks) ───────────────
@@ -112,6 +130,13 @@ public class WindTabCoordinator {
     public void onActiveSlotChanged(int activeIdx) {
         TextView coordLabel = rootView.findViewById(R.id.textview_wind_marker_coord);
         updateWindMarkerCoordLabel(coordLabel);
+
+        // Re-sync the DDR seekbar to the shared ViewModel hour index on slot switch
+        SeekBar windHourSeek = rootView.findViewById(R.id.wind_seekbar);
+        if (windHourSeek != null) {
+            windHourSeek.setProgress(windHourIndex);
+        }
+
         if (activeIdx < 0) return;
 
         List<WindProfileViewModel.WindSlot> slots = windViewModel.getSlotList();
@@ -248,11 +273,16 @@ public class WindTabCoordinator {
     private void wireHourSeekBar() {
         SeekBar windHourSeek = rootView.findViewById(R.id.wind_seekbar);
         if (windHourSeek == null) return;
+
+        // Sync seekbar to the current ViewModel hour on first open
+        windHourSeek.setProgress(windHourIndex);
+
         windHourSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar sb, int p, boolean fromUser) {
-                windHourIndex = p;
-                if (windProfileView != null) windProfileView.onHourChanged(p);
-                if (fromUser) redrawIfActive();
+                if (!fromUser) return;
+                // setHourIndex() emits to getSelectedHour() LiveData which is observed
+                // by BOTH this coordinator and WindHudWidget — both update from one call.
+                windViewModel.setHourIndex(p);
             }
             @Override public void onStartTrackingTouch(SeekBar sb) {}
             @Override public void onStopTrackingTouch(SeekBar sb)  { redrawIfActive(); }
@@ -445,8 +475,13 @@ public class WindTabCoordinator {
 
     // ── Dispose ───────────────────────────────────────────────────────────────
 
-    /** Call from DDR {@code disposeImpl()} to clean up map shapes. */
+    /** Call from DDR {@code disposeImpl()} to clean up map shapes and observers. */
     public void clearWindShapes() {
         if (windEffectShape != null) windEffectShape.removeAll();
+    }
+
+    /** Remove the shared-hour observer. Call from DDR disposeImpl. */
+    public void dispose() {
+        windViewModel.getSelectedHour().removeObserver(this::onSharedHourChanged);
     }
 }

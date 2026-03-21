@@ -26,6 +26,7 @@ import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
 import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
 import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
 import com.atakmap.android.weather.data.remote.WeatherSourceManager;
+import com.atakmap.android.weather.overlay.radar.RadarOverlayManager;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.LocationSource;
@@ -44,8 +45,8 @@ import com.atakmap.android.weather.presentation.view.DailyForecastView;
 import com.atakmap.android.weather.presentation.view.ParametersView;
 import com.atakmap.android.weather.presentation.view.RadarTabCoordinator;
 import com.atakmap.android.weather.presentation.view.WeatherChartView;
-import com.atakmap.android.weather.presentation.view.WindChartView;
 import com.atakmap.android.weather.presentation.view.WindProfileView;
+import com.atakmap.android.weather.presentation.view.WindChartView;
 import com.atakmap.android.weather.presentation.view.WindTabCoordinator;
 import com.atakmap.android.weather.presentation.viewmodel.UiState;
 import com.atakmap.android.weather.presentation.viewmodel.WeatherObserverRegistry;
@@ -120,7 +121,6 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     // ── ViewModels ────────────────────────────────────────────────────────────
     private WeatherViewModel     weatherViewModel;
-    private WindProfileViewModel windViewModel;
 
     /** Kept so disposeImpl can clear the in-memory wind profile cache. */
     private CachingWeatherRepository cachingRepo;
@@ -157,6 +157,25 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     private final WeatherMarkerManager markerManager;
     private final WindMarkerManager    windMarkerManager;
 
+    /**
+     * Shared WindProfileViewModel — created in WeatherMapComponent so the
+     * WindHudWidget and this DDR observe the same LiveData instance.
+     * The DDR does NOT create its own WindProfileViewModel.
+     */
+    private final WindProfileViewModel windViewModel;
+
+    /**
+     * Shared WindEffectShape — same instance used by WindHudWidget and
+     * WindTabCoordinator so both draw into the same overlay group.
+     */
+    private final WindEffectShape sharedWindEffectShape;
+
+    /**
+     * RadarOverlayManager — injected from WeatherMapComponent so the DDR
+     * Show/Hide buttons and the Overlay Manager toggle act on the same manager.
+     */
+    private final RadarOverlayManager radarManager;
+
     // ── Last known good state ─────────────────────────────────────────────────
     private WeatherModel     lastWeather;
     private LocationSnapshot lastLocation;
@@ -171,17 +190,34 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     private int    lastActiveSlotIdx  = -1;
     private String lastBoundSourceId  = null;
 
+    // ── HUD toggle state ──────────────────────────────────────────────────────
+    /** Tracks whether the HUD is currently visible (toggled from WIND tab). */
+    private boolean hudVisible = true;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
+    /**
+     * Full constructor — receives shared instances from {@link WeatherMapComponent}.
+     *
+     * @param windViewModel        shared ViewModel also observed by {@link com.atakmap.android.weather.overlay.wind.WindHudWidget}
+     * @param sharedWindEffectShape shared WindEffectShape also used by WindHudWidget
+     * @param radarManager         shared RadarOverlayManager also used by RadarMapOverlay
+     */
     public WeatherDropDownReceiver(final MapView mapView,
                                    final Context context,
                                    final WeatherMarkerManager markerManager,
-                                   final WindMarkerManager windMarkerManager) {
+                                   final WindMarkerManager windMarkerManager,
+                                   final WindProfileViewModel windViewModel,
+                                   final WindEffectShape sharedWindEffectShape,
+                                   final RadarOverlayManager radarManager) {
         super(mapView);
-        this.pluginContext     = context;
-        this.appContext        = mapView.getContext();
-        this.markerManager     = markerManager;
-        this.windMarkerManager = windMarkerManager;
+        this.pluginContext          = context;
+        this.appContext             = mapView.getContext();
+        this.markerManager          = markerManager;
+        this.windMarkerManager      = windMarkerManager;
+        this.windViewModel          = windViewModel;
+        this.sharedWindEffectShape  = sharedWindEffectShape;
+        this.radarManager           = radarManager;
         templateView = PluginLayoutInflater.inflate(context, R.layout.main_layout, null);
     }
 
@@ -262,7 +298,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         cachingRepo.purgeExpired();
 
         weatherViewModel = new WeatherViewModel(cachingRepo, geocodingRepo);
-        windViewModel    = new WindProfileViewModel(cachingRepo);
+        // windViewModel is injected via constructor — shared with WindHudWidget.
+        // Do NOT create a new instance here; that would break the shared state.
     }
 
     @SuppressWarnings("deprecation")
@@ -281,15 +318,14 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         dailyForecastView  = new DailyForecastView(templateView);
         windProfileView    = new WindProfileView(templateView);
 
-        // ── WindEffectShape ───────────────────────────────────────────────────
-        WindEffectShape windEffectShape = new WindEffectShape(
-                getMapView(), windMarkerManager.getOverlay());
-
         // ── Tab coordinators ──────────────────────────────────────────────────
-        radarTabCoordinator = new RadarTabCoordinator(getMapView(), templateView, pluginContext);
+        // sharedWindEffectShape is injected from WeatherMapComponent — the same
+        // instance used by WindHudWidget so both draw into the same overlay group.
+        radarTabCoordinator = new RadarTabCoordinator(
+                getMapView(), templateView, pluginContext, radarManager);
         windTabCoordinator  = new WindTabCoordinator(
                 getMapView(), templateView, pluginContext,
-                windViewModel, windMarkerManager, windEffectShape,
+                windViewModel, windMarkerManager, sharedWindEffectShape,
                 windProfileView);
 
         // ── Refresh button ────────────────────────────────────────────────────
@@ -389,6 +425,26 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         comparisonView = new ComparisonView(templateView);
         templateView.findViewById(R.id.comp_refresh_button)
                 .setOnClickListener(v -> triggerComparison());
+
+        // ── WIND tab: HUD toggle button ───────────────────────────────────────
+        // The layout button id "btn_toggle_wind_hud" may not yet exist in the XML.
+        // We look it up at runtime via Resources.getIdentifier() so the build
+        // never fails on a missing R.id constant. Wire it up if the layout has it.
+        int hudBtnId = pluginContext.getResources().getIdentifier(
+                "btn_toggle_wind_hud", "id", pluginContext.getPackageName());
+        if (hudBtnId != 0) {
+            Button btnToggleHud = templateView.findViewById(hudBtnId);
+            if (btnToggleHud != null) {
+                btnToggleHud.setText(hudVisible ? "Hide Wind HUD" : "Show Wind HUD");
+                btnToggleHud.setOnClickListener(v -> {
+                    hudVisible = !hudVisible;
+                    Intent hudIntent = new Intent("com.atakmap.android.weather.TOGGLE_WIND_HUD");
+                    hudIntent.putExtra("visible", hudVisible);
+                    com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(hudIntent);
+                    btnToggleHud.setText(hudVisible ? "Hide Wind HUD" : "Show Wind HUD");
+                });
+            }
+        }
     }
 
     // ── Map tab ───────────────────────────────────────────────────────────────
@@ -888,9 +944,27 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     // ── DropDownReceiver / OnStateListener ────────────────────────────────────
 
-    /** Call from WeatherMapComponent.onDestroyImpl() to remove orphaned 3D shapes. */
+    /**
+     * Call from WeatherMapComponent.onDestroyImpl() to remove orphaned 3D shapes.
+     * Uses sharedWindEffectShape directly — windTabCoordinator may not be
+     * initialised yet if dispose is called before the first SHOW_PLUGIN.
+     */
     public void clearWindShapes() {
+        if (sharedWindEffectShape != null) sharedWindEffectShape.removeAll();
         if (windTabCoordinator != null) windTabCoordinator.clearWindShapes();
+    }
+
+    /**
+     * Called by WeatherMapComponent when the RadarOverlayManager active state
+     * changes (e.g. toggled from the Overlay Manager). Updates the DDR CONF tab
+     * status label so it stays in sync with the Overlay Manager checkbox.
+     *
+     * @param isActive {@code true} if the radar is now running
+     */
+    public void onRadarActiveChanged(boolean isActive) {
+        if (radarTabCoordinator != null) {
+            radarTabCoordinator.onRadarActiveChanged(isActive);
+        }
     }
 
     @Override public void disposeImpl() {
@@ -906,7 +980,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         fltCatBadge = null;
 
         if (radarTabCoordinator != null) { radarTabCoordinator.dispose(); radarTabCoordinator = null; }
-        windTabCoordinator = null;
+        if (windTabCoordinator  != null) { windTabCoordinator.dispose();  windTabCoordinator  = null; }
 
         initialized = false;
     }
