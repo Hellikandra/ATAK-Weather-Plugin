@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    spinner_item_dark.xml — Spinner item + dropdown item for ATAK plugin spinners.
+
+    ATAK plugins run inside a dark-themed Activity. The system's
+    android.R.layout.simple_spinner_item uses @android:color/primary_text_light
+    which resolves to white in ATAK's dark theme — invisible in the white
+    dropdown popup.
+
+    This layout sets an explicit dark text color (#111111) so spinner items
+    are legible in both the collapsed spinner (dark background) and the
+    expanded dropdown (light background).
+
+    Used for:
+      - spinner_parm_source  (PARM tab source selector)
+      - spinner_radar_source (CONF tab radar source selector)
+
+    Usage in Java:
+      ArrayAdapter<...> adapter = new ArrayAdapter<>(appContext,
+              R.layout.spinner_item_dark, items);
+      adapter.setDropDownViewResource(R.layout.spinner_item_dark);
+      spinner.setAdapter(adapter);
+-->
+<TextView
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@android:id/text1"
+  style="?android:attr/spinnerItemStyle"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:ellipsize="marquee"
+  android:gravity="center_vertical"
+  android:minHeight="44dp"
+  android:paddingStart="8dp"
+  android:paddingEnd="8dp"
+  android:singleLine="true"
+  android:textColor="#111111"
+  android:textSize="13sp"/>

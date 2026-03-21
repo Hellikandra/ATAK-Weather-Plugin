@@ -85,7 +85,7 @@ public class WeatherMenuFactory implements MapMenuFactory {
             addButton(menu,
                     "WX\nDetails",
                     WeatherDropDownReceiver.SHOW_PLUGIN,
-                    new String[]{"targetUID", uid, "requestedTab", "fcst"},
+                    new String[]{"targetUID", uid, "requestedTab", "wthr"},
                     Color.argb(210,   0, 170, 110));  // green
 
             addButton(menu,

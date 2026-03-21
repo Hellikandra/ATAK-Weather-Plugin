@@ -73,26 +73,27 @@ public class WindChartView extends View {
 
     // ── Layout constants ──────────────────────────────────────────────────────
     private static final float ROW_HEIGHT_DP  = 58f;
-    private static final int   ALTITUDES      = 4;
     private static final float MAX_SPEED_SCALE = 30f;   // m/s → full bar width
     private static final int   ANIM_MS        = 220;
 
-    // Altitude display order: highest row at top
-    private static final int[]    ALT_M     = {180, 120, 80, 10};
-    private static final String[] ALT_LABEL = {"180m", "120m", " 80m", " 10m"};
+    // Altitude tiers — replaced at runtime via setAltitudes() when the data source changes.
+    // Open-Meteo default: 10/80/120/180 m.  METAR/AWC: 10/760/1500/3000/4200 m.
+    private int[]    altM     = {10, 80, 120, 180};
+    private String[] altLabel = {" 10m", " 80m", "120m", "180m"};
+    private int      altCount = 4;
 
     // ── Data ──────────────────────────────────────────────────────────────────
     private List<WindProfileModel> profiles;
     private int   currentHour = 0;
 
-    // Per-row animated state
-    private final float[] animSpeed  = new float[ALTITUDES];
-    private final float[] animDir    = new float[ALTITUDES];
-    private final float[] fromSpeed  = new float[ALTITUDES];
-    private final float[] fromDir    = new float[ALTITUDES];
-    private final float[] toSpeed    = new float[ALTITUDES];
-    private final float[] toDir      = new float[ALTITUDES];
-    private final float[] maxSpeed   = new float[ALTITUDES]; // max over entire dataset
+    // Per-row animated state (re-allocated when altCount changes via setAltitudes)
+    private float[] animSpeed  = new float[altCount];
+    private float[] animDir    = new float[altCount];
+    private float[] fromSpeed  = new float[altCount];
+    private float[] fromDir    = new float[altCount];
+    private float[] toSpeed    = new float[altCount];
+    private float[] toDir      = new float[altCount];
+    private float[] maxSpeed   = new float[altCount]; // max over entire dataset
 
     // Flash alpha: 1.0 normally, dips to 0.65 at mid-animation
     private float flashAlpha  = 1.0f;
@@ -140,6 +141,79 @@ public class WindChartView extends View {
     // ══════════════════════════════════════════════════════════════════════════
 
     /** Bind a new dataset. Snaps to hour 0 without animation. */
+    /**
+     * Override the altitude tier configuration for this chart.
+     *
+     * Call this BEFORE {@link #setProfiles(List)} whenever the data source changes:
+     * <ul>
+     *   <li>Open-Meteo / DWD / ECMWF: {@code {10, 80, 120, 180}} m</li>
+     *   <li>METAR / AWC pressure-level: {@code {10, 760, 1500, 3000, 4200}} m</li>
+     * </ul>
+     *
+     * The method re-allocates all per-row animation arrays and resets animation state.
+     * If {@code altitudesM} is null or empty the default (Open-Meteo) tiers are restored.
+     *
+     * @param altitudesM   altitude values in metres, sorted ascending
+     * @param labels       display labels (same length as altitudesM); pass null to auto-generate
+     */
+    public void setAltitudes(int[] altitudesM, String[] labels) {
+        if (altitudesM == null || altitudesM.length == 0) {
+            altM     = new int[]    {10, 80, 120, 180};
+            altLabel = new String[] {" 10m", " 80m", "120m", "180m"};
+        } else {
+            altM = altitudesM.clone();
+            if (labels != null && labels.length == altitudesM.length) {
+                altLabel = labels.clone();
+            } else {
+                // Auto-generate labels: "10m", "760m", "1500m", …
+                altLabel = new String[altitudesM.length];
+                for (int i = 0; i < altitudesM.length; i++) {
+                    int a = altitudesM[i];
+                    altLabel[i] = a >= 1000
+                            ? String.format(java.util.Locale.US, "%.1fkm", a / 1000.0)
+                            : String.format(java.util.Locale.US, "%dm",    a);
+                }
+            }
+        }
+        altCount = altM.length;
+        // Re-allocate per-row animation arrays
+        animSpeed = new float[altCount];
+        animDir   = new float[altCount];
+        fromSpeed = new float[altCount];
+        fromDir   = new float[altCount];
+        toSpeed   = new float[altCount];
+        toDir     = new float[altCount];
+        maxSpeed  = new float[altCount];
+        // Reset view height
+        requestLayout();
+        invalidate();
+    }
+
+    /**
+     * Auto-detect altitude tiers from the first frame of a profile list and call
+     * {@link #setAltitudes(int[], String[])} accordingly.  Safe to call with null/empty input.
+     */
+    public void setAltitudesFromProfiles(List<WindProfileModel> profiles) {
+        if (profiles == null || profiles.isEmpty()) return;
+        WindProfileModel first = profiles.get(0);
+        if (first.getAltitudes() == null || first.getAltitudes().isEmpty()) return;
+        int n = first.getAltitudes().size();
+        int[] alts = new int[n];
+        for (int i = 0; i < n; i++) {
+            alts[i] = (int) first.getAltitudes().get(i).altitudeMeters;
+        }
+        setAltitudes(alts, null);
+    }
+
+    /** Source label shown in the top-right corner of the chart (e.g. "AWC METAR"). */
+    private String sourceLabel = null;
+    private final android.graphics.Paint sourceLabelPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+    public void setSourceLabel(String label) {
+        this.sourceLabel = label;
+        invalidate();
+    }
+
     public void setProfiles(List<WindProfileModel> profiles) {
         this.profiles     = profiles;
         this.currentHour  = 0;
@@ -160,9 +234,9 @@ public class WindChartView extends View {
         // Capture from/to values per row
         WindProfileModel prevFrame = getFrame(currentHour);
         WindProfileModel nextFrame = getFrame(next);
-        for (int r = 0; r < ALTITUDES; r++) {
-            WindProfileModel.AltitudeEntry pe = findAlt(prevFrame, ALT_M[r]);
-            WindProfileModel.AltitudeEntry ne = findAlt(nextFrame, ALT_M[r]);
+        for (int r = 0; r < altCount; r++) {
+            WindProfileModel.AltitudeEntry pe = findAlt(prevFrame, altM[r]);
+            WindProfileModel.AltitudeEntry ne = findAlt(nextFrame, altM[r]);
             fromSpeed[r] = (pe != null) ? (float) pe.windSpeed     : animSpeed[r];
             fromDir  [r] = (pe != null) ? (float) pe.windDirection : animDir  [r];
             toSpeed  [r] = (ne != null) ? (float) ne.windSpeed     : fromSpeed[r];
@@ -176,7 +250,7 @@ public class WindChartView extends View {
     @Override
     protected void onMeasure(int widthSpec, int heightSpec) {
         float dp = getContext().getResources().getDisplayMetrics().density;
-        int   h  = (int)(ROW_HEIGHT_DP * ALTITUDES * dp);
+        int   h  = (int)(ROW_HEIGHT_DP * altCount * dp);
         setMeasuredDimension(MeasureSpec.getSize(widthSpec), resolveSize(h, heightSpec));
     }
 
@@ -203,7 +277,7 @@ public class WindChartView extends View {
 
         WindProfileModel liveFrame = getFrame(currentHour);
 
-        for (int r = 0; r < ALTITUDES; r++) {
+        for (int r = 0; r < altCount; r++) {
             float top = r * rowH;
             float mid = top + rowH * 0.52f;
             float barH   = rowH * 0.36f;
@@ -220,7 +294,7 @@ public class WindChartView extends View {
 
             // ── Altitude label ───────────────────────────────────────────
             labelPaint.setAlpha(rowAlpha);
-            canvas.drawText(ALT_LABEL[r], 4f * dp, mid + 4f * dp, labelPaint);
+            canvas.drawText(altLabel[r], 4f * dp, mid + 4f * dp, labelPaint);
 
             // ── Speed bar background ─────────────────────────────────────
             barBgPaint.setAlpha((int)(0.13f * 255));
@@ -264,7 +338,7 @@ public class WindChartView extends View {
             drawArrow(canvas, arrowCx, mid, arrowLen, dir, dp);
 
             // ── Numeric readout ──────────────────────────────────────────
-            WindProfileModel.AltitudeEntry live = findAlt(liveFrame, ALT_M[r]);
+            WindProfileModel.AltitudeEntry live = findAlt(liveFrame, altM[r]);
             if (live != null) {
                 valuePaint.setAlpha(rowAlpha);
                 canvas.drawText(
@@ -276,6 +350,17 @@ public class WindChartView extends View {
                             String.format(Locale.US, "G%.1f", live.windGusts),
                             valX, mid + 14f * dp, valuePaint);
             }
+        }
+
+
+        // ── Source label (top-right corner) ───────────────────────────────
+        if (sourceLabel != null && !sourceLabel.isEmpty()) {
+            float dp2 = getContext().getResources().getDisplayMetrics().density;
+            sourceLabelPaint.setColor(0xAAFFFFFF);
+            sourceLabelPaint.setTextSize(10f * dp2);
+            sourceLabelPaint.setTextAlign(android.graphics.Paint.Align.RIGHT);
+            sourceLabelPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+            canvas.drawText(sourceLabel, getWidth() - 6f * dp2, 14f * dp2, sourceLabelPaint);
         }
     }
 
@@ -330,7 +415,7 @@ public class WindChartView extends View {
                     ? 1.0f - 0.35f * (f / 0.5f)
                     : 0.65f + 0.35f * ((f - 0.5f) / 0.5f);
 
-            for (int r = 0; r < ALTITUDES; r++) {
+            for (int r = 0; r < altCount; r++) {
                 animSpeed[r] = fromSpeed[r] + f * (toSpeed[r] - fromSpeed[r]);
 
                 // Shortest-arc direction interpolation
@@ -345,7 +430,7 @@ public class WindChartView extends View {
         animator.addListener(new AnimatorListenerAdapter() {
             @Override public void onAnimationEnd(Animator a) {
                 // Snap to exact targets to avoid floating-point drift
-                for (int r = 0; r < ALTITUDES; r++) {
+                for (int r = 0; r < altCount; r++) {
                     animSpeed[r] = toSpeed[r];
                     animDir  [r] = toDir  [r];
                 }
@@ -363,8 +448,8 @@ public class WindChartView extends View {
 
     private void snapToHour(int hour) {
         WindProfileModel frame = getFrame(hour);
-        for (int r = 0; r < ALTITUDES; r++) {
-            WindProfileModel.AltitudeEntry e = findAlt(frame, ALT_M[r]);
+        for (int r = 0; r < altCount; r++) {
+            WindProfileModel.AltitudeEntry e = findAlt(frame, altM[r]);
             float s = (e != null) ? (float) e.windSpeed     : 0f;
             float d = (e != null) ? (float) e.windDirection : 0f;
             animSpeed[r] = fromSpeed[r] = toSpeed[r] = s;
@@ -373,11 +458,11 @@ public class WindChartView extends View {
     }
 
     private void computeMaxSpeeds() {
-        for (int r = 0; r < ALTITUDES; r++) maxSpeed[r] = 0f;
+        for (int r = 0; r < altCount; r++) maxSpeed[r] = 0f;
         if (profiles == null) return;
         for (WindProfileModel frame : profiles)
-            for (int r = 0; r < ALTITUDES; r++) {
-                WindProfileModel.AltitudeEntry e = findAlt(frame, ALT_M[r]);
+            for (int r = 0; r < altCount; r++) {
+                WindProfileModel.AltitudeEntry e = findAlt(frame, altM[r]);
                 if (e != null && e.windSpeed > maxSpeed[r])
                     maxSpeed[r] = (float) e.windSpeed;
             }

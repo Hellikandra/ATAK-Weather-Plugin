@@ -7,12 +7,10 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.SeekBar;
-import android.widget.TextView;
-import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.AdapterView;
+import android.widget.TextView;
 import android.widget.Toast;
-import com.atakmap.android.weather.data.remote.WeatherSourceManager;
 
 import com.atak.plugins.impl.PluginLayoutInflater;
 import com.atakmap.android.dropdown.DropDown.OnStateListener;
@@ -25,14 +23,18 @@ import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
 import com.atakmap.android.weather.data.cache.WeatherDatabase;
 import com.atakmap.android.weather.data.geocoding.NominatimGeocodingSource;
 import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
-import com.atakmap.android.weather.data.remote.OpenMeteoSource;
+import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
+import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
+import com.atakmap.android.weather.data.remote.WeatherSourceManager;
+import com.atakmap.android.weather.overlay.radar.RadarOverlayManager;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
-import com.atakmap.android.weather.domain.model.LocationSource;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
+import com.atakmap.android.weather.domain.model.LocationSource;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
 import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
 import com.atakmap.android.weather.overlay.WeatherMapOverlay;
+import com.atakmap.android.weather.overlay.WindMapOverlay;
 import com.atakmap.android.weather.overlay.marker.WeatherMarkerManager;
 import com.atakmap.android.weather.overlay.wind.WindEffectShape;
 import com.atakmap.android.weather.overlay.wind.WindMarkerManager;
@@ -41,11 +43,18 @@ import com.atakmap.android.weather.presentation.view.ComparisonView;
 import com.atakmap.android.weather.presentation.view.CurrentWeatherView;
 import com.atakmap.android.weather.presentation.view.DailyForecastView;
 import com.atakmap.android.weather.presentation.view.ParametersView;
+import com.atakmap.android.weather.presentation.view.RadarTabCoordinator;
 import com.atakmap.android.weather.presentation.view.WeatherChartView;
 import com.atakmap.android.weather.presentation.view.WindProfileView;
+import com.atakmap.android.weather.presentation.view.WindChartView;
+import com.atakmap.android.weather.presentation.view.WindTabCoordinator;
+import com.atakmap.android.weather.presentation.viewmodel.UiState;
+import com.atakmap.android.weather.presentation.viewmodel.WeatherObserverRegistry;
 import com.atakmap.android.weather.presentation.viewmodel.WeatherViewModel;
 import com.atakmap.android.weather.presentation.viewmodel.WindProfileViewModel;
 import com.atakmap.android.weather.util.MapPointPicker;
+import com.atakmap.android.weather.util.WeatherPlaceTool;
+import com.atakmap.android.weather.util.WeatherUiUtils;
 
 import com.atakmap.android.cot.CotMapComponent;
 import com.atakmap.android.importexport.CotEventFactory;
@@ -58,128 +67,157 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * WeatherDropDownReceiver — ATAK drop-down entry point.
+ * ATAK drop-down entry point for the WeatherTool plugin.
  *
- * ── Feature: "Tap Map to Place Weather Marker" (Feature 1) ───────────────────
+ * <h3>Refactoring summary (vs original ~1 865-line version)</h3>
+ * <ul>
+ *   <li><b>DDR decomposition</b> — radar and wind tab initialisation extracted
+ *       to {@link RadarTabCoordinator} and {@link WindTabCoordinator}.</li>
+ *   <li><b>Observer registry</b> — the 14 typed observer fields replaced by a
+ *       single {@link WeatherObserverRegistry}; {@code removeObservers()} is now
+ *       a one-liner.</li>
+ *   <li><b>WindSlot encapsulation</b> — DDR no longer mutates
+ *       {@code WindSlot.rangeM} / {@code heightM} / {@code sourceId} directly;
+ *       it delegates to the new typed ViewModel methods.</li>
+ *   <li><b>CacheStatusProvider interface</b> — {@code WeatherViewModel} constructor
+ *       no longer imports {@code CachingWeatherRepository}; the cache badge is
+ *       wired via the interface.</li>
+ *   <li><b>WeatherUiUtils</b> — {@code makeDarkSpinnerAdapter},
+ *       {@code isoDayOfWeek}, {@code buildMarkerUid} extracted to utility class.</li>
+ *   <li><b>suppressSeekSync dead field removed.</b></li>
+ *   <li><b>pendingPick* consolidated</b> — three fields collapsed to a single
+ *       {@code @Nullable GeoPoint pendingPickPoint}.</li>
+ * </ul>
  *
- * The old "Drop Weather Marker Here" placed a marker at the last known weather
- * position without any user selection.  The new flow is:
+ * <h3>Feature: "Tap Map to Place Weather Marker"</h3>
+ * <ol>
+ *   <li>User taps "📍 Tap Map to Place Weather Marker" → drop-down collapses,
+ *       {@link WeatherPlaceTool} registers for {@code MAP_CONFIRMED_CLICK}.</li>
+ *   <li>User taps the map → {@code weatherViewModel.loadWeather()} called at
+ *       the picked coordinate.</li>
+ *   <li>On success the weather observer auto-places a marker via
+ *       {@code markerManager.placeMarker()}.</li>
+ *   <li>Drop-down reopens on the Map tab.</li>
+ * </ol>
  *
- *   1. User taps "Tap Map to Place Weather Marker"
- *      → The drop-down collapses (so the map is fully visible)
- *      → A MapPointPicker is registered to listen for MAP_CONFIRMED_CLICK
- *      → The button text changes to "✕ Cancel — picking location…"
- *      → An orange hint banner appears
- *
- *   2. User taps anywhere on the live map
- *      → The screen point is converted to GeoPoint via inverseWithElevation()
- *      → weatherViewModel.loadWeather() is called at that coordinate
- *      → On success the weather observer auto-places the marker via
- *        markerManager.placeMarker()  (same path as before)
- *      → The drop-down reopens on the Map tab
- *
- *   3. If the user taps the button again while picking is active
- *      → The picker is cancelled, the button resets, panel restores
- *
- * ── Feature: Wind Effect Drawing (Feature 2) ─────────────────────────────────
- *
- * The Wind tab (Tab 2) now has:
- *   • Range SeekBar  (0.5 – 10.0 km, 0.5 km steps)
- *   • Height SeekBar (50 – 2000 m, 50 m steps)
- *   • "Draw Wind Effect" button → calls WindEffectShape.place()
- *   • "Clear" button            → calls WindEffectShape.removeAll()
- *
- * WindEffectShape draws two items in the WindMapOverlay group:
- *   • A filled directional cone  (Polyline, type "u-d-f")
- *   • A filled range-height box  (SimpleRectangle, type "u-d-r")
- * Both are colour-coded by wind speed tier and rotate to match wind direction.
+ * <h3>Feature: Wind Effect Drawing</h3>
+ * Delegated entirely to {@link WindTabCoordinator}.
  */
 public class WeatherDropDownReceiver extends DropDownReceiver
         implements OnStateListener {
 
-    public static final String TAG             = WeatherDropDownReceiver.class.getSimpleName();
-    public static final String SHOW_PLUGIN     = "com.atakmap.android.weather.SHOW_PLUGIN";
-    public static final String SHARE_MARKER    = "com.atakmap.android.weather.SHARE_MARKER";
-    public static final String REMOVE_MARKER   = "com.atakmap.android.weather.REMOVE_MARKER";
+    public static final String TAG           = WeatherDropDownReceiver.class.getSimpleName();
+    public static final String SHOW_PLUGIN   = "com.atakmap.android.weather.SHOW_PLUGIN";
+    public static final String SHARE_MARKER  = "com.atakmap.android.weather.SHARE_MARKER";
+    public static final String REMOVE_MARKER = "com.atakmap.android.weather.REMOVE_MARKER";
 
     public static final String EXTRA_TARGET_UID    = "targetUID";
     public static final String EXTRA_REQUESTED_TAB = "requestedTab";
 
-    // ── Layout ───────────────────────────────────────────────────────────────
+    // ── Layout ────────────────────────────────────────────────────────────────
     private final View    templateView;
     private final Context pluginContext;
     private final Context appContext;
 
-    // ── ViewModels ───────────────────────────────────────────────────────────
+    // ── ViewModels ────────────────────────────────────────────────────────────
     private WeatherViewModel     weatherViewModel;
-    private WindProfileViewModel windViewModel;
 
-    // ── View helpers ─────────────────────────────────────────────────────────
+    /** Kept so disposeImpl can clear the in-memory wind profile cache. */
+    private CachingWeatherRepository cachingRepo;
+    /** Kept to apply active-source changes from the PARM spinner. */
+    private WeatherRepositoryImpl    networkRepo;
+
+    // ── Observer registry (replaces 14 typed observer fields) ─────────────────
+    private final WeatherObserverRegistry observers = new WeatherObserverRegistry();
+
+    // ── Tab coordinators ──────────────────────────────────────────────────────
+    private RadarTabCoordinator radarTabCoordinator;
+    private WindTabCoordinator  windTabCoordinator;
+
+    // ── View helpers ──────────────────────────────────────────────────────────
     private CurrentWeatherView currentWeatherView;
     private DailyForecastView  dailyForecastView;
     private WindProfileView    windProfileView;
     private ParametersView     parametersView;
     private WeatherChartView   chartView;
     private ComparisonView     comparisonView;
+    private SeekBar            chartOverlaySeekBar;
+    private TextView           fltCatBadge;
 
-    // ── Preferences ──────────────────────────────────────────────────────────
+    // ── Preferences ───────────────────────────────────────────────────────────
     private WeatherParameterPreferences paramPrefs;
 
-    // ── Init guard ───────────────────────────────────────────────────────────
+    // ── Init guard ────────────────────────────────────────────────────────────
     private boolean initialized = false;
 
-    // ── TabHost reference ────────────────────────────────────────────────────
+    // ── TabHost ───────────────────────────────────────────────────────────────
     private android.widget.TabHost tabHost;
 
-    // ── Marker managers ──────────────────────────────────────────────────────
+    // ── Marker managers ───────────────────────────────────────────────────────
     private final WeatherMarkerManager markerManager;
     private final WindMarkerManager    windMarkerManager;
-    private       WindEffectShape      windEffectShape;
 
-    // ── Last known good weather + location ───────────────────────────────────
-    private WeatherModel      lastWeather;
-    private LocationSnapshot  lastLocation;
+    /**
+     * Shared WindProfileViewModel — created in WeatherMapComponent so the
+     * WindHudWidget and this DDR observe the same LiveData instance.
+     * The DDR does NOT create its own WindProfileViewModel.
+     */
+    private final WindProfileViewModel windViewModel;
 
-    // ── Last placed wind marker info (for wind effect drawing) ───────────────
-    private double lastWindLat = Double.NaN;
-    private double lastWindLon = Double.NaN;
-    private boolean lastWindIsSelf = false;
-    /** Hour index currently shown in the wind chart / effect (0 = now). */
-    private int     windHourIndex = 0;
+    /**
+     * Shared WindEffectShape — same instance used by WindHudWidget and
+     * WindTabCoordinator so both draw into the same overlay group.
+     */
+    private final WindEffectShape sharedWindEffectShape;
 
-    // ── Chart overlay seekbar (transparent, sits on top of chart_frame) ─────
-    private SeekBar chartOverlaySeekBar;
-    /** Prevents feedback loop when syncing the two seekbars. */
-    private boolean suppressSeekSync = false;
+    /**
+     * RadarOverlayManager — injected from WeatherMapComponent so the DDR
+     * Show/Hide buttons and the Overlay Manager toggle act on the same manager.
+     */
+    private final RadarOverlayManager radarManager;
 
-    // ── Hourly cache ─────────────────────────────────────────────────────────
+    // ── Last known good state ─────────────────────────────────────────────────
+    private WeatherModel     lastWeather;
+    private LocationSnapshot lastLocation;
     private List<HourlyEntryModel> hourlyCache;
 
-    // ── Point-pick state ─────────────────────────────────────────────────────
-    private MapPointPicker activePicker    = null;
-    private boolean        pickModeActive  = false;
-    private Button         btnDropMarker   = null;  // kept for text toggling
+    // ── Point-pick state (consolidated from three fields) ─────────────────────
+    private GeoPoint pendingPickPoint = null;  // non-null = place marker on next weather success
+    private boolean  pickModeActive   = false;
+    private Button   btnDropMarker    = null;
 
-    // ── Wind effect parameters (driven by SeekBars) ──────────────────────────
-    private double windEffectRangeM  = 2000.0;  // 2 km default
-    private double windEffectHeightM =  500.0;  // 500 m default
-    /** True while a wind-effect prism is placed — enables live seek redraw. */
-    private boolean windEffectActive = false;
-    /** Wind profile list cached from WindViewModel; null until first wind load. */
-    private java.util.List<com.atakmap.android.weather.domain.model.WindProfileModel>
-            lastWindProfiles = null;
+    // ── Last active slot tracking ─────────────────────────────────────────────
+    private int    lastActiveSlotIdx  = -1;
+    private String lastBoundSourceId  = null;
 
-    // ── Constructor ──────────────────────────────────────────────────────────
+    // ── HUD toggle state ──────────────────────────────────────────────────────
+    /** Tracks whether the HUD is currently visible (toggled from WIND tab). */
+    private boolean hudVisible = true;
 
+    // ── Constructor ───────────────────────────────────────────────────────────
+
+    /**
+     * Full constructor — receives shared instances from {@link WeatherMapComponent}.
+     *
+     * @param windViewModel        shared ViewModel also observed by {@link com.atakmap.android.weather.overlay.wind.WindHudWidget}
+     * @param sharedWindEffectShape shared WindEffectShape also used by WindHudWidget
+     * @param radarManager         shared RadarOverlayManager also used by RadarMapOverlay
+     */
     public WeatherDropDownReceiver(final MapView mapView,
                                    final Context context,
                                    final WeatherMarkerManager markerManager,
-                                   final WindMarkerManager windMarkerManager) {
+                                   final WindMarkerManager windMarkerManager,
+                                   final WindProfileViewModel windViewModel,
+                                   final WindEffectShape sharedWindEffectShape,
+                                   final RadarOverlayManager radarManager) {
         super(mapView);
-        this.pluginContext     = context;
-        this.appContext        = mapView.getContext();
-        this.markerManager     = markerManager;
-        this.windMarkerManager = windMarkerManager;
+        this.pluginContext          = context;
+        this.appContext             = mapView.getContext();
+        this.markerManager          = markerManager;
+        this.windMarkerManager      = windMarkerManager;
+        this.windViewModel          = windViewModel;
+        this.sharedWindEffectShape  = sharedWindEffectShape;
+        this.radarManager           = radarManager;
         templateView = PluginLayoutInflater.inflate(context, R.layout.main_layout, null);
     }
 
@@ -198,7 +236,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         if (REMOVE_MARKER.equals(action)) {
             final String uid = intent.getStringExtra(EXTRA_TARGET_UID);
             if (uid != null) {
-                if (uid.startsWith("wx_wind") && windMarkerManager != null)
+                if (uid.startsWith(WindMarkerManager.UID_PREFIX) && windMarkerManager != null)
                     windMarkerManager.removeMarker(uid);
                 else if (markerManager != null)
                     markerManager.removeMarker(uid);
@@ -239,47 +277,56 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     // ── Dependency wiring ─────────────────────────────────────────────────────
 
     private void initDependencies() {
-        OpenMeteoSource openMeteoSource = new OpenMeteoSource();
-        Map<String, IWeatherRemoteSource> sources = new HashMap<>();
-        sources.put(OpenMeteoSource.SOURCE_ID, openMeteoSource);
+        WeatherSourceManager sourceMgr = WeatherSourceManager.getInstance(appContext);
 
-        WeatherRepositoryImpl networkRepo = new WeatherRepositoryImpl(sources, OpenMeteoSource.SOURCE_ID);
-        IGeocodingRepository  geocodingRepo = new NominatimGeocodingSource();
+        Map<String, IWeatherRemoteSource> sources = new HashMap<>();
+        for (WeatherSourceManager.SourceEntry entry : sourceMgr.getAvailableEntries()) {
+            IWeatherRemoteSource src = sourceMgr.getSourceById(entry.sourceId);
+            if (src != null) sources.put(entry.sourceId, src);
+        }
+
+        networkRepo = new WeatherRepositoryImpl(sources, sourceMgr.getActiveSourceId());
+        IGeocodingRepository geocodingRepo = new NominatimGeocodingSource();
 
         paramPrefs = new WeatherParameterPreferences(pluginContext);
         networkRepo.setParameterPreferences(paramPrefs);
 
-        CachingWeatherRepository cachingRepo = new CachingWeatherRepository(
+        cachingRepo = new CachingWeatherRepository(
                 networkRepo,
                 WeatherDatabase.getInstance(appContext).weatherDao(),
                 paramPrefs);
         cachingRepo.purgeExpired();
 
         weatherViewModel = new WeatherViewModel(cachingRepo, geocodingRepo);
-        windViewModel    = new WindProfileViewModel(cachingRepo);
-
-        // WindEffectShape needs the WindMapOverlay — we get it from the wind
-        // marker manager's overlay reference.  Both share the same overlay instance.
-        windEffectShape = new WindEffectShape(
-                getMapView(),
-                windMarkerManager.getOverlay());
+        // windViewModel is injected via constructor — shared with WindHudWidget.
+        // Do NOT create a new instance here; that would break the shared state.
     }
 
     @SuppressWarnings("deprecation")
     private void initTabs() {
         tabHost = templateView.findViewById(R.id.mainTabHost);
         tabHost.setup();
-        // 3-tab layout: WTHR (forecast+chart), WIND (wind+comparison), CONF (map+params)
         android.widget.TabHost.TabSpec spec;
         spec = tabHost.newTabSpec("wthr"); spec.setIndicator("WTHR"); spec.setContent(R.id.subTabWidget1); tabHost.addTab(spec);
         spec = tabHost.newTabSpec("wind"); spec.setIndicator("WIND"); spec.setContent(R.id.subTabWidget2); tabHost.addTab(spec);
         spec = tabHost.newTabSpec("conf"); spec.setIndicator("CONF"); spec.setContent(R.id.subTabWidget3); tabHost.addTab(spec);
+        spec = tabHost.newTabSpec("parm"); spec.setIndicator("PARM"); spec.setContent(R.id.subTabWidget4); tabHost.addTab(spec);
     }
 
     private void initViewHelpers() {
         currentWeatherView = new CurrentWeatherView(templateView, pluginContext);
         dailyForecastView  = new DailyForecastView(templateView);
         windProfileView    = new WindProfileView(templateView);
+
+        // ── Tab coordinators ──────────────────────────────────────────────────
+        // sharedWindEffectShape is injected from WeatherMapComponent — the same
+        // instance used by WindHudWidget so both draw into the same overlay group.
+        radarTabCoordinator = new RadarTabCoordinator(
+                getMapView(), templateView, pluginContext, radarManager);
+        windTabCoordinator  = new WindTabCoordinator(
+                getMapView(), templateView, pluginContext,
+                windViewModel, windMarkerManager, sharedWindEffectShape,
+                windProfileView);
 
         // ── Refresh button ────────────────────────────────────────────────────
         View refreshBtn = templateView.findViewById(R.id.imageButton);
@@ -301,90 +348,115 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             return true;
         });
 
+        // ── WindProfileView — Request button ──────────────────────────────────
         windProfileView.setRequestClickListener(v -> {
-            double lat = getMapView().getCenterPoint().get().getLatitude();
-            double lon = getMapView().getCenterPoint().get().getLongitude();
-            windViewModel.loadWindProfile(lat, lon);
+            closeDropDown();
+            WeatherPlaceTool.start(getMapView(), WeatherPlaceTool.Mode.WIND,
+                    (pickedPoint, mode) -> {
+                        double lat = pickedPoint.getLatitude();
+                        double lon = pickedPoint.getLongitude();
+                        String srcId = WeatherSourceManager.getInstance(appContext).getActiveSourceId();
+                        windViewModel.addSlot(lat, lon, srcId);
+                        Intent reopen = new Intent(SHOW_PLUGIN);
+                        reopen.putExtra(EXTRA_REQUESTED_TAB, "wind");
+                        com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(reopen);
+                    });
         });
 
-        // Tab 4 — Parameters
+        windProfileView.setSlotTabListener(new WindProfileView.SlotTabListener() {
+            @Override public void onSlotSelected(int slotIndex) {
+                windViewModel.setActiveSlot(slotIndex);
+            }
+            @Override public void onSlotRemoved(int slotIndex) {
+                windViewModel.removeSlot(slotIndex);
+                windTabCoordinator.clearWindShapes();
+            }
+        });
+
+        // ── Tab 4 — Parameters ────────────────────────────────────────────────
         parametersView = new ParametersView(templateView, pluginContext, paramPrefs);
-        parametersView.setAvailableParameters(new OpenMeteoSource().getSupportedParameters());
+        WeatherSourceManager parmSrcMgr = WeatherSourceManager.getInstance(appContext);
+        if (parmSrcMgr.getActiveSource() != null)
+            rebuildParmsForSource(parmSrcMgr.getActiveSourceId());
         parametersView.setOnChangeListener(() -> {
             Toast.makeText(pluginContext, R.string.params_reloading, Toast.LENGTH_SHORT).show();
             triggerAutoLoad();
         });
 
-        // Tab 1 — Chart embedded in WTHR tab
+        // Refresh-sources button (PARM tab)
+        Button btnRefreshSources = templateView.findViewById(R.id.btn_refresh_sources);
+        if (btnRefreshSources != null) {
+            btnRefreshSources.setOnClickListener(v -> {
+                SourceDefinitionLoader.clearCache();
+                Map<String, WeatherSourceDefinition> allDefs =
+                        SourceDefinitionLoader.loadAll(pluginContext);
+                rebuildParmsForSource(WeatherSourceManager.getInstance(appContext).getActiveSourceId());
+                Toast.makeText(pluginContext,
+                        pluginContext.getString(R.string.sources_refreshed, allDefs.size()),
+                        Toast.LENGTH_SHORT).show();
+            });
+        }
+
+        // ── Tab 1 — Chart ─────────────────────────────────────────────────────
         FrameLayout chartFrame = templateView.findViewById(R.id.chart_frame);
         if (chartFrame != null) {
             chartView = new WeatherChartView(pluginContext);
-            // Insert at index 0 so the overlay SeekBar stays on top
             chartFrame.addView(chartView, 0);
             wireChartToggleButtons();
         }
-        // ── Chart overlay seekbar (transparent, drawn on top of chart) ─────
         chartOverlaySeekBar = templateView.findViewById(R.id.seekbar_chart_overlay);
         if (chartOverlaySeekBar != null) {
             chartOverlaySeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
                 @Override public void onProgressChanged(SeekBar sb, int p, boolean fromUser) {
-                    if (!fromUser || suppressSeekSync) return;
-                    suppressSeekSync = true;
-                    // Sync main seekBar without re-triggering this listener
-                    SeekBar mainSeek = templateView.findViewById(R.id.seekBar);
-                    if (mainSeek != null) mainSeek.setProgress(p);
-                    suppressSeekSync = false;
-                    weatherViewModel.selectHour(p);
+                    if (fromUser) weatherViewModel.selectHour(p);
                 }
                 @Override public void onStartTrackingTouch(SeekBar sb) {}
                 @Override public void onStopTrackingTouch(SeekBar sb) {}
             });
         }
-        // ── CONF tab: API Source Spinner ─────────────────────────────────
-        wireSourceSpinner();
 
-        // ── Tab 3 — Map / Marker controls ────────────────────────────────────
+        // ── PARM tab spinners ─────────────────────────────────────────────────
+        wireParmSourceSpinner();
+
+        // ── Tab 3 — Map marker controls ───────────────────────────────────────
         initMapTab();
 
-        // ── Tab 2 — Wind tab ─────────────────────────────────────────────────
-        initWindTab();
-
-        // Tab 6 — Comparison
+        // ── Tab 6 — Comparison ────────────────────────────────────────────────
         comparisonView = new ComparisonView(templateView);
         templateView.findViewById(R.id.comp_refresh_button)
                 .setOnClickListener(v -> triggerComparison());
+
+        // ── WIND tab: HUD toggle button ───────────────────────────────────────
+        // The layout button id "btn_toggle_wind_hud" may not yet exist in the XML.
+        // We look it up at runtime via Resources.getIdentifier() so the build
+        // never fails on a missing R.id constant. Wire it up if the layout has it.
+        int hudBtnId = pluginContext.getResources().getIdentifier(
+                "btn_toggle_wind_hud", "id", pluginContext.getPackageName());
+        if (hudBtnId != 0) {
+            Button btnToggleHud = templateView.findViewById(hudBtnId);
+            if (btnToggleHud != null) {
+                btnToggleHud.setText(hudVisible ? "Hide Wind HUD" : "Show Wind HUD");
+                btnToggleHud.setOnClickListener(v -> {
+                    hudVisible = !hudVisible;
+                    Intent hudIntent = new Intent("com.atakmap.android.weather.TOGGLE_WIND_HUD");
+                    hudIntent.putExtra("visible", hudVisible);
+                    com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(hudIntent);
+                    btnToggleHud.setText(hudVisible ? "Hide Wind HUD" : "Show Wind HUD");
+                });
+            }
+        }
     }
 
-    // ── Tab 3 — Map tab initialisation ────────────────────────────────────────
+    // ── Map tab ───────────────────────────────────────────────────────────────
 
-    /**
-     * "Drop Weather Marker" is now a two-step pick-then-fetch flow:
-     *
-     *   Idle state:  button says "📍 Tap Map to Place Weather Marker"
-     *   Pick state:  button says "✕ Cancel — picking location…"  (orange tint)
-     *                hint banner is visible
-     *                MapPointPicker is listening for MAP_CONFIRMED_CLICK
-     *
-     * Tapping the button toggles between idle and pick states.
-     * Once the user taps the map the picker fires onPointPicked():
-     *   1. Calls weatherViewModel.loadWeather() for that coordinate
-     *   2. Resets the button back to idle
-     *   3. The weather observer auto-places the marker on success (see observeViewModels)
-     *   4. Reopens the drop-down on the Map tab
-     */
     private void initMapTab() {
         btnDropMarker = templateView.findViewById(R.id.btn_drop_weather_marker);
         final TextView pickHint = templateView.findViewById(R.id.textview_pick_hint);
 
         if (btnDropMarker != null) {
             btnDropMarker.setOnClickListener(v -> {
-                if (pickModeActive) {
-                    // Second tap = cancel
-                    cancelPickMode(btnDropMarker, pickHint);
-                } else {
-                    // First tap = enter pick mode
-                    enterPickMode(btnDropMarker, pickHint);
-                }
+                if (pickModeActive) cancelPickMode(btnDropMarker, pickHint);
+                else                enterPickMode(btnDropMarker, pickHint);
             });
         }
 
@@ -398,7 +470,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
                     return;
                 }
                 Intent shareIntent = new Intent(SHARE_MARKER);
-                shareIntent.putExtra(EXTRA_TARGET_UID, buildMarkerUid(lastLocation));
+                shareIntent.putExtra(EXTRA_TARGET_UID, WeatherUiUtils.buildMarkerUid(lastLocation));
                 com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(shareIntent);
             });
         }
@@ -418,263 +490,69 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         btn.setAlpha(0.75f);
         if (hint != null) hint.setVisibility(View.VISIBLE);
 
-        // Collapse drop-down so the map is fully visible.
-        // ATAK will keep the receiver alive — the picker fires when the user taps.
-        closeDropDown();
+        // Register the tool FIRST, then close the dropdown (see original comment).
+        WeatherPlaceTool.start(getMapView(), WeatherPlaceTool.Mode.WEATHER,
+                (pickedPoint, mode) -> {
+                    resetPickMode(btn, hint);
+                    pendingPickPoint = pickedPoint;
+                    weatherViewModel.loadWeather(
+                            pickedPoint.getLatitude(), pickedPoint.getLongitude(),
+                            LocationSource.MAP_CENTRE);
+                    Intent reopen = new Intent(SHOW_PLUGIN);
+                    reopen.putExtra(EXTRA_REQUESTED_TAB, "conf");
+                    com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(reopen);
+                });
 
-        activePicker = MapPointPicker.pick(getMapView(), pickedPoint -> {
-            // Runs on main thread after user taps map
-            resetPickMode(btn, hint);
-
-            // Fetch weather at the tapped point and flag that we should
-            // auto-place the marker when data arrives.
-            pendingPickLat = pickedPoint.getLatitude();
-            pendingPickLon = pickedPoint.getLongitude();
-            pendingPickPlace = true;
-
-            weatherViewModel.loadWeather(
-                    pickedPoint.getLatitude(),
-                    pickedPoint.getLongitude(),
-                    LocationSource.MAP_CENTRE);
-
-            // Reopen the panel on the Map tab
-            Intent reopen = new Intent(SHOW_PLUGIN);
-            reopen.putExtra(EXTRA_REQUESTED_TAB, "conf");
-            com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(reopen);
-        });
+        new android.os.Handler(android.os.Looper.getMainLooper())
+                .postDelayed(this::closeDropDown, 200);
     }
 
     private void cancelPickMode(Button btn, TextView hint) {
-        if (activePicker != null) { activePicker.cancel(); activePicker = null; }
+        WeatherPlaceTool.cancel(getMapView());
         resetPickMode(btn, hint);
     }
 
     private void resetPickMode(Button btn, TextView hint) {
-        pickModeActive = false;
-        activePicker   = null;
+        pickModeActive   = false;
+        pendingPickPoint = null;
         if (btn  != null) { btn.setText(R.string.map_btn_pick_and_drop); btn.setAlpha(1.0f); }
         if (hint != null) hint.setVisibility(View.GONE);
     }
 
-    // ── Pending auto-place after a point pick ─────────────────────────────────
-    // Set in the MapPointPicker callback, consumed by the weather observer.
-    private boolean pendingPickPlace = false;
-    private double  pendingPickLat   = Double.NaN;
-    private double  pendingPickLon   = Double.NaN;
-
-    // ── Tab 2 — Wind tab initialisation ───────────────────────────────────────
-
-    private void initWindTab() {
-        // ── Range SeekBar (0.5–10 km, step 0.5 km) ───────────────────────────
-        final TextView rangeLabel  = templateView.findViewById(R.id.textview_wind_range_value);
-        final SeekBar  rangeSeek   = templateView.findViewById(R.id.seekbar_wind_range);
-        if (rangeSeek != null) {
-            rangeSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override public void onProgressChanged(SeekBar sb, int p, boolean u) {
-                    windEffectRangeM = (p + 1) * 500.0; // step 0.5 km, min 0.5 km
-                    if (rangeLabel != null)
-                        rangeLabel.setText(String.format(Locale.US,
-                                windEffectRangeM >= 1000 ? "%.1f km" : "%.0f m",
-                                windEffectRangeM >= 1000 ? windEffectRangeM / 1000.0 : windEffectRangeM));
-                    // Live update: stretch/shrink existing cones without full redraw
-                    if (windEffectActive && windEffectShape != null && !Double.isNaN(lastWindLat)) {
-                        final String suffix = WindEffectShape.uidSuffix(lastWindLat, lastWindLon, lastWindIsSelf);
-                        windEffectShape.updateRange(suffix, lastWindLat, lastWindLon,
-                                windEffectRangeM, currentFrameList());
-                    }
-                }
-                @Override public void onStartTrackingTouch(SeekBar sb) {}
-                // Full redraw on release to reconcile any edge-cases
-                @Override public void onStopTrackingTouch(SeekBar sb) { redrawIfActive(); }
-            });
-            rangeSeek.setProgress(rangeSeek.getProgress());
-        }
-
-        // ── Height SeekBar (50–2000 m, step 50 m) ────────────────────────────
-        final TextView heightLabel = templateView.findViewById(R.id.textview_wind_height_value);
-        final SeekBar  heightSeek  = templateView.findViewById(R.id.seekbar_wind_height);
-        if (heightSeek != null) {
-            heightSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override public void onProgressChanged(SeekBar sb, int p, boolean u) {
-                    windEffectHeightM = (p + 1) * 50.0; // step 50 m, min 50 m
-                    if (heightLabel != null)
-                        heightLabel.setText(String.format(Locale.US, "%.0f m", windEffectHeightM));
-                    // Live update: show/hide tiers above/below the new ceiling
-                    if (windEffectActive && windEffectShape != null && !Double.isNaN(lastWindLat)) {
-                        final String suffix = WindEffectShape.uidSuffix(lastWindLat, lastWindLon, lastWindIsSelf);
-                        windEffectShape.updateHeightCeiling(suffix, windEffectHeightM, currentFrameList());
-                    }
-                }
-                @Override public void onStartTrackingTouch(SeekBar sb) {}
-                // Full redraw on release to reconcile visibility + label
-                @Override public void onStopTrackingTouch(SeekBar sb) { redrawIfActive(); }
-            });
-            heightSeek.setProgress(heightSeek.getProgress());
-        }
-
-        // ── Draw Wind Effect button ───────────────────────────────────────────
-        Button btnDraw = templateView.findViewById(R.id.btn_draw_wind_effect);
-        if (btnDraw != null) {
-            btnDraw.setOnClickListener(v -> drawWindEffect());
-        }
-
-        // ── Clear Wind Effect button ──────────────────────────────────────────
-        Button btnClear = templateView.findViewById(R.id.btn_clear_wind_effect);
-        if (btnClear != null) {
-            btnClear.setOnClickListener(v -> {
-                if (windEffectShape != null) windEffectShape.removeAll();
-                windEffectActive = false;
-                Toast.makeText(pluginContext, R.string.wind_effect_cleared, Toast.LENGTH_SHORT).show();
-            });
-        }
-
-        // ── Drop Wind Marker button ───────────────────────────────────────────
-        Button btnDropWindMarker = templateView.findViewById(R.id.btn_drop_wind_marker);
-        if (btnDropWindMarker != null) {
-            btnDropWindMarker.setOnClickListener(v -> {
-                if (lastWeather != null && lastLocation != null && windMarkerManager != null) {
-                    windMarkerManager.placeMarker(lastLocation, lastWeather);
-                    lastWindLat   = lastLocation.getLatitude();
-                    lastWindLon   = lastLocation.getLongitude();
-                    lastWindIsSelf = lastLocation.getSource() == LocationSource.SELF_MARKER;
-                    Toast.makeText(pluginContext, "Wind marker dropped", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
-        // ── Wind hour seekbar: update windHourIndex for live prism redraw ──
-        final SeekBar windHourSeek = templateView.findViewById(R.id.wind_seekbar);
-        if (windHourSeek != null) {
-            windHourSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override public void onProgressChanged(SeekBar sb, int p, boolean fromUser) {
-                    windHourIndex = p;
-                    // Update chart UI immediately on every tick
-                    windProfileView.onHourChanged(p);
-                    // Redraw shapes live while dragging — same call as on release
-                    if (fromUser) redrawIfActive();
-                }
-                @Override public void onStartTrackingTouch(SeekBar sb) {}
-                @Override public void onStopTrackingTouch(SeekBar sb)  { redrawIfActive(); }
-            });
-        }
-    }
-
-    /**
-     * Draw the wind cone + range-height box for the last placed wind marker.
-     * Requires a wind marker to have been placed first.
-     */
-    private void drawWindEffect() {
-        if (windEffectShape == null) return;
-
-        if (Double.isNaN(lastWindLat) || lastWeather == null) {
-            Toast.makeText(pluginContext, R.string.wind_effect_no_marker, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        final String suffix = WindEffectShape.uidSuffix(lastWindLat, lastWindLon, lastWindIsSelf);
-
-        // Surface fallback (used when no profile is loaded yet)
-        double surfaceSpeed = lastWeather.getWindSpeed();
-        double surfaceDir   = lastWeather.getWindDirection();
-
-        // Build a single-frame list from the currently selected hour so
-        // WindEffectShape receives exactly one WindProfileModel — the hour
-        // the user has scrubbed to.  Each AltitudeEntry carries its own
-        // speed and direction, giving per-cone colours and pointing.
-        java.util.List<com.atakmap.android.weather.domain.model.WindProfileModel>
-                frameList = null;
-        if (lastWindProfiles != null && !lastWindProfiles.isEmpty()) {
-            int idx = Math.min(windHourIndex, lastWindProfiles.size() - 1);
-            com.atakmap.android.weather.domain.model.WindProfileModel frame =
-                    lastWindProfiles.get(idx);
-            frameList = java.util.Collections.singletonList(frame);
-
-            // Also update surface fallback from the 10m tier of this frame
-            if (frame.getAltitudes() != null && !frame.getAltitudes().isEmpty()) {
-                surfaceSpeed = frame.getAltitudes().get(0).windSpeed;
-                surfaceDir   = frame.getAltitudes().get(0).windDirection;
-            }
-        }
-
-        windEffectShape.place(
-                lastWindLat, lastWindLon,
-                surfaceSpeed,
-                surfaceDir,
-                windEffectRangeM,
-                windEffectHeightM,
-                suffix,
-                frameList);
-        windEffectActive = true;
-
-        String toastMsg = (frameList != null)
-                ? pluginContext.getString(R.string.wind_effect_drawn)
-                : pluginContext.getString(R.string.wind_effect_drawn_no_profile);
-        Toast.makeText(pluginContext, toastMsg, Toast.LENGTH_SHORT).show();
-    }
-
-    private void redrawIfActive() {
-        if (windEffectActive && windEffectShape != null
-                && lastWeather != null && !Double.isNaN(lastWindLat)) {
-            drawWindEffect();
-        }
-    }
-
-    /**
-     * Returns a singletonList of the currently selected hour's WindProfileModel
-     * frame, or null if no profiles are loaded.
-     * Used by the live-mutation seekbar callbacks so they share the same frame
-     * selection logic as drawWindEffect().
-     */
-    private java.util.List<com.atakmap.android.weather.domain.model.WindProfileModel>
-    currentFrameList() {
-        if (lastWindProfiles == null || lastWindProfiles.isEmpty()) return null;
-        int idx = Math.min(windHourIndex, lastWindProfiles.size() - 1);
-        return java.util.Collections.singletonList(lastWindProfiles.get(idx));
-    }
-
-    // ── LiveData observers ─────────────────────────────────────────────────────
+    // ── LiveData observers ────────────────────────────────────────────────────
+    // All registrations go through the WeatherObserverRegistry — no typed fields.
+    // Cleanup: observers.removeAll() in disposeImpl().
 
     @SuppressLint("SetTextI18n")
     private void observeViewModels() {
 
-        weatherViewModel.getCurrentWeather().observeForever(state -> {
+        observers.add(weatherViewModel.getCurrentWeather(), state -> {
             if (state.isLoading()) {
                 currentWeatherView.showLoading();
             } else if (state.isSuccess() && state.getData() != null) {
                 WeatherModel w = state.getData();
                 lastWeather = w;
+                windTabCoordinator.setLastWeather(w);
                 currentWeatherView.bindCurrentWeather(w, w.getRequestTimestamp());
+                updateFltCatBadge(w);
                 if (lastLocation != null) updateChartLocationHeader(lastLocation);
 
-                // ── Auto-place after point-pick ──────────────────────────────
-                // If a point was picked by the user, auto-place the weather
-                // marker at that location as soon as weather data arrives.
-                if (pendingPickPlace) {
-                    pendingPickPlace = false;
-                    // Use lastLocation if already updated, else synthesise from
-                    // the picked coords (race: getActiveLocation may fire after
-                    // getCurrentWeather in some ATAK versions).
-                    com.atakmap.android.weather.domain.model.LocationSnapshot placeSnap = lastLocation;
-                    if (placeSnap == null && !Double.isNaN(pendingPickLat)) {
-                        placeSnap = new com.atakmap.android.weather.domain.model.LocationSnapshot(
-                                pendingPickLat, pendingPickLon,
-                                null,
-                                com.atakmap.android.weather.domain.model.LocationSource.MAP_CENTRE);
-                    }
-                    if (placeSnap != null) {
-                        markerManager.placeMarker(placeSnap, w);
-                        updateMarkerStatus(placeSnap);
-                    }
+                // Auto-place after point-pick
+                if (pendingPickPoint != null) {
+                    LocationSnapshot placeSnap = new LocationSnapshot(
+                            pendingPickPoint.getLatitude(), pendingPickPoint.getLongitude(),
+                            null, LocationSource.MAP_CENTRE);
+                    markerManager.placeMarker(placeSnap, w);
+                    updateMarkerStatus(placeSnap);
+                    pendingPickPoint = null;
                 }
             } else if (state.isError()) {
                 currentWeatherView.showError(state.getErrorMessage());
-                pendingPickPlace = false;  // clear on error too
+                pendingPickPoint = null;
             }
         });
 
-        weatherViewModel.getActiveLocation().observeForever(snapshot -> {
+        observers.add(weatherViewModel.getActiveLocation(), snapshot -> {
             if (snapshot != null) {
                 lastLocation = snapshot;
                 currentWeatherView.bindLocation(snapshot);
@@ -682,50 +560,42 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             }
         });
 
-        weatherViewModel.getDailyForecast().observeForever(state -> {
+        observers.add(weatherViewModel.getDailyForecast(), state -> {
             if (state.isSuccess() && state.getData() != null)
                 dailyForecastView.bind(state.getData());
         });
 
-        weatherViewModel.getHourlyForecast().observeForever(state -> {
+        observers.add(weatherViewModel.getHourlyForecast(), state -> {
             if (state.isSuccess() && state.getData() != null) {
                 hourlyCache = state.getData();
-                final int maxHour = hourlyCache.size() - 1;
-                if (chartOverlaySeekBar != null) chartOverlaySeekBar.setMax(maxHour);
-                currentWeatherView.configureSeekBar(
-                        maxHour,
-                        new SeekBar.OnSeekBarChangeListener() {
-                            @Override public void onProgressChanged(SeekBar bar, int i, boolean fromUser) {
-                                if (fromUser && !suppressSeekSync) {
-                                    suppressSeekSync = true;
-                                    if (chartOverlaySeekBar != null) chartOverlaySeekBar.setProgress(i);
-                                    suppressSeekSync = false;
-                                }
-                                weatherViewModel.selectHour(i);
-                            }
-                            @Override public void onStartTrackingTouch(SeekBar bar) {}
-                            @Override public void onStopTrackingTouch(SeekBar bar)  {}
-                        });
+                if (chartOverlaySeekBar != null) {
+                    chartOverlaySeekBar.setMax(hourlyCache.size() - 1);
+                    chartOverlaySeekBar.setProgress(0);
+                }
                 if (chartView != null) { chartView.setData(hourlyCache); chartView.invalidate(); }
                 triggerComparison();
             }
         });
 
-        weatherViewModel.getSelectedHour().observeForever(index -> {
+        observers.add(weatherViewModel.getSelectedHour(), index -> {
             if (index == null) return;
             if (chartView != null) { chartView.setSelectedIndex(index); updateChartReadouts(index); }
             if (hourlyCache != null && index >= 0 && index < hourlyCache.size()) {
                 HourlyEntryModel entry = hourlyCache.get(index);
-                String label = "+" + index + "h  " + entry.getIsoTime().replace("T", " ");
+                String iso     = entry.getIsoTime();
+                String dayName = WeatherUiUtils.isoDayOfWeek(iso);
+                String label   = "+" + index + "h  " + dayName + "  " + iso.replace("T", " ");
                 currentWeatherView.bindHourlyEntry(entry, label);
+                TextView tsLabel = templateView.findViewById(R.id.chart_timestamp_label);
+                if (tsLabel != null) tsLabel.setText(dayName + "  " + iso.replace("T", " "));
             }
         });
 
-        weatherViewModel.getErrorMessage().observeForever(msg -> {
+        observers.add(weatherViewModel.getErrorMessage(), msg -> {
             if (msg != null) Toast.makeText(pluginContext, msg, Toast.LENGTH_SHORT).show();
         });
 
-        weatherViewModel.getCacheBadge().observeForever(badge -> {
+        observers.add(weatherViewModel.getCacheBadge(), badge -> {
             TextView badgeView = templateView.findViewById(R.id.textview_cache_badge);
             if (badgeView == null) return;
             if (badge == null || badge.isEmpty()) {
@@ -736,33 +606,87 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             }
         });
 
-        windViewModel.getWindProfile().observeForever(state -> {
+        observers.add(windViewModel.getWindProfile(), state -> {
             if (state.isLoading()) {
                 windProfileView.showLoading();
             } else if (state.isSuccess() && state.getData() != null) {
-                lastWindProfiles = state.getData();
+                windTabCoordinator.onWindProfilesUpdated(state.getData());
                 windProfileView.bind(state.getData());
             } else if (state.isError()) {
                 windProfileView.showError(state.getErrorMessage());
             }
         });
 
-        weatherViewModel.getComparison().observeForever(state -> {
+        observers.add(windViewModel.getSlots(), slots -> {
+            int activeIdx = windViewModel.getActiveSlotIndex();
+            windProfileView.rebuildSlotTabs(slots, activeIdx);
+            windTabCoordinator.onSlotsChanged(slots);
+
+            // Re-bind chart altitudes when active slot profiles change
+            if (slots != null && activeIdx >= 0 && activeIdx < slots.size()) {
+                WindProfileViewModel.WindSlot activeSlot = slots.get(activeIdx);
+                if (activeSlot.profiles != null && !activeSlot.profiles.isEmpty()) {
+                    boolean slotSwitched    = (activeIdx != lastActiveSlotIdx);
+                    boolean profilesChanged = (activeSlot.profiles != null);
+                    boolean sourceChanged   = !activeSlot.getSourceId().equals(
+                            lastBoundSourceId != null ? lastBoundSourceId : "");
+                    if (profilesChanged || slotSwitched || sourceChanged) {
+                        lastActiveSlotIdx = activeIdx;
+                        lastBoundSourceId = activeSlot.getSourceId();
+                        rebindWindChart(activeSlot);
+                    }
+                }
+            }
+        });
+
+        observers.add(windViewModel.getActiveSlot(), activeIdx -> {
+            windProfileView.rebuildSlotTabs(windViewModel.getSlotList(), activeIdx);
+            if (activeIdx == null || activeIdx < 0) return;
+            windTabCoordinator.onActiveSlotChanged(activeIdx);
+            List<WindProfileViewModel.WindSlot> slots = windViewModel.getSlotList();
+            if (activeIdx < slots.size()) {
+                WindProfileViewModel.WindSlot slot = slots.get(activeIdx);
+                lastActiveSlotIdx = activeIdx;
+                lastBoundSourceId = slot.getSourceId();
+                if (slot.profiles != null) {
+                    windTabCoordinator.onWindProfilesUpdated(slot.profiles);
+                    rebindWindChart(slot);
+                }
+            }
+        });
+
+        observers.add(weatherViewModel.getComparison(), state -> {
             if (comparisonView == null) return;
             if (state.isLoading())                                    comparisonView.showLoading();
             else if (state.isSuccess() && state.getData() != null)    comparisonView.bind(state.getData());
             else if (state.isError())                                  comparisonView.showError(state.getErrorMessage());
         });
 
-        weatherViewModel.getSelfLocation().observeForever(snapshot -> {
+        observers.add(weatherViewModel.getSelfLocation(), snapshot -> {
             if (snapshot != null && comparisonView != null) comparisonView.bindSelfSnapshot(snapshot);
         });
-        weatherViewModel.getCenterLocation().observeForever(snapshot -> {
+
+        observers.add(weatherViewModel.getCenterLocation(), snapshot -> {
             if (snapshot != null && comparisonView != null) comparisonView.bindCenterSnapshot(snapshot);
         });
     }
 
-    // ── Data triggers ──────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private void rebindWindChart(WindProfileViewModel.WindSlot slot) {
+        WindChartView wc = windProfileView != null ? windProfileView.getWindChart() : null;
+        if (wc == null) return;
+        wc.setAltitudesFromProfiles(slot.profiles);
+        String srcDisplay = slot.getSourceId();
+        IWeatherRemoteSource srcObj = WeatherSourceManager.getInstance(appContext)
+                .getSourceById(slot.getSourceId());
+        if (srcObj != null) srcDisplay = srcObj.getDisplayName();
+        String tierStr = WeatherUiUtils.buildAltitudeTierLabel(slot.profiles);
+        wc.setSourceLabel(tierStr.isEmpty() ? srcDisplay : srcDisplay + "  " + tierStr);
+        windProfileView.bind(slot.profiles);
+    }
+
+    // ── Data triggers ─────────────────────────────────────────────────────────
 
     private void triggerAutoLoad() {
         double cenLat = getMapView().getCenterPoint().get().getLatitude();
@@ -776,59 +700,90 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         } catch (Exception e) {
             com.atakmap.coremap.log.Log.w(TAG, "getSelfMarker() threw: " + e.getMessage());
         }
-        boolean hasGps = !(selfLat == 0.0 && selfLon == 0.0);
-        if (!hasGps) Toast.makeText(pluginContext, R.string.no_gps_using_map_centre, Toast.LENGTH_SHORT).show();
+        if (selfLat == 0.0 && selfLon == 0.0)
+            Toast.makeText(pluginContext, R.string.no_gps_using_map_centre, Toast.LENGTH_SHORT).show();
         weatherViewModel.loadWeatherWithFallback(selfLat, selfLon, cenLat, cenLon);
     }
 
     private void triggerComparison() {
-        double selfLat = getMapView().getSelfMarker().getPoint().getLatitude();
-        double selfLon = getMapView().getSelfMarker().getPoint().getLongitude();
-        double cenLat  = getMapView().getCenterPoint().get().getLatitude();
-        double cenLon  = getMapView().getCenterPoint().get().getLongitude();
+        double selfLat = 0.0, selfLon = 0.0;
+        try {
+            if (getMapView().getSelfMarker() != null) {
+                selfLat = getMapView().getSelfMarker().getPoint().getLatitude();
+                selfLon = getMapView().getSelfMarker().getPoint().getLongitude();
+            }
+        } catch (Exception e) {
+            com.atakmap.coremap.log.Log.w(TAG, "triggerComparison getSelfMarker() threw: " + e.getMessage());
+        }
+        double cenLat = getMapView().getCenterPoint().get().getLatitude();
+        double cenLon = getMapView().getCenterPoint().get().getLongitude();
         if (selfLat == 0.0 && selfLon == 0.0) { selfLat = cenLat; selfLon = cenLon; }
         weatherViewModel.loadComparison(selfLat, selfLon, cenLat, cenLon);
     }
 
-    // ── Source Spinner ────────────────────────────────────────────────────────
+    // ── PARM tab source spinner ───────────────────────────────────────────────
 
-    private void wireSourceSpinner() {
-        Spinner spinner = templateView.findViewById(R.id.spinner_weather_source);
+    private void wireParmSourceSpinner() {
+        Spinner spinner = templateView.findViewById(R.id.spinner_parm_source);
         if (spinner == null) return;
-        // pluginContext is a PluginContext wrapper; SharedPreferences requires the
-        // real application context (appContext) — using pluginContext crashes at
-        // ctx.getSharedPreferences() with NullPointerException.
-        WeatherSourceManager mgr = WeatherSourceManager.getInstance(appContext);
-        java.util.List<WeatherSourceManager.SourceEntry> entries = mgr.getAvailableEntries();
-        ArrayAdapter<WeatherSourceManager.SourceEntry> adapter =
-                new ArrayAdapter<>(pluginContext,
-                        android.R.layout.simple_spinner_item, entries);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
+
+        WeatherSourceManager mgr     = WeatherSourceManager.getInstance(appContext);
+        List<WeatherSourceManager.SourceEntry> entries = mgr.getAvailableEntries();
+
+        spinner.setAdapter(WeatherUiUtils.makeDarkSpinnerAdapter(appContext, entries));
         spinner.setSelection(mgr.getActiveSourceIndex(), false);
-        TextView statusView = templateView.findViewById(R.id.textview_source_status);
-        updateSourceStatus(statusView, mgr.getActiveSource());
+
+        fltCatBadge = templateView.findViewById(R.id.badge_parm_flt_cat);
+
+        TextView statusLabel = templateView.findViewById(R.id.textview_parm_source_status);
+        if (statusLabel != null && mgr.getActiveSource() != null)
+            updateSourceStatusLabel(statusLabel, mgr.getActiveSource());
+
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onItemSelected(AdapterView<?> parent, android.view.View v,
-                                       int pos, long id) {
+            public void onItemSelected(AdapterView<?> parent, View v, int pos, long id) {
                 WeatherSourceManager.SourceEntry entry = entries.get(pos);
                 mgr.setActiveSourceId(entry.sourceId);
-                updateSourceStatus(statusView, mgr.getActiveSource());
+                if (networkRepo != null) networkRepo.setActiveSource(entry.sourceId);
+                if (cachingRepo  != null) cachingRepo.clearWindCache();
+                if (statusLabel  != null) updateSourceStatusLabel(statusLabel, mgr.getActiveSource());
+                rebuildParmsForSource(entry.sourceId);
+                if (fltCatBadge != null) fltCatBadge.setVisibility(View.GONE);
                 Toast.makeText(pluginContext,
-                        "Source: " + entry.displayName + " — reload to apply",
+                        "Source: " + entry.displayName + " — parameters updated",
                         Toast.LENGTH_SHORT).show();
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
     }
 
-    private void updateSourceStatus(TextView tv, com.atakmap.android.weather.data.remote.IWeatherRemoteSource source) {
-        if (tv == null || source == null) return;
-        tv.setText(source.getDisplayName() + "  |  " + source.getSupportedParameters().size() + " parameters");
+    private void rebuildParmsForSource(String sourceId) {
+        if (parametersView == null) return;
+        TextView descLabel = templateView.findViewById(R.id.textview_parm_source_desc);
+        WeatherSourceDefinition def = SourceDefinitionLoader.loadAll(pluginContext).get(sourceId);
+        if (def != null && !def.hourlyParams.isEmpty()) {
+            parametersView.setDefinitionParams(sourceId, def.hourlyParams, def.dailyParams, def.currentParams);
+            if (descLabel != null) {
+                if (def.description != null && !def.description.isEmpty()) {
+                    descLabel.setText(def.description);
+                    descLabel.setVisibility(View.VISIBLE);
+                } else {
+                    descLabel.setVisibility(View.GONE);
+                }
+            }
+        } else {
+            IWeatherRemoteSource src = WeatherSourceManager.getInstance(appContext).getSourceById(sourceId);
+            if (src != null) parametersView.setAvailableParameters(src.getSupportedParameters());
+            if (descLabel != null) descLabel.setVisibility(View.GONE);
+        }
     }
 
-    // ── Chart helpers ──────────────────────────────────────────────────────────
+    private void updateSourceStatusLabel(TextView tv, IWeatherRemoteSource src) {
+        if (tv == null || src == null) return;
+        tv.setText(src.getDisplayName() + "  |  " + src.getSupportedParameters().size() + " parameters");
+    }
+
+    // ── Chart helpers ─────────────────────────────────────────────────────────
 
     private void wireChartToggleButtons() {
         int[] btnIds = {R.id.chart_toggle_temp, R.id.chart_toggle_humidity,
@@ -852,7 +807,15 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         TextView valWind     = templateView.findViewById(R.id.chart_val_wind);
         TextView valPressure = templateView.findViewById(R.id.chart_val_pressure);
         TextView hourLabel   = templateView.findViewById(R.id.chart_hour_label);
-        if (hourLabel != null) hourLabel.setText(String.format("+%02dh", index));
+        if (hourLabel != null && hourlyCache != null
+                && index >= 0 && index < hourlyCache.size()) {
+            String iso     = hourlyCache.get(index).getIsoTime();
+            String dayName = WeatherUiUtils.isoDayOfWeek(iso);
+            String timeStr = iso.length() >= 16 ? iso.substring(11, 16) : iso;
+            hourLabel.setText(dayName.isEmpty() ? timeStr : dayName + " " + timeStr);
+        } else if (hourLabel != null) {
+            hourLabel.setText("--:--");
+        }
         setReadout(valTemp,     chartView.valueAt(WeatherChartView.Series.TEMPERATURE, index), "%.1f°");
         setReadout(valHumidity, chartView.valueAt(WeatherChartView.Series.HUMIDITY,    index), "%.0f%%");
         setReadout(valWind,     chartView.valueAt(WeatherChartView.Series.WIND,        index), "%.1f m/s");
@@ -863,10 +826,24 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         if (tv != null && !Double.isNaN(val)) tv.setText(String.format(fmt, val));
     }
 
-    private String buildMarkerUid(LocationSnapshot snapshot) {
-        if (snapshot.getSource() == LocationSource.SELF_MARKER) return "wx_self";
-        return String.format(Locale.US, "wx_centre_%.4f_%.4f",
-                snapshot.getLatitude(), snapshot.getLongitude());
+    private void updateFltCatBadge(WeatherModel w) {
+        if (fltCatBadge == null) return;
+        if (w == null || !w.isMetarSource() || w.getFlightCategory().isEmpty()) {
+            fltCatBadge.setVisibility(View.GONE);
+            return;
+        }
+        String cat = w.getFlightCategory();
+        int bg;
+        switch (cat) {
+            case "VFR":  bg = 0xFF00AA00; break;
+            case "MVFR": bg = 0xFF0055FF; break;
+            case "IFR":  bg = 0xFFCC0000; break;
+            case "LIFR": bg = 0xFFAA00AA; break;
+            default:     bg = 0xFF555555; break;
+        }
+        fltCatBadge.setBackgroundColor(bg);
+        fltCatBadge.setText(cat);
+        fltCatBadge.setVisibility(View.VISIBLE);
     }
 
     private void updateMarkerStatus(LocationSnapshot snapshot) {
@@ -882,7 +859,11 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         TextView locLabel = templateView.findViewById(R.id.chart_location_label);
         TextView tsLabel  = templateView.findViewById(R.id.chart_timestamp_label);
         if (locLabel != null) locLabel.setText(snapshot.getDisplayName());
-        if (tsLabel  != null && lastWeather != null) tsLabel.setText(lastWeather.getRequestTimestamp());
+        if (tsLabel  != null && lastWeather != null) {
+            String ts      = lastWeather.getRequestTimestamp();
+            String dayName = WeatherUiUtils.isoDayOfWeek(ts);
+            tsLabel.setText(dayName.isEmpty() ? ts : dayName + "  " + ts);
+        }
     }
 
     // ── Marker intent handlers ─────────────────────────────────────────────────
@@ -891,15 +872,13 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         if (uid == null) { triggerAutoLoad(); return; }
 
         MapItem item = null;
-        MapGroup root = getMapView().getRootGroup();
+        MapGroup root  = getMapView().getRootGroup();
         MapGroup wxGrp = root.findMapGroup(WeatherMapOverlay.GROUP_NAME);
         if (wxGrp != null) item = wxGrp.deepFindUID(uid);
         if (item == null) {
-            MapGroup windGrp = root.findMapGroup(
-                    com.atakmap.android.weather.overlay.WindMapOverlay.GROUP_NAME);
+            MapGroup windGrp = root.findMapGroup(WindMapOverlay.GROUP_NAME);
             if (windGrp != null) item = windGrp.deepFindUID(uid);
         }
-
         if (item == null) {
             Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
             triggerAutoLoad();
@@ -908,7 +887,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
         final double lat = item.getMetaDouble("latitude",  Double.NaN);
         final double lon = item.getMetaDouble("longitude", Double.NaN);
-        final String src = item.getMetaString("wx_source",  "MAP_CENTRE");
+        final String src = item.getMetaString("wx_source", "MAP_CENTRE");
 
         if (Double.isNaN(lat) || Double.isNaN(lon)) {
             if (item instanceof com.atakmap.android.maps.PointMapItem) {
@@ -926,7 +905,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             weatherViewModel.loadWeather(lat, lon, source);
         }
 
-        String defaultTab = (uid.startsWith("wx_wind")) ? "wind" : "wthr";
+        String defaultTab = uid.startsWith(WindMarkerManager.UID_PREFIX) ? "wind" : "wthr";
         jumpToTab(requestedTab != null ? requestedTab : defaultTab);
     }
 
@@ -936,12 +915,11 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             return;
         }
         MapItem item = null;
-        MapGroup root = getMapView().getRootGroup();
+        MapGroup root  = getMapView().getRootGroup();
         MapGroup wxGrp = root.findMapGroup(WeatherMapOverlay.GROUP_NAME);
         if (wxGrp != null) item = wxGrp.deepFindUID(uid);
         if (item == null) {
-            MapGroup windGrp = root.findMapGroup(
-                    com.atakmap.android.weather.overlay.WindMapOverlay.GROUP_NAME);
+            MapGroup windGrp = root.findMapGroup(WindMapOverlay.GROUP_NAME);
             if (windGrp != null) item = windGrp.deepFindUID(uid);
         }
         if (item == null) {
@@ -966,16 +944,52 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     // ── DropDownReceiver / OnStateListener ────────────────────────────────────
 
-    @Override public void disposeImpl() {
-        // Cancel any active picker to avoid a leaked listener
-        if (activePicker != null) { activePicker.cancel(); activePicker = null; }
+    /**
+     * Call from WeatherMapComponent.onDestroyImpl() to remove orphaned 3D shapes.
+     * Uses sharedWindEffectShape directly — windTabCoordinator may not be
+     * initialised yet if dispose is called before the first SHOW_PLUGIN.
+     */
+    public void clearWindShapes() {
+        if (sharedWindEffectShape != null) sharedWindEffectShape.removeAll();
+        if (windTabCoordinator != null) windTabCoordinator.clearWindShapes();
     }
+
+    /**
+     * Called by WeatherMapComponent when the RadarOverlayManager active state
+     * changes (e.g. toggled from the Overlay Manager). Updates the DDR CONF tab
+     * status label so it stays in sync with the Overlay Manager checkbox.
+     *
+     * @param isActive {@code true} if the radar is now running
+     */
+    public void onRadarActiveChanged(boolean isActive) {
+        if (radarTabCoordinator != null) {
+            radarTabCoordinator.onRadarActiveChanged(isActive);
+        }
+    }
+
+    @Override public void disposeImpl() {
+        // Cancel any active picker
+        WeatherPlaceTool.cancel(getMapView());
+
+        // Remove all LiveData observers in one call (replaces 14-line removeObservers())
+        observers.removeAll();
+
+        // Evict in-memory caches
+        if (cachingRepo != null) { cachingRepo.clearWindCache(); cachingRepo = null; }
+        networkRepo = null;
+        fltCatBadge = null;
+
+        if (radarTabCoordinator != null) { radarTabCoordinator.dispose(); radarTabCoordinator = null; }
+        if (windTabCoordinator  != null) { windTabCoordinator.dispose();  windTabCoordinator  = null; }
+
+        initialized = false;
+    }
+
     @Override public void onDropDownSelectionRemoved() {}
     @Override public void onDropDownVisible(boolean v) {}
     @Override public void onDropDownSizeChanged(double w, double h) {}
     @Override public void onDropDownClose() {
-        // If pick mode is active and the drop-down closes naturally (not via
-        // enterPickMode's closeDropDown), keep the picker running so the user
-        // can tap the map.  Do not reset pick mode here.
+        // Keep the picker running when the drop-down closes naturally so the
+        // user can tap the map. Do not reset pick mode here.
     }
 }

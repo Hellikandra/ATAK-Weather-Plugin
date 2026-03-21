@@ -161,8 +161,8 @@ public class WeatherMarkerManager {
 
         // ── Configure the marker ──────────────────────────────────────────────
         marker.setType(MARKER_TYPE);
-        marker.setTitle(buildCallsign(snapshot));
-        marker.setMetaString("callsign",      buildCallsign(snapshot));
+        marker.setTitle(buildCallsign(snapshot, weather));
+        marker.setMetaString("callsign",      buildCallsign(snapshot, weather));
         marker.setMetaString("how",           "m-g");
         marker.setMetaString("detail",        buildDetail(snapshot, weather));
         marker.setMetaString("wx_source",     snapshot.getSource().name());
@@ -173,6 +173,10 @@ public class WeatherMarkerManager {
         marker.setMetaString("wx_wind_speed", String.valueOf(weather.getWindSpeed()));
         marker.setMetaString("wx_wind_dir",   String.valueOf(weather.getWindDirection()));
         marker.setMetaString("wx_pressure",   String.valueOf(weather.getPressure()));
+        // AWC METAR-specific (empty strings for Open-Meteo source — harmless)
+        marker.setMetaString("wx_icao_id",    weather.getIcaoId());
+        marker.setMetaString("wx_flt_cat",    weather.getFlightCategory());
+        marker.setMetaString("wx_raw_metar",  weather.getRawMetar());
 
         // Radial menu is provided by WeatherMenuFactory registered in
         // WeatherMapComponent.onCreate(). No per-marker setup needed.
@@ -212,8 +216,15 @@ public class WeatherMarkerManager {
         }
     }
 
-    private String buildCallsign(final LocationSnapshot snapshot) {
-        // middle dot separator: U+00B7
+    private String buildCallsign(final LocationSnapshot snapshot,
+                                 final WeatherModel weather) {
+        // For AWC METAR: "EBLG · IFR · WX"
+        // For Open-Meteo: "WX · Liège"
+        if (weather.isMetarSource()) {
+            String cat = weather.getFlightCategory();
+            String id  = weather.getIcaoId();
+            return id + " \u00b7 " + (cat.isEmpty() ? "WX" : cat + " \u00b7 WX");
+        }
         return "WX \u00b7 " + snapshot.getDisplayName();
     }
 

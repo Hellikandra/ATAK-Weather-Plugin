@@ -34,8 +34,11 @@ public final class HttpClient {
         void onFailure(String error);
     }
 
+    // Fixed pool: at most 4 concurrent network requests.
+    // newCachedThreadPool() is unbounded and can open hundreds of threads
+    // during a network storm (many rapid weather requests on slow connections).
     private static final ExecutorService EXECUTOR =
-            Executors.newCachedThreadPool();
+            Executors.newFixedThreadPool(4);
     private static final Handler MAIN_HANDLER =
             new Handler(Looper.getMainLooper());
 

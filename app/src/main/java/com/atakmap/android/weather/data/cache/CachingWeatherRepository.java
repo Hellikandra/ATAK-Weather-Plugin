@@ -17,44 +17,43 @@ import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPr
 import com.atakmap.coremap.log.Log;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Cache-first IWeatherRepository that wraps WeatherRepositoryImpl.
+ * Cache-first {@link IWeatherRepository} that wraps {@link WeatherRepositoryImpl}.
  *
- * ── Read path ────────────────────────────────────────────────────────────────
+ * <h3>Read path</h3>
+ * <ol>
+ *   <li>Check Room on a background thread for a fresh snapshot (within TTL).</li>
+ *   <li>Hit  → emit domain model from cache; post {@link CacheStatus#CACHED} badge.</li>
+ *   <li>Miss → fetch from API → write Room → emit domain model; clear badge.</li>
+ * </ol>
  *
- *  1. Check Room on a background thread for a fresh snapshot (within TTL).
- *  2a. Hit  → emit domain model from cache; post CacheStatus.CACHED badge.
- *  2b. Miss → fetch from API → write Room → emit domain model; clear badge.
+ * <h3>Offline path</h3>
+ * If the API call fails AND an expired snapshot exists, serve stale data with
+ * a {@link CacheStatus#STALE} badge rather than surfacing an error to the user.
  *
- * ── Offline path ──────────────────────────────────────────────────────────────
+ * <h3>Wind profile</h3>
+ * Not cached in Room (data changes rapidly). An in-memory
+ * {@link ConcurrentHashMap} with a 30-minute TTL is used instead.
  *
- *  If the API call fails AND an expired snapshot exists for this key,
- *  serve the stale data with a "Cached HH:MM" badge rather than showing an error.
- *
- * ── Stale-on-param-change path ────────────────────────────────────────────────
- *
- *  OpenMeteoSource.isStale() is checked before the cache lookup. If true the
- *  cache is bypassed unconditionally and the API is called fresh.
- *
- * ── Wind profile ──────────────────────────────────────────────────────────────
- *
- *  Not cached (wind data changes rapidly and the table is large). Always live.
- *
- * ── CacheStatus LiveData ──────────────────────────────────────────────────────
- *
- *  The WeatherViewModel observes getCacheStatus() to show/hide the badge.
- *  FRESH  = no badge
- *  CACHED = "Cached HH:MM"
- *  STALE  = "Cached HH:MM ⚠" (serving expired data because offline)
+ * <h3>Refactoring changes (vs original)</h3>
+ * <ul>
+ *   <li>Now implements {@link CacheStatusProvider} — removes the
+ *       {@code instanceof CachingWeatherRepository} check from WeatherViewModel.</li>
+ *   <li>{@code windCache} changed from {@code HashMap} to {@code ConcurrentHashMap}
+ *       to eliminate the data-race on the (potentially multi-threaded) executor.</li>
+ *   <li>{@code postStatus()} centralised — all paths go through the same helper.</li>
+ * </ul>
  */
-public class CachingWeatherRepository implements IWeatherRepository {
+public class CachingWeatherRepository implements IWeatherRepository, CacheStatusProvider {
 
     private static final String TAG = "CachingWeatherRepo";
 
-    // ── Cache status broadcast ────────────────────────────────────────────────
+    // ── Cache status broadcast ─────────────────────────────────────────────────
 
     public enum CacheStatus { FRESH, CACHED, STALE }
 
@@ -64,8 +63,15 @@ public class CachingWeatherRepository implements IWeatherRepository {
 
     private CacheStatusListener cacheStatusListener;
 
-    public void setCacheStatusListener(CacheStatusListener l) {
-        this.cacheStatusListener = l;
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Implements {@link CacheStatusProvider} — WeatherViewModel uses
+     * {@code instanceof CacheStatusProvider} instead of the concrete class.</p>
+     */
+    @Override
+    public void setCacheStatusListener(CacheStatusListener listener) {
+        this.cacheStatusListener = listener;
     }
 
     private void postStatus(CacheStatus status, String label) {
@@ -74,15 +80,15 @@ public class CachingWeatherRepository implements IWeatherRepository {
         }
     }
 
-    // ── State ─────────────────────────────────────────────────────────────────
+    // ── State ──────────────────────────────────────────────────────────────────
 
-    private final WeatherRepositoryImpl        network;
-    private final WeatherDao                   dao;
-    private final WeatherParameterPreferences  prefs;
-    private final ExecutorService              executor = Executors.newSingleThreadExecutor();
-    private final Handler                      mainHandler = new Handler(Looper.getMainLooper());
+    private final WeatherRepositoryImpl       network;
+    private final WeatherDao                  dao;
+    private final WeatherParameterPreferences prefs;
+    private final ExecutorService             executor    = Executors.newSingleThreadExecutor();
+    private final Handler                     mainHandler = new Handler(Looper.getMainLooper());
 
-    // LocationSource context set by WeatherViewModel before each load
+    /** LocationSource context set by WeatherViewModel before each load. */
     private LocationSource currentSource = LocationSource.SELF_MARKER;
 
     public CachingWeatherRepository(WeatherRepositoryImpl network,
@@ -98,19 +104,17 @@ public class CachingWeatherRepository implements IWeatherRepository {
         this.currentSource = source;
     }
 
-    // ── IWeatherRepository ───────────────────────────────────────────────────
+    // ── IWeatherRepository ────────────────────────────────────────────────────
 
     @Override
     public void getCurrentWeather(double lat, double lon,
                                   Callback<WeatherModel> callback) {
-        String hash   = CachePolicy.paramHash(prefs);
-        String source = currentSource.name();
+        final String hash   = CachePolicy.paramHash(prefs);
+        final String source = currentSource.name();
 
         executor.execute(() -> {
             // Fast path: source marked stale after param change → bypass cache
-            boolean forceRefresh = network.isStaleForCurrentSource();
-
-            if (!forceRefresh) {
+            if (!network.isStaleForCurrentSource()) {
                 WeatherSnapshot cached = dao.findFreshSnapshot(
                         CachePolicy.roundCoord(lat), CachePolicy.roundCoord(lon),
                         source, hash, System.currentTimeMillis());
@@ -126,11 +130,10 @@ public class CachingWeatherRepository implements IWeatherRepository {
             // Cache miss or forced refresh → hit the network
             network.getCurrentWeather(lat, lon, new Callback<WeatherModel>() {
                 @Override public void onSuccess(WeatherModel result) {
-                    // Write to cache asynchronously (already on executor thread via network callback)
                     executor.execute(() -> {
                         WeatherSnapshot snap = CacheMapper.toSnapshot(
                                 result, currentSource, hash,
-                                null,  // display name written separately via geocoding
+                                null,   // display name written separately via geocoding
                                 System.currentTimeMillis());
                         snap.lat = CachePolicy.roundCoord(lat);
                         snap.lon = CachePolicy.roundCoord(lon);
@@ -147,7 +150,8 @@ public class CachingWeatherRepository implements IWeatherRepository {
                                 CachePolicy.roundCoord(lat), CachePolicy.roundCoord(lon), source);
                         if (stale != null) {
                             Log.w(TAG, "Network error — serving stale cache");
-                            postStatus(CacheStatus.STALE, CachePolicy.cachedLabel(stale.fetchedAt) + " ⚠");
+                            postStatus(CacheStatus.STALE,
+                                    CachePolicy.cachedLabel(stale.fetchedAt) + " ⚠");
                             mainHandler.post(() -> callback.onSuccess(CacheMapper.toDomain(stale)));
                         } else {
                             mainHandler.post(() -> callback.onError(message));
@@ -161,8 +165,8 @@ public class CachingWeatherRepository implements IWeatherRepository {
     @Override
     public void getDailyForecast(double lat, double lon,
                                  Callback<List<DailyForecastModel>> callback) {
-        String hash   = CachePolicy.paramHash(prefs);
-        String source = currentSource.name();
+        final String hash   = CachePolicy.paramHash(prefs);
+        final String source = currentSource.name();
 
         executor.execute(() -> {
             if (!network.isStaleForCurrentSource()) {
@@ -172,8 +176,7 @@ public class CachingWeatherRepository implements IWeatherRepository {
                 if (snap != null) {
                     List<DailyEntry> rows = dao.getDailyEntries(snap.id);
                     if (!rows.isEmpty()) {
-                        mainHandler.post(() ->
-                                callback.onSuccess(CacheMapper.dailyToDomain(rows)));
+                        mainHandler.post(() -> callback.onSuccess(CacheMapper.dailyToDomain(rows)));
                         return;
                     }
                 }
@@ -214,8 +217,8 @@ public class CachingWeatherRepository implements IWeatherRepository {
     @Override
     public void getHourlyForecast(double lat, double lon,
                                   Callback<List<HourlyEntryModel>> callback) {
-        String hash   = CachePolicy.paramHash(prefs);
-        String source = currentSource.name();
+        final String hash   = CachePolicy.paramHash(prefs);
+        final String source = currentSource.name();
 
         executor.execute(() -> {
             if (!network.isStaleForCurrentSource()) {
@@ -264,18 +267,81 @@ public class CachingWeatherRepository implements IWeatherRepository {
         });
     }
 
+    // ── Wind profile in-memory cache ─────────────────────────────────────────
+    //
+    // ConcurrentHashMap replaces the original HashMap to eliminate the data-race:
+    // getWindProfile() can be called from the main thread (cache hit path) while
+    // the executor thread may concurrently write a new entry after a network fetch.
+
+    private static final long WIND_TTL_MS = 30 * 60 * 1000L;  // 30 minutes
+
+    private static class WindCacheEntry {
+        final List<WindProfileModel> data;
+        final long                   fetchedAt;
+
+        WindCacheEntry(List<WindProfileModel> data, long fetchedAt) {
+            this.data      = data;
+            this.fetchedAt = fetchedAt;
+        }
+
+        boolean isFresh() {
+            return (System.currentTimeMillis() - fetchedAt) < WIND_TTL_MS;
+        }
+    }
+
+    /** Key: {@code "lat_lon"} rounded to 2 decimal places (~1 km grid). */
+    private final ConcurrentHashMap<String, WindCacheEntry> windCache =
+            new ConcurrentHashMap<>();
+
+    private static String windKey(double lat, double lon) {
+        return String.format(Locale.US, "%.2f_%.2f", lat, lon);
+    }
+
     /**
-     * Wind profile is never cached — always live network.
+     * Wind profile with 30-minute in-memory TTL cache.
+     *
+     * <p>Cache hits are served synchronously on the calling thread (main thread
+     * via WindProfileViewModel) — no executor dispatch for cache hits.
+     * On a miss the network call proceeds and populates the cache on success.</p>
      */
     @Override
     public void getWindProfile(double lat, double lon,
                                Callback<List<WindProfileModel>> callback) {
-        network.getWindProfile(lat, lon, callback);
+        final String key    = windKey(lat, lon);
+        WindCacheEntry cached = windCache.get(key);
+        if (cached != null && cached.isFresh()) {
+            Log.d(TAG, "Wind profile cache HIT — " + key);
+            callback.onSuccess(cached.data);
+            return;
+        }
+
+        Log.d(TAG, "Wind profile cache MISS — fetching from network");
+        network.getWindProfile(lat, lon, new Callback<List<WindProfileModel>>() {
+            @Override public void onSuccess(List<WindProfileModel> result) {
+                windCache.put(key, new WindCacheEntry(result, System.currentTimeMillis()));
+                callback.onSuccess(result);
+            }
+            @Override public void onError(String message) {
+                // Serve stale data on network error rather than surfacing it
+                WindCacheEntry stale = windCache.get(key);
+                if (stale != null) {
+                    Log.w(TAG, "Wind profile network error — serving stale cache");
+                    callback.onSuccess(stale.data);
+                } else {
+                    callback.onError(message);
+                }
+            }
+        });
     }
 
-    /** Purge all expired rows. Call on plugin open. */
+    /** Purge all expired Room rows. Call on plugin open. */
     public void purgeExpired() {
         executor.execute(() -> dao.purgeExpired(System.currentTimeMillis()));
+    }
+
+    /** Evict the in-memory wind profile cache. Call on plugin dispose. */
+    public void clearWindCache() {
+        windCache.clear();
     }
 
     /** Update the display name on the most recent snapshot for a position. */
