@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    main_layout.xml — 3-tab layout
+    main_layout.xml — Dashboard + Topbar Navigation (Sprint 15 — S15.2)
 
-    Tab 1 "WTHR"  subTabWidget1  tab_weather.xml     (FCST + CHRT merged)
-    Tab 2 "WIND"  subTabWidget2  tab_wind_profile.xml (WIND + CMP merged)
-    Tab 3 "CONF"  subTabWidget3  tab_config.xml       (MAP + PRM merged)
-
-    initTabs() in WeatherDropDownReceiver now registers only 3 TabSpecs.
+    Replaces bottom button navigation with topbar navigation:
+    - Topbar: overflow menu, back button, title, 5 nav icons
+    - Dashboard: weather summary (no bottom nav buttons)
+    - Sub-layouts: 6 views, visibility-toggled
+    - Back button returns to dashboard (not close dropdown)
 -->
 <LinearLayout
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -14,59 +14,474 @@
   android:layout_height="match_parent"
   android:orientation="vertical">
 
-    <!--
-      ══ 4-TAB LAYOUT ══════════════════════════════════════════════════════
-      Tab 1 "WTHR"  subTabWidget1  tab_weather.xml       (forecast + chart)
-      Tab 2 "WIND"  subTabWidget2  tab_wind_profile.xml  (wind + comparison)
-      Tab 3 "CONF"  subTabWidget3  tab_config.xml        (map + radar)
-      Tab 4 "PARM"  subTabWidget4  tab_parameters.xml    (source + params)
-    -->
-    <TabHost
-      android:id="@+id/mainTabHost"
+    <!-- ── Topbar navigation (Sprint 15 — S15.1) ─────────────────────── -->
+    <include
+      layout="@layout/topbar_navigation"
       android:layout_width="match_parent"
-      android:layout_height="match_parent">
+      android:layout_height="44dp"/>
 
+    <!-- ── Dashboard panel (always the root view) ─────────────────────── -->
+    <ScrollView
+      android:id="@+id/dashboard_panel"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:visibility="visible">
+
+      <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="6dp">
+
+        <!-- Alert banner placeholder (filled by CurrentWeatherView) -->
+        <LinearLayout
+          android:id="@+id/alert_banner"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:padding="8dp"
+          android:visibility="gone">
+          <TextView
+            android:id="@+id/textview_alert_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textStyle="bold"/>
+          <TextView
+            android:id="@+id/textview_alert_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="10sp"/>
+        </LinearLayout>
+
+        <!-- ── Compact header: [refresh] [location info] ───────────── -->
         <LinearLayout
           android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:orientation="vertical">
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical"
+          android:layout_marginBottom="4dp">
 
-            <TabWidget
-              android:id="@android:id/tabs"
+          <ImageButton
+            android:id="@+id/imageButton"
+            style="@style/darkButton"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:src="@drawable/ic_launcher"
+            android:contentDescription="@string/refresh_weather"
+            android:layout_marginEnd="8dp"/>
+
+          <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+              android:id="@+id/textView_date"
               android:layout_width="match_parent"
-              android:layout_height="wrap_content"/>
+              android:layout_height="wrap_content"
+              android:text="@string/wait"
+              android:textSize="10sp"/>
 
-            <FrameLayout
-              android:id="@android:id/tabcontent"
+            <TextView
+              android:id="@+id/textView_town"
               android:layout_width="match_parent"
-              android:layout_height="0dp"
-              android:layout_weight="1">
+              android:layout_height="wrap_content"
+              android:text="@string/city_town"
+              android:textSize="12sp"
+              android:textStyle="bold"/>
 
-                <include
-                  android:id="@+id/subTabWidget1"
-                  layout="@layout/tab_weather"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
+            <LinearLayout
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="horizontal">
 
-                <include
-                  android:id="@+id/subTabWidget2"
-                  layout="@layout/tab_wind_profile"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
+              <TextView
+                android:id="@+id/textview_coords"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="9sp"
+                android:alpha="0.7"/>
 
-                <include
-                  android:id="@+id/subTabWidget3"
-                  layout="@layout/tab_config"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
+              <TextView
+                android:id="@+id/textview_source_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="9sp"
+                android:textStyle="italic"
+                android:layout_marginStart="8dp"
+                android:visibility="gone"/>
 
-                <include
-                  android:id="@+id/subTabWidget4"
-                  layout="@layout/tab_parameters"
-                  android:layout_width="match_parent"
-                  android:layout_height="match_parent"/>
+              <TextView
+                android:id="@+id/textview_cache_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="9sp"
+                android:textColor="#FFCC44"
+                android:textStyle="italic"
+                android:layout_marginStart="8dp"
+                android:visibility="gone"/>
+            </LinearLayout>
 
-            </FrameLayout>
+            <!-- Sprint 13: Staleness + Offline badges row -->
+            <LinearLayout
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:orientation="horizontal"
+              android:gravity="center_vertical">
+
+              <!-- S13.1: Last updated badge with staleness colour -->
+              <TextView
+                android:id="@+id/last_updated_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/last_updated_label"
+                android:textSize="10sp"
+                android:textColor="@color/staleness_fresh"
+                android:visibility="gone"/>
+
+              <!-- S13.2: Offline indicator -->
+              <TextView
+                android:id="@+id/offline_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/offline_badge"
+                android:textSize="10sp"
+                android:textColor="@color/offline_badge_color"
+                android:textStyle="bold"
+                android:layout_marginStart="8dp"
+                android:visibility="gone"/>
+            </LinearLayout>
+
+          </LinearLayout>
         </LinearLayout>
-    </TabHost>
+
+        <!-- ── Summary conditions row ───────────────────────────────── -->
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical"
+          android:layout_marginBottom="4dp"
+          android:background="@drawable/image_view_bg"
+          android:padding="8dp">
+
+          <ImageView
+            android:id="@+id/image"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/wc_00d"
+            android:contentDescription="@string/weather_icon_desc"/>
+
+          <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:layout_marginStart="8dp">
+
+            <TextView
+              android:id="@+id/textview_weather"
+              android:layout_width="match_parent"
+              android:layout_height="wrap_content"
+              android:text="@string/weather"
+              android:textSize="12sp"
+              android:textStyle="bold"/>
+
+            <TextView
+              android:id="@+id/textview_airT"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:text="— / —"
+              android:textSize="16sp"
+              android:textStyle="bold"/>
+          </LinearLayout>
+
+          <!-- Right-side quick stats -->
+          <TableLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp">
+            <TableRow>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/wind_label" android:textStyle="bold" android:paddingEnd="4dp" android:textSize="10sp"/>
+              <TextView android:id="@+id/textview_wind" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textSize="10sp"/>
+            </TableRow>
+            <TableRow>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/visibility_label" android:textStyle="bold" android:paddingEnd="4dp" android:textSize="10sp"/>
+              <TextView android:id="@+id/textview_visibility" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textSize="10sp"/>
+            </TableRow>
+            <TableRow>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/humidity_label" android:textStyle="bold" android:paddingEnd="4dp" android:textSize="10sp"/>
+              <TextView android:id="@+id/textview_humidity" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textSize="10sp"/>
+            </TableRow>
+            <TableRow>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/pressure_label" android:textStyle="bold" android:paddingEnd="4dp" android:textSize="10sp"/>
+              <TextView android:id="@+id/textview_pressure" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="—" android:textSize="10sp"/>
+            </TableRow>
+          </TableLayout>
+        </LinearLayout>
+
+        <!-- Hidden fields (needed by CurrentWeatherView but not shown on dashboard) -->
+        <TextView android:id="@+id/textview_airTrf" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+        <TextView android:id="@+id/textview_precipitation" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+        <SeekBar android:id="@+id/seekBar" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+        <TextView android:id="@+id/textview_seekbar_label" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+
+        <!-- METAR card (shown when AWC source active) -->
+        <LinearLayout
+          android:id="@+id/metar_card"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:background="@drawable/image_view_bg"
+          android:padding="8dp"
+          android:layout_marginBottom="4dp"
+          android:visibility="gone">
+          <TextView android:id="@+id/textview_metar_station" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:textStyle="bold"/>
+          <TextView android:id="@+id/textview_metar_fltcat" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:padding="2dp"/>
+          <TextView android:id="@+id/textview_metar_raw" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="9sp" android:fontFamily="monospace"/>
+        </LinearLayout>
+
+        <!-- Derived conditions card -->
+        <LinearLayout
+          android:id="@+id/derived_card"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:background="@drawable/image_view_bg"
+          android:padding="8dp"
+          android:layout_marginBottom="4dp"
+          android:visibility="gone">
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Derived Conditions" android:textSize="11sp" android:textStyle="bold" android:layout_marginBottom="4dp"/>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Feels: " android:textSize="10sp"/>
+            <TextView android:id="@+id/textview_derived_feels_like" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:layout_marginEnd="12dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Dew: " android:textSize="10sp"/>
+            <TextView android:id="@+id/textview_derived_dew_point" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp"/>
+          </LinearLayout>
+          <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+            <TextView android:id="@+id/textview_derived_beaufort" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:layout_marginEnd="12dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Flt: " android:textSize="10sp"/>
+            <TextView android:id="@+id/textview_derived_flt_cat" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp" android:layout_marginEnd="12dp"/>
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tac: " android:textSize="10sp"/>
+            <TextView android:id="@+id/textview_derived_condition" android:layout_width="wrap_content" android:layout_height="wrap_content" android:textSize="10sp"/>
+          </LinearLayout>
+        </LinearLayout>
+
+        <!-- ── Sun / Moon info row (Sprint 9 — S9.2) ──────────────── -->
+        <LinearLayout
+          android:id="@+id/sun_moon_row"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical"
+          android:background="@drawable/image_view_bg"
+          android:padding="6dp"
+          android:layout_marginBottom="4dp"
+          android:visibility="gone">
+
+          <TextView
+            android:id="@+id/sunrise_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="10sp"
+            android:layout_marginEnd="12dp"/>
+
+          <TextView
+            android:id="@+id/sunset_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="10sp"
+            android:layout_marginEnd="12dp"/>
+
+          <TextView
+            android:id="@+id/moon_phase_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="10sp"/>
+        </LinearLayout>
+
+        <!-- ── 7-day mini forecast ──────────────────────────────────── -->
+        <TextView
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:text="@string/dailyForecast_title"
+          android:textSize="11sp"
+          android:textStyle="bold"
+          android:layout_marginTop="2dp"/>
+
+        <HorizontalScrollView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="6dp">
+          <GridLayout android:id="@+id/daily_forecast_gridlayout"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:rowCount="1" android:columnCount="7"
+            android:background="@drawable/image_view_bg">
+            <!-- Day 1 -->
+            <TableLayout android:id="@+id/daily_forecast_tablelayout_1" android:layout_width="90dp" android:layout_height="wrap_content" android:padding="3dp">
+              <TextView android:id="@+id/daily_forecast_day_textview_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="bold" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_date_textview_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="——" android:textSize="9sp" android:gravity="center_horizontal"/>
+              <ImageView android:id="@+id/daily_forecast_weathercode_imageview_1" android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/wc_00d" android:layout_gravity="center_horizontal" android:contentDescription="@string/weather_icon_desc"/>
+              <TextView android:id="@+id/daily_forecast_temp_max_textview_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="H—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_temp_min_textview_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="L—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_weatherinfo_textview_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="9sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end"/>
+              <TextView android:id="@+id/daily_forecast_sun_textview_1" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="8sp" android:gravity="center_horizontal" android:visibility="gone" android:maxLines="2"/>
+            </TableLayout>
+            <!-- Day 2 -->
+            <TableLayout android:id="@+id/daily_forecast_tablelayout_2" android:layout_width="90dp" android:layout_height="wrap_content" android:padding="3dp">
+              <TextView android:id="@+id/daily_forecast_day_textview_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="bold" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_date_textview_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="——" android:textSize="9sp" android:gravity="center_horizontal"/>
+              <ImageView android:id="@+id/daily_forecast_weathercode_imageview_2" android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/wc_00d" android:layout_gravity="center_horizontal" android:contentDescription="@string/weather_icon_desc"/>
+              <TextView android:id="@+id/daily_forecast_temp_max_textview_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="H—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_temp_min_textview_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="L—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_weatherinfo_textview_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="9sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end"/>
+              <TextView android:id="@+id/daily_forecast_sun_textview_2" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="8sp" android:gravity="center_horizontal" android:visibility="gone" android:maxLines="2"/>
+            </TableLayout>
+            <!-- Day 3 -->
+            <TableLayout android:id="@+id/daily_forecast_tablelayout_3" android:layout_width="90dp" android:layout_height="wrap_content" android:padding="3dp">
+              <TextView android:id="@+id/daily_forecast_day_textview_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="bold" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_date_textview_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="——" android:textSize="9sp" android:gravity="center_horizontal"/>
+              <ImageView android:id="@+id/daily_forecast_weathercode_imageview_3" android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/wc_00d" android:layout_gravity="center_horizontal" android:contentDescription="@string/weather_icon_desc"/>
+              <TextView android:id="@+id/daily_forecast_temp_max_textview_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="H—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_temp_min_textview_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="L—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_weatherinfo_textview_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="9sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end"/>
+              <TextView android:id="@+id/daily_forecast_sun_textview_3" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="8sp" android:gravity="center_horizontal" android:visibility="gone" android:maxLines="2"/>
+            </TableLayout>
+            <!-- Day 4 -->
+            <TableLayout android:id="@+id/daily_forecast_tablelayout_4" android:layout_width="90dp" android:layout_height="wrap_content" android:padding="3dp">
+              <TextView android:id="@+id/daily_forecast_day_textview_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="bold" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_date_textview_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="——" android:textSize="9sp" android:gravity="center_horizontal"/>
+              <ImageView android:id="@+id/daily_forecast_weathercode_imageview_4" android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/wc_00d" android:layout_gravity="center_horizontal" android:contentDescription="@string/weather_icon_desc"/>
+              <TextView android:id="@+id/daily_forecast_temp_max_textview_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="H—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_temp_min_textview_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="L—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_weatherinfo_textview_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="9sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end"/>
+              <TextView android:id="@+id/daily_forecast_sun_textview_4" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="8sp" android:gravity="center_horizontal" android:visibility="gone" android:maxLines="2"/>
+            </TableLayout>
+            <!-- Day 5 -->
+            <TableLayout android:id="@+id/daily_forecast_tablelayout_5" android:layout_width="90dp" android:layout_height="wrap_content" android:padding="3dp">
+              <TextView android:id="@+id/daily_forecast_day_textview_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="bold" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_date_textview_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="——" android:textSize="9sp" android:gravity="center_horizontal"/>
+              <ImageView android:id="@+id/daily_forecast_weathercode_imageview_5" android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/wc_00d" android:layout_gravity="center_horizontal" android:contentDescription="@string/weather_icon_desc"/>
+              <TextView android:id="@+id/daily_forecast_temp_max_textview_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="H—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_temp_min_textview_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="L—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_weatherinfo_textview_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="9sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end"/>
+              <TextView android:id="@+id/daily_forecast_sun_textview_5" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="8sp" android:gravity="center_horizontal" android:visibility="gone" android:maxLines="2"/>
+            </TableLayout>
+            <!-- Day 6 -->
+            <TableLayout android:id="@+id/daily_forecast_tablelayout_6" android:layout_width="90dp" android:layout_height="wrap_content" android:padding="3dp">
+              <TextView android:id="@+id/daily_forecast_day_textview_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="bold" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_date_textview_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="——" android:textSize="9sp" android:gravity="center_horizontal"/>
+              <ImageView android:id="@+id/daily_forecast_weathercode_imageview_6" android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/wc_00d" android:layout_gravity="center_horizontal" android:contentDescription="@string/weather_icon_desc"/>
+              <TextView android:id="@+id/daily_forecast_temp_max_textview_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="H—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_temp_min_textview_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="L—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_weatherinfo_textview_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="9sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end"/>
+              <TextView android:id="@+id/daily_forecast_sun_textview_6" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="8sp" android:gravity="center_horizontal" android:visibility="gone" android:maxLines="2"/>
+            </TableLayout>
+            <!-- Day 7 -->
+            <TableLayout android:id="@+id/daily_forecast_tablelayout_7" android:layout_width="90dp" android:layout_height="wrap_content" android:padding="3dp">
+              <TextView android:id="@+id/daily_forecast_day_textview_7" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="10sp" android:textStyle="bold" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_date_textview_7" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="——" android:textSize="9sp" android:gravity="center_horizontal"/>
+              <ImageView android:id="@+id/daily_forecast_weathercode_imageview_7" android:layout_width="36dp" android:layout_height="36dp" android:src="@drawable/wc_00d" android:layout_gravity="center_horizontal" android:contentDescription="@string/weather_icon_desc"/>
+              <TextView android:id="@+id/daily_forecast_temp_max_textview_7" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="H—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_temp_min_textview_7" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="L—" android:textSize="10sp" android:gravity="center_horizontal"/>
+              <TextView android:id="@+id/daily_forecast_weatherinfo_textview_7" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="—" android:textSize="9sp" android:gravity="center_horizontal" android:maxLines="2" android:ellipsize="end"/>
+              <TextView android:id="@+id/daily_forecast_sun_textview_7" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="" android:textSize="8sp" android:gravity="center_horizontal" android:visibility="gone" android:maxLines="2"/>
+            </TableLayout>
+          </GridLayout>
+        </HorizontalScrollView>
+
+        <!-- S13.4: Loading indicator (shown during data fetch) -->
+        <ProgressBar
+          android:id="@+id/loading_progress"
+          style="?android:attr/progressBarStyleSmall"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:layout_marginTop="4dp"
+          android:layout_marginBottom="4dp"
+          android:visibility="gone"/>
+
+        <!-- S13.4: Error state with retry button -->
+        <LinearLayout
+          android:id="@+id/error_state"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical"
+          android:background="@drawable/image_view_bg"
+          android:padding="8dp"
+          android:layout_marginBottom="4dp"
+          android:visibility="gone">
+
+          <TextView
+            android:id="@+id/error_message"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/error_load_failed"
+            android:textSize="11sp"
+            android:textColor="@color/staleness_stale"/>
+
+          <Button
+            android:id="@+id/btn_retry"
+            style="@style/darkButton"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="@string/btn_retry_label"
+            android:textSize="10sp"
+            android:layout_marginStart="8dp"/>
+        </LinearLayout>
+
+        <!-- Navigation buttons removed in Sprint 15 — replaced by topbar_navigation.xml -->
+        <!-- Briefing button removed in Sprint 15 — moved to overflow menu -->
+
+      </LinearLayout>
+    </ScrollView>
+
+    <!-- ── Sub-layout: WTHR (full weather + chart) ────────────────────── -->
+    <include
+      android:id="@+id/subTabWidget1"
+      layout="@layout/tab_weather"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:visibility="gone"/>
+
+    <!-- ── Sub-layout: WIND (wind profile + comparison) ───────────────── -->
+    <include
+      android:id="@+id/subTabWidget2"
+      layout="@layout/tab_wind_profile"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:visibility="gone"/>
+
+    <!-- ── Sub-layout: MAP/CONF retired — controls moved to tab_overlays + tab_markers ── -->
+
+    <!-- ── Sub-layout: PARM (source + params + settings) ──────────────── -->
+    <include
+      android:id="@+id/subTabWidget4"
+      layout="@layout/tab_parameters"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:visibility="gone"/>
+
+    <!-- ── Sub-layout: Overlays (NEW — Sprint 15) ──────────────────────── -->
+    <include
+      android:id="@+id/subTabWidget5"
+      layout="@layout/tab_overlays"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:visibility="gone"/>
+
+    <!-- ── Sub-layout: Markers (NEW — Sprint 15, refactored from MAP) ─── -->
+    <include
+      android:id="@+id/subTabWidget6"
+      layout="@layout/tab_markers"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:visibility="gone"/>
+
 </LinearLayout>

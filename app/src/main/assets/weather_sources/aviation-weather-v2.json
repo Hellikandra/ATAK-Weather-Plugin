@@ -1,0 +1,92 @@
+{
+  "_schema_version": "2.0",
+
+  "sourceId": "aviation-weather-center",
+  "displayName": "Aviation Weather Center (METAR)",
+  "description": "Real-time METAR observations from US and international airports. Point observations, hourly updates. No API key required.",
+  "type": "weather",
+  "provider": "awc",
+
+  "model": {
+    "name": "METAR Observations",
+    "gridResolutionKm": null,
+    "accuracyRadiusKm": null,
+    "forecastDaysMax": 0,
+    "updateFrequencyHours": 1,
+    "coverage": "US + International airports",
+    "temporalResolution": "Hourly (METAR cycle)",
+    "pressureLevels": [],
+    "source_url": "https://aviationweather.gov/data/api/"
+  },
+
+  "auth": {
+    "type": "none",
+    "headerName": null,
+    "queryParam": null,
+    "value": ""
+  },
+
+  "rateLimit": {
+    "requestsPerMinute": 60,
+    "requestsPerHour": null,
+    "requestsPerDay": null,
+    "requestsPerMonth": null,
+    "note": "AWC public API. Be courteous with request frequency."
+  },
+
+  "endpoints": {
+    "current": {
+      "url": "https://aviationweather.gov/api/data/metar",
+      "method": "GET",
+      "queryParams": {
+        "format": "json",
+        "bbox": "{bbox}",
+        "hours": "2"
+      },
+      "responsePath": "",
+      "fieldMapping": {
+        "temperature": "temp",
+        "windSpeed": "wspd",
+        "windDirection": "wdir",
+        "visibility": "visib",
+        "pressure": "altim"
+      }
+    }
+  },
+
+  "unitConversions": {
+    "temperature": { "from": "C", "to": "C", "factor": 1.0, "offset": 0.0 },
+    "visibility": { "from": "sm", "to": "m", "factor": 1609.34, "offset": 0.0 },
+    "pressure": { "from": "inHg", "to": "hPa", "factor": 33.8639, "offset": 0.0 },
+    "windSpeed": { "from": "kt", "to": "m/s", "factor": 0.51444, "offset": 0.0 }
+  },
+
+  "serverSideUnits": {},
+
+  "weatherCodeMapping": null,
+
+  "batch": {
+    "supported": false,
+    "maxLocations": 1,
+    "latParam": null,
+    "lonParam": null,
+    "separator": null
+  },
+
+  "parameters": {
+    "current": [
+      { "key": "temp", "label": "Temperature", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "dwpt", "label": "Dew Point", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "wspd", "label": "Wind Speed", "unit": "kt", "defaultOn": true },
+      { "key": "wdir", "label": "Wind Direction", "unit": "\u00b0", "defaultOn": true },
+      { "key": "wgst", "label": "Wind Gust", "unit": "kt", "defaultOn": false },
+      { "key": "visib", "label": "Visibility", "unit": "sm", "defaultOn": true },
+      { "key": "altim", "label": "Altimeter Setting", "unit": "inHg", "defaultOn": true },
+      { "key": "slp", "label": "Sea-Level Pressure", "unit": "hPa", "defaultOn": false },
+      { "key": "cover", "label": "Cloud Cover", "unit": "", "defaultOn": true },
+      { "key": "icaoId", "label": "ICAO Station ID", "unit": "", "defaultOn": true },
+      { "key": "flightCategory", "label": "Flight Category", "unit": "", "defaultOn": true },
+      { "key": "rawOb", "label": "Raw METAR", "unit": "", "defaultOn": false }
+    ]
+  }
+}

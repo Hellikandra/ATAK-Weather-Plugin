@@ -3,7 +3,7 @@ package com.atakmap.android.weather.overlay.radar;
 /**
  * RadarTileProvider — builds RainViewer tile URLs and Web Mercator tile helpers.
  *
- * RainViewer public API (no key required):
+ * <h3>RainViewer public API (no key required)</h3>
  *   Manifest: GET https://api.rainviewer.com/public/weather-maps.json
  *   Tile:     https://tilecache.rainviewer.com/v2/radar/{timestamp}/256/{z}/{x}/{y}/2/1_1.png
  *
@@ -11,6 +11,17 @@ package com.atakmap.android.weather.overlay.radar;
  * radar.nowcast[] (next ~30 min).  Each entry has a "time" field (Unix seconds).
  *
  * Tiles use standard Web Mercator / OSM TMS (z/x/y), 256 px per tile.
+ *
+ * <h3>2026 API constraints</h3>
+ * <ul>
+ *   <li>Max tile zoom reduced from 12 to 7 (see {@link #MAX_TILE_ZOOM}).</li>
+ *   <li>Only color scheme 2 (Universal Blue) is available; the {@code /2/1_1.png}
+ *       suffix in tile URLs is fixed.</li>
+ *   <li>{@code radar.nowcast[]} is always empty since Jan 2026; use
+ *       {@code radar.future[]} as a fallback (v5 API field name).</li>
+ *   <li>Rate limit: 100 requests/min (enforced via
+ *       {@link com.atakmap.android.weather.util.RateLimiter}).</li>
+ * </ul>
  */
 public class RadarTileProvider {
 
@@ -22,12 +33,28 @@ public class RadarTileProvider {
             "https://tilecache.rainviewer.com/v2/radar/";
 
     /**
-     * Tile zoom level.  Zoom 5 gives ~16 tiles for a typical TAK viewport,
+     * Default tile zoom level.  Zoom 5 gives ~16 tiles for a typical TAK viewport,
      * each ~1250 km wide — good coverage without excessive bandwidth.
      */
     public static final int TILE_ZOOM = 5;
 
-    /** Build a RainViewer tile URL. */
+    // Since Jan 2026: only color scheme 2 (Universal Blue) and max zoom 7
+    /** Maximum tile zoom supported by the RainViewer API (reduced from 12 since Jan 2026). */
+    public static final int MAX_TILE_ZOOM = 7;
+
+    /**
+     * Build a RainViewer tile URL using path-based format (2024+ API).
+     * The frame path is obtained from the manifest (e.g., "/v2/radar/bcadf9eebd3b").
+     */
+    public static String tileUrl(String host, String path, int z, int x, int y) {
+        return host + path + "/256/" + z + "/" + x + "/" + y + "/2/1_1.png";
+    }
+
+    /**
+     * Legacy tile URL builder (pre-2024 API with timestamp in URL).
+     * @deprecated Use {@link #tileUrl(String, String, int, int, int)} instead.
+     */
+    @Deprecated
     public static String tileUrl(long unixTs, int z, int x, int y) {
         return TILE_BASE + unixTs + "/256/" + z + "/" + x + "/" + y + "/2/1_1.png";
     }

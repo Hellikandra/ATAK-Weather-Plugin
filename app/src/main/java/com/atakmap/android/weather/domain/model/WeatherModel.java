@@ -77,6 +77,87 @@ public class WeatherModel {
     /** Returns true when this model was produced by an AWC METAR fetch. */
     public boolean isMetarSource()         { return !icaoId.isEmpty(); }
 
+    // ── Behavioral methods (Sprint 4 — S4.2) ──────────────────────────────────
+
+    /**
+     * Composite check: conditions are favorable for outdoor operations.
+     *
+     * <p>Criteria (all must be true):
+     * <ul>
+     *   <li>Temperature between 5°C and 35°C (apparent temp between 0°C and 40°C)</li>
+     *   <li>Wind speed &le; 10 m/s (~20 kt)</li>
+     *   <li>Visibility &ge; 5000 m (5 km)</li>
+     *   <li>WMO weather code &lt; 60 (no rain/snow/thunderstorms)</li>
+     *   <li>Precipitation sum &lt; 1 mm</li>
+     * </ul>
+     *
+     * @return true if conditions are suitable for outdoor tactical operations
+     */
+    public boolean isFavorableForOutdoor() {
+        double avgTemp = (temperatureMin + temperatureMax) / 2.0;
+        return avgTemp >= 5.0
+                && avgTemp <= 35.0
+                && apparentTemperature >= 0.0
+                && apparentTemperature <= 40.0
+                && windSpeed <= 10.0
+                && visibility >= 5000.0
+                && weatherCode < 60
+                && precipitationSum < 1.0;
+    }
+
+    /**
+     * Determine flight category from visibility alone (no ceiling data in this model).
+     *
+     * <p>Uses the same thresholds as
+     * {@link com.atakmap.android.weather.domain.service.WeatherAnalyticsService#flightCategoryFromVisibility(double)}.
+     * When this model has a METAR-supplied flight category, that value takes priority.</p>
+     *
+     * @return "VFR", "MVFR", "IFR", or "LIFR"
+     */
+    public String computeFlightCategory() {
+        // If METAR provides an authoritative category, prefer it
+        if (!flightCategory.isEmpty()) return flightCategory;
+        // Otherwise derive from visibility
+        double visSm = visibility / 1609.34;
+        if (visSm >= 5.0) return "VFR";
+        if (visSm >= 3.0) return "MVFR";
+        if (visSm >= 1.0) return "IFR";
+        return "LIFR";
+    }
+
+    /**
+     * Checks if precipitation is likely (non-zero sum or WMO code indicates active precip).
+     *
+     * @return true if the observation indicates rain, snow, or drizzle
+     */
+    public boolean isPrecipitationActive() {
+        return precipitationSum > 0.0 || weatherCode >= 51;
+    }
+
+    /**
+     * Returns a tactical condition summary: "GREEN", "AMBER", or "RED".
+     *
+     * <ul>
+     *   <li><strong>GREEN</strong> — favorable, good visibility, light wind</li>
+     *   <li><strong>AMBER</strong> — marginal: moderate wind, reduced visibility, or light precip</li>
+     *   <li><strong>RED</strong> — unfavorable: severe wind, very low vis, heavy precip, or thunderstorm</li>
+     * </ul>
+     *
+     * @return "GREEN", "AMBER", or "RED"
+     */
+    public String tacticalCondition() {
+        // RED conditions
+        if (windSpeed > 15.0 || visibility < 1000.0 || weatherCode >= 95) {
+            return "RED";
+        }
+        // AMBER conditions
+        if (windSpeed > 10.0 || visibility < 5000.0 || weatherCode >= 51
+                || precipitationSum >= 5.0) {
+            return "AMBER";
+        }
+        return "GREEN";
+    }
+
     // ── Builder ──────────────────────────────────────────────────────────────
     public static class Builder {
         private double latitude, longitude;

@@ -224,4 +224,228 @@
     <string name="wind_source_label">Source:</string>
     <string name="wind_no_slots_hint">Tap ⟳ Request Wind to load wind data for a point.</string>
 
+    <!-- ── Sprint 7: Dashboard Navigation ──────────────────────────────── -->
+    <string name="nav_weather">Weather</string>
+    <string name="nav_wind">Wind</string>
+    <string name="nav_map">Map</string>
+    <string name="nav_settings">Settings</string>
+    <string name="dashboard_title">Weather Dashboard</string>
+
+    <!-- ── Sprint 7: Unit Preferences (per-unit granular selection) ────── -->
+    <string name="unit_system_title">Unit System</string>
+    <string name="unit_system_metric">Metric</string>
+    <string name="unit_system_imperial">Imperial</string>
+    <string name="unit_system_aviation">Aviation</string>
+    <string-array name="unit_system_labels">
+        <item>Metric (°C, m/s, hPa)</item>
+        <item>Imperial (°F, mph, inHg)</item>
+        <item>Aviation (°C, kt, inHg)</item>
+    </string-array>
+    <string-array name="unit_system_values">
+        <item>METRIC</item>
+        <item>IMPERIAL</item>
+        <item>AVIATION</item>
+    </string-array>
+
+    <!-- Per-unit selectors -->
+    <string name="pref_temp_unit_title">Temperature</string>
+    <string-array name="temp_unit_labels">
+        <item>Celsius (°C)</item>
+        <item>Fahrenheit (°F)</item>
+    </string-array>
+    <string-array name="temp_unit_values">
+        <item>C</item>
+        <item>F</item>
+    </string-array>
+
+    <string name="pref_wind_unit_title">Wind Speed</string>
+    <string-array name="wind_unit_labels">
+        <item>m/s</item>
+        <item>km/h</item>
+        <item>mph</item>
+        <item>Knots (kt)</item>
+    </string-array>
+    <string-array name="wind_unit_values">
+        <item>MS</item>
+        <item>KMH</item>
+        <item>MPH</item>
+        <item>KT</item>
+    </string-array>
+
+    <string name="pref_pressure_unit_title">Pressure</string>
+    <string-array name="pressure_unit_labels">
+        <item>hPa (millibars)</item>
+        <item>inHg</item>
+        <item>mmHg</item>
+    </string-array>
+    <string-array name="pressure_unit_values">
+        <item>HPA</item>
+        <item>INHG</item>
+        <item>MMHG</item>
+    </string-array>
+
+    <string name="pref_visibility_unit_title">Visibility / Distance</string>
+    <string-array name="visibility_unit_labels">
+        <item>Metres / km</item>
+        <item>Miles (mi)</item>
+        <item>Statute Miles (SM)</item>
+        <item>Nautical Miles (NM)</item>
+    </string-array>
+    <string-array name="visibility_unit_values">
+        <item>M</item>
+        <item>MI</item>
+        <item>SM</item>
+        <item>NM</item>
+    </string-array>
+
+    <string name="pref_altitude_unit_title">Altitude</string>
+    <string-array name="altitude_unit_labels">
+        <item>Metres (m)</item>
+        <item>Feet (ft)</item>
+    </string-array>
+    <string-array name="altitude_unit_values">
+        <item>M</item>
+        <item>FT</item>
+    </string-array>
+
+    <string name="pref_precip_unit_title">Precipitation</string>
+    <string-array name="precip_unit_labels">
+        <item>Millimetres (mm)</item>
+        <item>Inches (in)</item>
+    </string-array>
+    <string-array name="precip_unit_values">
+        <item>MM</item>
+        <item>IN</item>
+    </string-array>
+
+    <!-- Cache management -->
+    <string name="pref_cache_category">Data Management</string>
+    <string name="pref_clear_radar_cache">Clear Radar Tile Cache</string>
+    <string name="pref_clear_heatmap_cache">Clear Heatmap Cache</string>
+    <string name="pref_clear_forecast_db">Clear Forecast History Database</string>
+    <string name="pref_clear_all">Clear All Caches</string>
+
+    <!-- ── Sprint 8.5: Source Management ──────────────────────────────── -->
+    <string name="src_mgr_title">Weather Sources</string>
+    <string name="src_mgr_refresh">Refresh</string>
+    <string name="src_mgr_add_source">Browse \u0026 Import\u2026</string>
+    <string name="src_mgr_scan_folder">Scan Folder</string>
+    <string name="src_mgr_test">Test</string>
+    <string name="src_mgr_info">Info</string>
+    <string name="src_mgr_save_key">Save</string>
+    <string name="src_mgr_api_key_hint">Enter API key</string>
+    <string name="src_mgr_test_success">\u2713 OK</string>
+    <string name="src_mgr_test_fail">\u2717 Failed</string>
+    <string name="src_mgr_test_running">Testing\u2026</string>
+    <string name="src_mgr_no_sources">No sources loaded</string>
+    <string name="src_mgr_active">Active</string>
+    <string name="src_mgr_scan_path">atak/tools/weather_sources/</string>
+    <string name="src_mgr_schema_v2">Schema v2</string>
+    <string name="src_mgr_schema_v1">Legacy</string>
+
+    <!-- ── Sprint 11: Heatmap + Forecast Replay ─────────────────────── -->
+    <string name="heatmap_section_title">Weather Heatmap</string>
+    <string name="heatmap_section_desc">Weather parameter heatmap overlay. Select a parameter and scrub the timeline to replay the 48-hour forecast.</string>
+    <string name="heatmap_btn_toggle_on">ON</string>
+    <string name="heatmap_btn_toggle_off">OFF</string>
+    <string name="heatmap_opacity_label">Opacity:</string>
+    <string name="heatmap_time_label_default">+0h \u2014 Now</string>
+    <string name="heatmap_accuracy_badge">Grid: ~13km (GFS)</string>
+    <string name="heatmap_status_idle">Tap ON to load heatmap</string>
+    <string name="heatmap_status_loading">Loading heatmap data\u2026</string>
+    <string name="heatmap_status_ready">%1$d hours loaded (%2$d grid points)</string>
+    <string name="heatmap_param_temperature">Temperature</string>
+    <string name="heatmap_param_wind">Wind Speed</string>
+    <string name="heatmap_param_visibility">Visibility</string>
+    <string name="heatmap_param_precipitation">Precipitation</string>
+    <string name="heatmap_param_weather_code">Weather Code</string>
+    <string name="heatmap_cache_cleared">Heatmap cache cleared</string>
+
+    <!-- ── Sprint 13: Auto-Refresh (S13.1) ────────────────────────────── -->
+    <string name="auto_refresh_title">Auto-Refresh</string>
+    <string name="auto_refresh_disabled">Disabled</string>
+    <string name="auto_refresh_15">Every 15 min</string>
+    <string name="auto_refresh_30">Every 30 min</string>
+    <string name="auto_refresh_60">Every 60 min</string>
+    <string name="last_updated_label">Updated just now</string>
+    <string-array name="auto_refresh_labels">
+        <item>Disabled</item>
+        <item>Every 15 min</item>
+        <item>Every 30 min</item>
+        <item>Every 60 min</item>
+    </string-array>
+    <string-array name="auto_refresh_values">
+        <item>0</item>
+        <item>15</item>
+        <item>30</item>
+        <item>60</item>
+    </string-array>
+
+    <!-- ── Sprint 13: Mission Prep (S13.2) ────────────────────────────── -->
+    <string name="mission_prep_title">Mission Prep</string>
+    <string name="mission_prep_download">Download Area</string>
+    <string name="mission_prep_desc">Download weather data for the current map view for offline use. Data remains cached for up to 7 days.</string>
+    <string name="mission_prep_downloading">Downloading weather data\u2026</string>
+    <string name="mission_prep_complete">Mission prep complete: %1$d items downloaded</string>
+    <string name="mission_prep_error">Mission prep failed: %1$s</string>
+    <string name="offline_badge">OFFLINE</string>
+    <string name="cache_info">Cache: %s</string>
+    <string name="btn_clear_cache_label">Clear Cache</string>
+    <string name="cache_cleared">Weather cache cleared</string>
+
+    <!-- ── Sprint 13: Theme Support (S13.3) ───────────────────────────── -->
+    <string name="theme_title">Theme</string>
+    <string-array name="theme_labels">
+        <item>Dark</item>
+        <item>Light</item>
+        <item>NVG (Night Vision)</item>
+    </string-array>
+    <string-array name="theme_values">
+        <item>DARK</item>
+        <item>LIGHT</item>
+        <item>NVG</item>
+    </string-array>
+
+    <!-- ── Sprint 13: Widget Style (S13.5) ────────────────────────────── -->
+    <string name="widget_style_title">Widget Style</string>
+    <string name="widget_style_text">Text HUD</string>
+    <string name="widget_style_bitmap">Bitmap Widget</string>
+    <string-array name="widget_style_labels">
+        <item>Text HUD</item>
+        <item>Bitmap Widget</item>
+    </string-array>
+    <string-array name="widget_style_values">
+        <item>text</item>
+        <item>bitmap</item>
+    </string-array>
+
+    <!-- ── Sprint 13: UX Polish (S13.4) ───────────────────────────────── -->
+    <string name="loading_weather">Loading weather data\u2026</string>
+    <string name="error_load_failed">Failed to load weather data</string>
+    <string name="btn_retry_label">Retry</string>
+
+    <!-- ── Sprint 14: R&D Exploratory ──────────────────────────────────── -->
+
+    <!-- S14.1: SIGMET Overlay -->
+    <string name="sigmet_overlay">SIGMETs</string>
+    <string name="sigmet_section_title">Aviation Overlays</string>
+    <string name="sigmet_status_off">SIGMETs: Off</string>
+    <string name="sigmet_refresh">Refresh</string>
+
+    <!-- S14.2: Lightning Overlay -->
+    <string name="lightning_overlay">Lightning</string>
+    <string name="lightning_status_off">Lightning: Off</string>
+    <string name="lightning_count_default">0 strikes in view</string>
+    <string name="lightning_radius_label">Proximity alert:</string>
+
+    <!-- S14.3: CBRN Dispersion -->
+    <string name="cbrn_title">CBRN Dispersion (Estimate)</string>
+    <string name="cbrn_disclaimer">\u26a0 ESTIMATE ONLY \u2014 Not a replacement for ATP-45/HPAC</string>
+    <string name="cbrn_place_release">Place Release Point</string>
+    <string name="cbrn_clear">Clear</string>
+    <string name="cbrn_distance_label">Max Distance:</string>
+    <string name="cbrn_stability_default">Stability: \u2014</string>
+    <string name="cbrn_wind_default">Wind: \u2014</string>
+    <string name="stability_class">Stability Class: %1$c (%2$s)</string>
+
 </resources>

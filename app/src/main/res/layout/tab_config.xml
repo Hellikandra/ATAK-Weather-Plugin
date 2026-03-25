@@ -260,5 +260,174 @@
       android:textSize="11sp"
       android:layout_marginBottom="10dp"/>
 
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginBottom="12dp"/>
+
+    <!-- ══ SECTION 4: WEATHER HEATMAP (Sprint 11) ════════════════════ -->
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/heatmap_section_title" android:textSize="13sp"
+      android:textStyle="bold" android:layout_marginBottom="4dp"/>
+
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/heatmap_section_desc" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="6dp"/>
+
+    <!-- Parameter selector + toggle -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:layout_marginBottom="6dp">
+      <Spinner android:id="@+id/heatmap_param_spinner" android:spinnerMode="dropdown"
+        android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"/>
+      <Button android:id="@+id/btn_heatmap_toggle" style="@style/darkButton"
+        android:layout_width="72dp" android:layout_height="44dp"
+        android:text="@string/heatmap_btn_toggle_off" android:textSize="12sp"
+        android:layout_marginStart="6dp"/>
+    </LinearLayout>
+
+    <!-- Opacity -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:layout_marginBottom="2dp">
+      <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:text="@string/heatmap_opacity_label"
+        android:textSize="11sp"/>
+      <TextView android:id="@+id/heatmap_opacity_label" android:layout_width="44dp"
+        android:layout_height="wrap_content" android:text="60%" android:textSize="11sp"
+        android:textStyle="bold" android:gravity="end"/>
+    </LinearLayout>
+    <SeekBar android:id="@+id/heatmap_opacity_bar" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:max="100" android:progress="60"
+      android:layout_marginBottom="6dp"/>
+
+    <!-- Playback controls -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:layout_marginBottom="4dp">
+      <Button android:id="@+id/btn_heatmap_prev" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+        android:text="\u25C0" android:textSize="14sp" android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/btn_heatmap_play" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+        android:text="\u25B6" android:textSize="14sp" android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/btn_heatmap_next" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+        android:text="\u25B6\u25B6" android:textSize="14sp"/>
+    </LinearLayout>
+
+    <!-- Time scrubber -->
+    <SeekBar android:id="@+id/heatmap_time_bar" android:layout_width="match_parent"
+      android:layout_height="wrap_content" android:max="47" android:progress="0"
+      android:layout_marginBottom="2dp"/>
+
+    <TextView android:id="@+id/heatmap_time_label" android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/heatmap_time_label_default" android:textSize="11sp"
+      android:textStyle="bold" android:fontFamily="monospace"
+      android:gravity="center" android:layout_marginBottom="4dp"/>
+
+    <!-- Accuracy badge -->
+    <TextView android:id="@+id/heatmap_accuracy_badge" android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text="@string/heatmap_accuracy_badge" android:textSize="9sp"
+      android:fontFamily="monospace" android:alpha="0.65"
+      android:layout_marginBottom="10dp"/>
+
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginBottom="12dp"/>
+
+    <!-- ══ SECTION 5: AVIATION OVERLAYS (Sprint 14 — S14.1) ══════════ -->
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/sigmet_section_title" android:textSize="13sp"
+      android:textStyle="bold" android:layout_marginBottom="4dp"/>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:layout_marginBottom="6dp">
+      <CheckBox android:id="@+id/cb_sigmet_overlay"
+        android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:text="@string/sigmet_overlay"
+        android:textSize="11sp"/>
+      <Button android:id="@+id/btn_refresh_sigmets" style="@style/darkButton"
+        android:layout_width="80dp" android:layout_height="36dp"
+        android:text="@string/sigmet_refresh" android:textSize="11sp"/>
+    </LinearLayout>
+
+    <TextView android:id="@+id/sigmet_status_text"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/sigmet_status_off" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="8dp"/>
+
+    <!-- ══ SECTION 6: LIGHTNING (Sprint 14 — S14.2) ══════════════════ -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:layout_marginBottom="4dp">
+      <CheckBox android:id="@+id/cb_lightning_overlay"
+        android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:text="@string/lightning_overlay"
+        android:textSize="11sp"/>
+      <Spinner android:id="@+id/lightning_radius_spinner"
+        android:layout_width="100dp" android:layout_height="36dp"
+        android:spinnerMode="dropdown"/>
+    </LinearLayout>
+
+    <TextView android:id="@+id/lightning_status_text"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/lightning_status_off" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="2dp"/>
+
+    <TextView android:id="@+id/lightning_count_text"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:visibility="gone"
+      android:text="@string/lightning_count_default" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="10dp"/>
+
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#55FFFFFF" android:layout_marginBottom="12dp"/>
+
+    <!-- ══ SECTION 7: CBRN DISPERSION (Sprint 14 — S14.3 R&D) ═══════ -->
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/cbrn_title" android:textSize="13sp"
+      android:textStyle="bold" android:layout_marginBottom="2dp"/>
+
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/cbrn_disclaimer"
+      android:textColor="#FFf85149" android:textSize="10sp"
+      android:layout_marginBottom="6dp"/>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:layout_marginBottom="6dp">
+      <Button android:id="@+id/btn_cbrn_place" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+        android:text="@string/cbrn_place_release" android:textSize="11sp"
+        android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/btn_cbrn_clear" style="@style/darkButton"
+        android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+        android:text="@string/cbrn_clear" android:textSize="11sp"/>
+    </LinearLayout>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:orientation="horizontal" android:gravity="center_vertical"
+      android:layout_marginBottom="6dp">
+      <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="@string/cbrn_distance_label" android:textSize="11sp"
+        android:layout_marginEnd="8dp"/>
+      <Spinner android:id="@+id/cbrn_distance_spinner"
+        android:layout_width="0dp" android:layout_height="36dp"
+        android:layout_weight="1" android:spinnerMode="dropdown"/>
+    </LinearLayout>
+
+    <TextView android:id="@+id/cbrn_stability_text"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/cbrn_stability_default" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="2dp"/>
+
+    <TextView android:id="@+id/cbrn_wind_text"
+      android:layout_width="match_parent" android:layout_height="wrap_content"
+      android:text="@string/cbrn_wind_default" android:textSize="10sp"
+      android:alpha="0.7" android:layout_marginBottom="10dp"/>
+
   </LinearLayout>
 </ScrollView>

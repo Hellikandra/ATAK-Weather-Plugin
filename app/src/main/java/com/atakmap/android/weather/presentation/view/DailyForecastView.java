@@ -7,16 +7,22 @@ import android.widget.TableLayout;
 import android.widget.TextView;
 
 import com.atakmap.android.weather.domain.model.DailyForecastModel;
+import com.atakmap.android.weather.domain.service.AstronomicalService;
+import com.atakmap.android.weather.util.UnitSystem;
+import com.atakmap.android.weather.util.WeatherUnitConverter;
 import com.atakmap.android.weather.util.WmoCodeMapper;
 import com.atakmap.android.weather.plugin.R;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * View helper for the 7-day daily forecast strip in Tab 1.
  *
- * Binds the 7 TableLayout columns in the GridLayout.
- * All column indices are driven by the data list, not hardcoded.
+ * <p>Binds the 7 TableLayout columns in the GridLayout.
+ * All column indices are driven by the data list, not hardcoded.</p>
+ *
+ * <p>Sprint 9 (S9.2): Added sunrise/sunset row with BMNT/EENT in aviation mode.</p>
  */
 public class DailyForecastView {
 
@@ -30,6 +36,7 @@ public class DailyForecastView {
     private final TextView[]    maxTempLabels    = new TextView[MAX_DAYS];
     private final TextView[]    minTempLabels    = new TextView[MAX_DAYS];
     private final TextView[]    weatherDescs     = new TextView[MAX_DAYS];
+    private final TextView[]    sunLabels        = new TextView[MAX_DAYS];
 
     // ── Resource ID arrays — parallel to the XML layout ──────────────────────
     private static final int[] COL_IDS = {
@@ -89,6 +96,15 @@ public class DailyForecastView {
             R.id.daily_forecast_weatherinfo_textview_6,
             R.id.daily_forecast_weatherinfo_textview_7,
     };
+    private static final int[] SUN_IDS = {
+            R.id.daily_forecast_sun_textview_1,
+            R.id.daily_forecast_sun_textview_2,
+            R.id.daily_forecast_sun_textview_3,
+            R.id.daily_forecast_sun_textview_4,
+            R.id.daily_forecast_sun_textview_5,
+            R.id.daily_forecast_sun_textview_6,
+            R.id.daily_forecast_sun_textview_7,
+    };
 
     // ────────────────────────────────────────────────────────────────────────
 
@@ -101,6 +117,7 @@ public class DailyForecastView {
             maxTempLabels[i]= root.findViewById(MAX_IDS[i]);
             minTempLabels[i]= root.findViewById(MIN_IDS[i]);
             weatherDescs[i] = root.findViewById(DESC_IDS[i]);
+            sunLabels[i]    = root.findViewById(SUN_IDS[i]);
         }
     }
 
@@ -115,6 +132,8 @@ public class DailyForecastView {
             columns[i].setVisibility(View.GONE);
         }
 
+        boolean isAviation = WeatherUnitConverter.getUnitSystem() == UnitSystem.AVIATION;
+
         for (int i = 0; i < count; i++) {
             DailyForecastModel day = forecast.get(i);
             WmoCodeMapper.WmoInfo info = WmoCodeMapper.resolve(day.getWeatherCode());
@@ -122,12 +141,46 @@ public class DailyForecastView {
             dayLabels[i].setText(day.getDayLabel());
             dateLabels[i].setText(day.getDate());
             weatherIcons[i].setImageResource(info.drawableResId);
-            maxTempLabels[i].setText(
-                    String.format("High: %.1f°C", day.getTemperatureMax()));
-            minTempLabels[i].setText(
-                    String.format("Low: %.1f°C", day.getTemperatureMin()));
+            maxTempLabels[i].setText("High: " + WeatherUnitConverter.fmtTemp(day.getTemperatureMax()));
+            minTempLabels[i].setText("Low: " + WeatherUnitConverter.fmtTemp(day.getTemperatureMin()));
             weatherDescs[i].setText(info.labelResId);
             columns[i].setVisibility(View.VISIBLE);
+
+            // Sprint 9 (S9.2): Sunrise/sunset row
+            if (sunLabels[i] != null) {
+                String sunText = buildSunText(day, isAviation);
+                if (sunText != null) {
+                    sunLabels[i].setText(sunText);
+                    sunLabels[i].setVisibility(View.VISIBLE);
+                } else {
+                    sunLabels[i].setVisibility(View.GONE);
+                }
+            }
+        }
+    }
+
+    /**
+     * Build sunrise/sunset display text for a day.
+     * Normal mode:  "\u2600\u2191 06:42  \u2600\u2193 20:15  (13h 33m)"
+     * Aviation mode: "BMNT 05:42 / EENT 21:15"
+     */
+    private String buildSunText(DailyForecastModel day, boolean isAviation) {
+        if (day.getSunrise() == null || day.getSunset() == null) return null;
+
+        AstronomicalService.SunTimes times =
+                AstronomicalService.parseSunTimes(day.getSunrise(), day.getSunset());
+        if (times == null) return null;
+
+        if (isAviation) {
+            return String.format(Locale.US, "BMNT %s / EENT %s",
+                    AstronomicalService.formatTime(times.bmnt),
+                    AstronomicalService.formatTime(times.eent));
+        } else {
+            String duration = AstronomicalService.formatDuration(times.daylightDurationSec);
+            return String.format(Locale.US, "\u2600\u2191%s \u2600\u2193%s (%s)",
+                    AstronomicalService.formatTime(times.sunrise),
+                    AstronomicalService.formatTime(times.sunset),
+                    duration);
         }
     }
 }

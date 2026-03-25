@@ -1,7 +1,6 @@
 package com.atakmap.android.weather.data;
 
 import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
-import com.atakmap.android.weather.data.remote.OpenMeteoSource;
 import com.atakmap.android.weather.domain.model.DailyForecastModel;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import com.atakmap.android.weather.domain.model.WeatherModel;
@@ -50,22 +49,28 @@ public class WeatherRepositoryImpl implements IWeatherRepository {
     /**
      * True when the active source has been marked stale by a parameter change.
      * CachingWeatherRepository calls this to decide whether to bypass the cache.
+     *
+     * Uses the interface's {@code isStale()} default method — no instanceof check
+     * required. Works for OpenMeteoSource, ECMWF, DWD, and any future source.
      */
     public boolean isStaleForCurrentSource() {
         IWeatherRemoteSource src = sources.get(activeSourceId);
-        if (src instanceof com.atakmap.android.weather.data.remote.OpenMeteoSource) {
-            return ((com.atakmap.android.weather.data.remote.OpenMeteoSource) src).isStale();
-        }
-        return false;
+        return src != null && src.isStale();
     }
 
     /**
-     * Inject user parameter preferences into the active source.
-     * The source registers as a ChangeListener internally so Tab 4 taps
+     * Inject user parameter preferences into ALL registered sources.
+     * Each source registers as a ChangeListener internally so Tab 4 taps
      * flow through without further plumbing.
+     *
+     * Previously this only injected into the active source, so switching to
+     * ECMWF or DWD would leave prefs un-injected (falling back to hardcoded
+     * DEFAULT_HOURLY/DEFAULT_DAILY).
      */
     public void setParameterPreferences(WeatherParameterPreferences prefs) {
-        active().setParameterPreferences(prefs);
+        for (IWeatherRemoteSource src : sources.values()) {
+            src.setParameterPreferences(prefs);
+        }
     }
 
     // ── IWeatherRepository ───────────────────────────────────────────────────

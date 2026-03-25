@@ -47,6 +47,40 @@ public class HourlyEntryModel {
     public double getPrecipitation()            { return precipitation; }
     public int    getWeatherCode()              { return weatherCode; }
 
+    // ── Behavioral methods (Sprint 4 — S4.2) ──────────────────────────────────
+
+    /**
+     * Returns {@code true} if rain is likely in this hourly slot.
+     * Criteria: precipitation probability &ge; 50% OR actual precipitation &gt; 0.
+     *
+     * @return true if rain is likely
+     */
+    public boolean isRainLikely() {
+        return precipitationProbability >= 50.0 || precipitation > 0.0;
+    }
+
+    /**
+     * Returns {@code true} if this hour has severe conditions.
+     * Criteria: WMO code &ge; 95 (thunderstorm) OR wind speed &gt; 15 m/s OR visibility &lt; 1000m.
+     *
+     * @return true if conditions are severe
+     */
+    public boolean isSevere() {
+        return weatherCode >= 95 || windSpeed > 15.0 || visibility < 1000.0;
+    }
+
+    /**
+     * Tactical condition label for this hour: "GREEN", "AMBER", or "RED".
+     *
+     * @return condition string
+     */
+    public String tacticalCondition() {
+        if (windSpeed > 15.0 || visibility < 1000.0 || weatherCode >= 95) return "RED";
+        if (windSpeed > 10.0 || visibility < 5000.0 || weatherCode >= 51
+                || precipitationProbability >= 60.0) return "AMBER";
+        return "GREEN";
+    }
+
     public static class Builder {
         private String isoTime = "";
         private int    hour    = 0;

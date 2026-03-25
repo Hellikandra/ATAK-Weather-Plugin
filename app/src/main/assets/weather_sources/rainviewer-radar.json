@@ -2,7 +2,7 @@
   "radarSourceId": "rainviewer",
   "displayName": "RainViewer",
   "manifestUrl": "https://api.rainviewer.com/public/weather-maps.json",
-  "tileUrlTemplate": "https://tilecache.rainviewer.com/v2/radar/{timestamp}/256/{z}/{x}/{y}/2/1_1.png",
+  "tileUrlTemplate": "{host}{path}/{size}/{z}/{x}/{y}/{color}/{options}.png",
   "tileSize": 256,
   "defaultZoom": 5,
   "description": "Global precipitation radar courtesy of RainViewer. No API key required. Manifest at api.rainviewer.com provides past frames (~2 h at 10-min intervals) and 30-min nowcast. URL parameters: {timestamp} = Unix epoch from manifest, {z}/{x}/{y} = Web Mercator tile coords, /2/ = color scheme (2 = original), /1_1 = smooth+snow.",

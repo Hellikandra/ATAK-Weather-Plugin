@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    view_route_weather.xml — Multi-point route weather results (Sprint 12 — S12.1)
+
+    Displays a sortable table of forecast data for multiple waypoints.
+    Sort buttons allow ordering by temperature, wind, or tactical condition.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical"
+  android:padding="4dp">
+
+    <!-- Header row with title and sort buttons -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:layout_marginBottom="4dp">
+
+        <TextView
+          android:layout_width="0dp"
+          android:layout_height="wrap_content"
+          android:layout_weight="1"
+          android:text="Route Weather"
+          android:textSize="11sp"
+          android:textStyle="bold"/>
+
+        <Button
+          android:id="@+id/btn_sort_temp"
+          style="@style/darkButton"
+          android:layout_width="36dp"
+          android:layout_height="28dp"
+          android:text="T"
+          android:textSize="9sp"
+          android:layout_marginEnd="2dp"/>
+
+        <Button
+          android:id="@+id/btn_sort_wind"
+          style="@style/darkButton"
+          android:layout_width="36dp"
+          android:layout_height="28dp"
+          android:text="W"
+          android:textSize="9sp"
+          android:layout_marginEnd="2dp"/>
+
+        <Button
+          android:id="@+id/btn_sort_tac"
+          style="@style/darkButton"
+          android:layout_width="42dp"
+          android:layout_height="28dp"
+          android:text="TAC"
+          android:textSize="9sp"/>
+    </LinearLayout>
+
+    <!-- Scrollable results table -->
+    <ScrollView
+      android:layout_width="match_parent"
+      android:layout_height="0dp"
+      android:layout_weight="1"
+      android:fillViewport="true">
+
+        <LinearLayout
+          android:id="@+id/route_results_container"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"/>
+    </ScrollView>
+
+    <!-- Summary line -->
+    <TextView
+      android:id="@+id/route_summary"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:text=""
+      android:textSize="9sp"
+      android:alpha="0.7"
+      android:layout_marginTop="4dp"
+      android:gravity="center_horizontal"/>
+</LinearLayout>

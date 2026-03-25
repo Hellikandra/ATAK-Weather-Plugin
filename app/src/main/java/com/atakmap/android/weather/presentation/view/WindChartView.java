@@ -6,15 +6,18 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.graphics.Typeface;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 
 import com.atakmap.android.weather.domain.model.WindProfileModel;
+import com.atakmap.android.weather.util.WeatherUnitConverter;
 
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +45,15 @@ import java.util.Locale;
  *    Arrow colour matches the speed tier.  Stroke weight scales with speed.
  *
  *  Numeric — direction°, temperature°C, gusts at 10 m.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Sprint 9 — Pressure-level rendering
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *  Surface entries (10m, 80m, 120m, 180m): solid dots + solid lines.
+ *  Pressure entries (1000..300 hPa): hollow dots + dashed lines.
+ *  Legend shown when pressure data is present.
+ *  Y-axis scales to max altitude (up to 12km for pressure data).
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * Animation
@@ -75,6 +87,7 @@ public class WindChartView extends View {
     private static final float ROW_HEIGHT_DP  = 58f;
     private static final float MAX_SPEED_SCALE = 30f;   // m/s → full bar width
     private static final int   ANIM_MS        = 220;
+    private static final float LEGEND_HEIGHT_DP = 24f;
 
     // Altitude tiers — replaced at runtime via setAltitudes() when the data source changes.
     // Open-Meteo default: 10/80/120/180 m.  METAR/AWC: 10/760/1500/3000/4200 m.
@@ -82,9 +95,16 @@ public class WindChartView extends View {
     private String[] altLabel = {" 10m", " 80m", "120m", "180m"};
     private int      altCount = 4;
 
+    // Per-row source type tracking (Sprint 9)
+    private boolean[] isPressureRow = new boolean[altCount];
+
     // ── Data ──────────────────────────────────────────────────────────────────
     private List<WindProfileModel> profiles;
     private int   currentHour = 0;
+    private boolean hasPressureData = false;
+
+    /** Altitude labels that are currently hidden (e.g. "80m", "925 hPa"). */
+    private java.util.Set<String> hiddenAltitudes = java.util.Collections.emptySet();
 
     // Per-row animated state (re-allocated when altCount changes via setAltitudes)
     private float[] animSpeed  = new float[altCount];
@@ -107,6 +127,10 @@ public class WindChartView extends View {
     private final Paint barFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint arrowPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint tickPaint    = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint dashedDivPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint legendPaint  = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint legendLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint legendDashedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public WindChartView(Context context) {
         super(context);
@@ -114,14 +138,18 @@ public class WindChartView extends View {
 
         labelPaint.setColor(Color.WHITE);
         labelPaint.setTextSize(11f * dp);
-        labelPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+        labelPaint.setTypeface(Typeface.MONOSPACE);
 
         valuePaint.setColor(Color.parseColor("#CCCCCC"));
         valuePaint.setTextSize(10f * dp);
-        valuePaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+        valuePaint.setTypeface(Typeface.MONOSPACE);
 
         divPaint.setColor(Color.parseColor("#44FFFFFF"));
         divPaint.setStrokeWidth(1f);
+
+        dashedDivPaint.setColor(Color.parseColor("#44FFFFFF"));
+        dashedDivPaint.setStrokeWidth(1f);
+        dashedDivPaint.setPathEffect(new DashPathEffect(new float[]{6 * dp, 4 * dp}, 0));
 
         barBgPaint.setColor(Color.parseColor("#22FFFFFF"));
         barBgPaint.setStyle(Paint.Style.FILL);
@@ -134,6 +162,19 @@ public class WindChartView extends View {
 
         tickPaint.setColor(Color.parseColor("#66FFFFFF"));
         tickPaint.setStrokeWidth(1.5f * dp);
+
+        legendPaint.setColor(Color.parseColor("#AAFFFFFF"));
+        legendPaint.setTextSize(9f * dp);
+        legendPaint.setTypeface(Typeface.MONOSPACE);
+
+        legendLinePaint.setColor(Color.parseColor("#AAFFFFFF"));
+        legendLinePaint.setStrokeWidth(2f * dp);
+        legendLinePaint.setStrokeCap(Paint.Cap.ROUND);
+
+        legendDashedPaint.setColor(Color.parseColor("#AAFFFFFF"));
+        legendDashedPaint.setStrokeWidth(2f * dp);
+        legendDashedPaint.setStrokeCap(Paint.Cap.ROUND);
+        legendDashedPaint.setPathEffect(new DashPathEffect(new float[]{4 * dp, 3 * dp}, 0));
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -165,25 +206,23 @@ public class WindChartView extends View {
             if (labels != null && labels.length == altitudesM.length) {
                 altLabel = labels.clone();
             } else {
-                // Auto-generate labels: "10m", "760m", "1500m", …
+                // Auto-generate labels using unit-aware formatter
                 altLabel = new String[altitudesM.length];
                 for (int i = 0; i < altitudesM.length; i++) {
-                    int a = altitudesM[i];
-                    altLabel[i] = a >= 1000
-                            ? String.format(java.util.Locale.US, "%.1fkm", a / 1000.0)
-                            : String.format(java.util.Locale.US, "%dm",    a);
+                    altLabel[i] = WeatherUnitConverter.fmtAltitude(altitudesM[i]);
                 }
             }
         }
         altCount = altM.length;
         // Re-allocate per-row animation arrays
-        animSpeed = new float[altCount];
-        animDir   = new float[altCount];
-        fromSpeed = new float[altCount];
-        fromDir   = new float[altCount];
-        toSpeed   = new float[altCount];
-        toDir     = new float[altCount];
-        maxSpeed  = new float[altCount];
+        animSpeed     = new float[altCount];
+        animDir       = new float[altCount];
+        fromSpeed     = new float[altCount];
+        fromDir       = new float[altCount];
+        toSpeed       = new float[altCount];
+        toDir         = new float[altCount];
+        maxSpeed      = new float[altCount];
+        isPressureRow = new boolean[altCount];
         // Reset view height
         requestLayout();
         invalidate();
@@ -199,19 +238,48 @@ public class WindChartView extends View {
         if (first.getAltitudes() == null || first.getAltitudes().isEmpty()) return;
         int n = first.getAltitudes().size();
         int[] alts = new int[n];
+        String[] labels = new String[n];
         for (int i = 0; i < n; i++) {
-            alts[i] = (int) first.getAltitudes().get(i).altitudeMeters;
+            WindProfileModel.AltitudeEntry entry = first.getAltitudes().get(i);
+            alts[i] = entry.altitudeMeters;
+            // Build label: use pressure label for pressure entries
+            if (entry.isPressureLevel() && entry.pressureHPa != null) {
+                labels[i] = entry.pressureHPa + "hPa";
+            } else {
+                labels[i] = WeatherUnitConverter.fmtAltitude(entry.altitudeMeters);
+            }
         }
-        setAltitudes(alts, null);
+        setAltitudes(alts, labels);
+        // Track pressure rows
+        for (int i = 0; i < n; i++) {
+            isPressureRow[i] = first.getAltitudes().get(i).isPressureLevel();
+        }
+        hasPressureData = first.hasPressureData();
     }
 
     /** Source label shown in the top-right corner of the chart (e.g. "AWC METAR"). */
     private String sourceLabel = null;
-    private final android.graphics.Paint sourceLabelPaint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+    private final Paint sourceLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     public void setSourceLabel(String label) {
         this.sourceLabel = label;
         invalidate();
+    }
+
+    /**
+     * Set which altitude labels should be hidden.
+     * Hidden rows are drawn dimmed (alpha 0.15) so the user can still see them.
+     */
+    public void setHiddenAltitudes(java.util.Set<String> hidden) {
+        this.hiddenAltitudes = hidden != null ? hidden : java.util.Collections.emptySet();
+        invalidate();
+    }
+
+    /** @return true if the altitude row at the given index is hidden. */
+    boolean isRowHidden(int rowIndex) {
+        if (hiddenAltitudes.isEmpty() || rowIndex < 0 || rowIndex >= altCount) return false;
+        String label = altLabel[rowIndex].trim();
+        return hiddenAltitudes.contains(label);
     }
 
     public void setProfiles(List<WindProfileModel> profiles) {
@@ -250,7 +318,8 @@ public class WindChartView extends View {
     @Override
     protected void onMeasure(int widthSpec, int heightSpec) {
         float dp = getContext().getResources().getDisplayMetrics().density;
-        int   h  = (int)(ROW_HEIGHT_DP * altCount * dp);
+        float legendExtra = hasPressureData ? LEGEND_HEIGHT_DP * dp : 0;
+        int   h  = (int)(ROW_HEIGHT_DP * altCount * dp + legendExtra);
         setMeasuredDimension(MeasureSpec.getSize(widthSpec), resolveSize(h, heightSpec));
     }
 
@@ -268,23 +337,36 @@ public class WindChartView extends View {
         float w    = getWidth();
 
         // Fixed column positions
-        float labelW  = 40f * dp;             // altitude text
+        float labelW  = 48f * dp;             // altitude text (wider for pressure labels)
         float barL    = labelW + 6f * dp;     // speed bar left edge
-        float barR    = w * 0.60f;            // speed bar right edge
+        float barR    = w * 0.58f;            // speed bar right edge
         float barW    = barR - barL;
-        float arrowCx = w * 0.72f;            // arrow centre x
-        float valX    = w * 0.79f;            // numeric readout x
+        float arrowCx = w * 0.70f;            // arrow centre x
+        float valX    = w * 0.78f;            // numeric readout x
 
         WindProfileModel liveFrame = getFrame(currentHour);
 
         for (int r = 0; r < altCount; r++) {
-            float top = r * rowH;
+            // Draw highest altitude at top, lowest at bottom
+            int drawRow = (altCount - 1) - r;
+            float top = drawRow * rowH;
             float mid = top + rowH * 0.52f;
             float barH   = rowH * 0.36f;
             float barTop = mid - barH / 2f;
+            boolean pressure = isPressureRow[r];
+            boolean rowHidden = isRowHidden(r);
 
-            // ── Row divider ──────────────────────────────────────────────
-            if (r > 0) canvas.drawLine(0, top, w, top, divPaint);
+            // ── Dim hidden rows ─────────────────────────────────────────
+            if (rowHidden) {
+                canvas.save();
+                canvas.saveLayerAlpha(0, top, w, top + rowH, 38); // ~15% opacity
+            }
+
+            // ── Row divider (between visual rows, not at the very top) ──
+            if (drawRow > 0) {
+                Paint divP = pressure ? dashedDivPaint : divPaint;
+                canvas.drawLine(0, top, w, top, divP);
+            }
 
             float spd = animSpeed[r];
             float dir = animDir  [r];
@@ -294,7 +376,13 @@ public class WindChartView extends View {
 
             // ── Altitude label ───────────────────────────────────────────
             labelPaint.setAlpha(rowAlpha);
+            if (pressure) {
+                labelPaint.setColor(Color.parseColor("#BBDDFF"));
+            } else {
+                labelPaint.setColor(Color.WHITE);
+            }
             canvas.drawText(altLabel[r], 4f * dp, mid + 4f * dp, labelPaint);
+            labelPaint.setColor(Color.WHITE);  // restore
 
             // ── Speed bar background ─────────────────────────────────────
             barBgPaint.setAlpha((int)(0.13f * 255));
@@ -311,8 +399,13 @@ public class WindChartView extends View {
                         setAlphaOn(colDark, rowAlpha),
                         setAlphaOn(col,     rowAlpha),
                         Shader.TileMode.CLAMP));
+                if (pressure) {
+                    // Dashed-style fill for pressure rows: slightly transparent
+                    barFillPaint.setAlpha((int)(rowAlpha * 0.7f));
+                }
                 canvas.drawRoundRect(new RectF(barL, barTop, barL + fillW, barTop + barH),
                         3f * dp, 3f * dp, barFillPaint);
+                barFillPaint.setAlpha(255); // restore
             }
 
             // ── Max-speed reference tick ─────────────────────────────────
@@ -322,7 +415,7 @@ public class WindChartView extends View {
             canvas.drawLine(maxX, barTop - 2f * dp, maxX, barTop + barH + 2f * dp, tickPaint);
 
             // ── Speed label inside bar ────────────────────────────────────
-            String spdTxt = String.format(Locale.US, "%.1fm/s", spd);
+            String spdTxt = WeatherUnitConverter.fmtWind(spd);
             float  spdTw  = valuePaint.measureText(spdTxt);
             float  spdX   = barL + fillW - spdTw - 4f * dp;
             if (spdX > barL + 2f * dp) {
@@ -335,31 +428,89 @@ public class WindChartView extends View {
             float thickness = dp * (1.5f + fillFrac * 2.0f); // thicker when faster
             arrowPaint.setColor(setAlphaOn(col, rowAlpha));
             arrowPaint.setStrokeWidth(thickness);
+            if (pressure) {
+                arrowPaint.setPathEffect(new DashPathEffect(new float[]{3 * dp, 2 * dp}, 0));
+            } else {
+                arrowPaint.setPathEffect(null);
+            }
             drawArrow(canvas, arrowCx, mid, arrowLen, dir, dp);
+            arrowPaint.setPathEffect(null); // restore
+
+            // ── Dot indicator ─────────────────────────────────────────────
+            Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            dotPaint.setColor(setAlphaOn(col, rowAlpha));
+            float dotCx = barL - 8f * dp;
+            if (pressure) {
+                dotPaint.setStyle(Paint.Style.STROKE);
+                dotPaint.setStrokeWidth(1.5f * dp);
+                canvas.drawCircle(dotCx, mid, 3f * dp, dotPaint);
+            } else {
+                dotPaint.setStyle(Paint.Style.FILL);
+                canvas.drawCircle(dotCx, mid, 3f * dp, dotPaint);
+            }
 
             // ── Numeric readout ──────────────────────────────────────────
             WindProfileModel.AltitudeEntry live = findAlt(liveFrame, altM[r]);
             if (live != null) {
                 valuePaint.setAlpha(rowAlpha);
-                canvas.drawText(
-                        String.format(Locale.US, "%.0f\u00b0 %.1f\u00b0C",
-                                live.windDirection, live.temperature),
-                        valX, mid, valuePaint);
-                if (live.altitudeMeters == 10 && live.windGusts > 0)
+                String dirTemp = String.format(Locale.US, "%.0f\u00b0", live.windDirection);
+                if (!Double.isNaN(live.temperature)) {
+                    dirTemp += " " + WeatherUnitConverter.fmtTemp(live.temperature);
+                }
+                canvas.drawText(dirTemp, valX, mid, valuePaint);
+                if (live.altitudeMeters <= 10 && live.windGusts > 0) {
                     canvas.drawText(
-                            String.format(Locale.US, "G%.1f", live.windGusts),
+                            "G" + WeatherUnitConverter.fmtWind(live.windGusts),
                             valX, mid + 14f * dp, valuePaint);
+                }
+                // Show pressure level for pressure rows
+                if (pressure && live.pressureHPa != null) {
+                    valuePaint.setAlpha((int)(rowAlpha * 0.6f));
+                    canvas.drawText(
+                            WeatherUnitConverter.fmtAltitude(live.altitudeMeters),
+                            valX, mid + 14f * dp, valuePaint);
+                }
+            }
+
+            // Restore dimming for hidden rows
+            if (rowHidden) {
+                canvas.restore(); // saveLayerAlpha
+                canvas.restore(); // save
             }
         }
 
+        // ── Legend (only when pressure data present) ─────────────────────
+        if (hasPressureData) {
+            float legendY = altCount * rowH + 4f * dp;
+            float legendMid = legendY + LEGEND_HEIGHT_DP * dp * 0.5f;
+            float xOff = 8f * dp;
+
+            // Solid line + "Surface"
+            canvas.drawLine(xOff, legendMid, xOff + 20f * dp, legendMid, legendLinePaint);
+            Paint solidDot = new Paint(Paint.ANTI_ALIAS_FLAG);
+            solidDot.setColor(Color.parseColor("#AAFFFFFF"));
+            solidDot.setStyle(Paint.Style.FILL);
+            canvas.drawCircle(xOff + 10f * dp, legendMid, 2.5f * dp, solidDot);
+            canvas.drawText("Surface", xOff + 24f * dp, legendMid + 4f * dp, legendPaint);
+
+            // Dashed line + "Pressure Level"
+            float xOff2 = xOff + 100f * dp;
+            canvas.drawLine(xOff2, legendMid, xOff2 + 20f * dp, legendMid, legendDashedPaint);
+            Paint hollowDot = new Paint(Paint.ANTI_ALIAS_FLAG);
+            hollowDot.setColor(Color.parseColor("#AAFFFFFF"));
+            hollowDot.setStyle(Paint.Style.STROKE);
+            hollowDot.setStrokeWidth(1.5f * dp);
+            canvas.drawCircle(xOff2 + 10f * dp, legendMid, 2.5f * dp, hollowDot);
+            canvas.drawText("Pressure Level", xOff2 + 24f * dp, legendMid + 4f * dp, legendPaint);
+        }
 
         // ── Source label (top-right corner) ───────────────────────────────
         if (sourceLabel != null && !sourceLabel.isEmpty()) {
             float dp2 = getContext().getResources().getDisplayMetrics().density;
             sourceLabelPaint.setColor(0xAAFFFFFF);
             sourceLabelPaint.setTextSize(10f * dp2);
-            sourceLabelPaint.setTextAlign(android.graphics.Paint.Align.RIGHT);
-            sourceLabelPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+            sourceLabelPaint.setTextAlign(Paint.Align.RIGHT);
+            sourceLabelPaint.setTypeface(Typeface.MONOSPACE);
             canvas.drawText(sourceLabel, getWidth() - 6f * dp2, 14f * dp2, sourceLabelPaint);
         }
     }

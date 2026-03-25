@@ -319,7 +319,10 @@ dependencies {
     testImplementation "androidx.room:room-testing:$room_version"
 
     // ── Security (EncryptedSharedPreferences) — ISS-46 ───────────────────
-    implementation "androidx.security:security-crypto:1.1.0-alpha06"
+    // REMOVED in Sprint 2 (S2.5): security-crypto 1.1.0-alpha06 was declared
+    // but never imported in any source file. Alpha dependency removed to
+    // eliminate pre-release risk. Re-add stable 1.0.0 if encryption is needed:
+    //   implementation "androidx.security:security-crypto:1.0.0"
 
     // ── Unit test stack (Wave 1–5) ────────────────────────────────────────
     testImplementation "org.junit.jupiter:junit-jupiter-api:$junit5_version"

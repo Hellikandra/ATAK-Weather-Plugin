@@ -13,11 +13,13 @@ import com.atakmap.android.maps.MapView;
 import com.atakmap.android.weather.data.cache.RadarTileCache;
 import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
 import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
+import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
 import com.atakmap.android.weather.overlay.radar.RadarOverlayManager;
-import com.atakmap.android.weather.overlay.radar.RadarOverlayManager;
+import com.atakmap.android.weather.overlay.radar.RadarSourceSelector;
 import com.atakmap.android.weather.overlay.radar.RadarTileProvider;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.weather.util.WeatherUiUtils;
+import com.atakmap.coremap.log.Log;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,18 +34,25 @@ import java.util.List;
  * <h3>Responsibilities</h3>
  * <ul>
  *   <li>Instantiate and own {@link RadarOverlayManager}.</li>
- *   <li>Populate the radar-source spinner from {@link SourceDefinitionLoader}.</li>
+ *   <li>Populate the radar-source spinner from v2 definitions via
+ *       {@link RadarSourceSelector}, with fallback to v1 {@link SourceDefinitionLoader}.</li>
  *   <li>Wire the Show / Hide / Recenter buttons and the frame / opacity seekbars.</li>
  *   <li>Forward {@link RadarOverlayManager.Listener} events to the UI labels.</li>
  *   <li><b>Sprint 1.1b:</b> Wire cache management UI (size label + clear button).</li>
+ *   <li><b>Sprint 10:</b> Multi-provider radar source selection via v2 definitions.</li>
  * </ul>
  */
 @SuppressLint("SetTextI18n")
 public class RadarTabCoordinator {
 
+    private static final String TAG = "RadarTabCoordinator";
+
     private final Context            pluginContext;
     private final RadarOverlayManager radarManager;
     private final View               rootView;
+
+    /** v2 radar source selector (Sprint 10). */
+    private RadarSourceSelector radarSourceSelector;
 
     public RadarTabCoordinator(MapView mapView, View rootView, Context pluginContext,
                                RadarOverlayManager sharedRadarManager) {
@@ -67,6 +76,117 @@ public class RadarTabCoordinator {
                 rootView.findViewById(R.id.spinner_radar_source);
         if (radarSourceSpinner == null) return;
 
+        final TextView sourceInfoView =
+                rootView.findViewById(R.id.textview_radar_source_info);
+
+        // Sprint 10: Try v2 sources first via RadarSourceSelector
+        radarSourceSelector = new RadarSourceSelector(pluginContext);
+        radarSourceSelector.loadSources();
+        List<WeatherSourceDefinitionV2> v2Sources = radarSourceSelector.getAvailableSources();
+
+        if (!v2Sources.isEmpty()) {
+            wireV2SourceSpinner(radarSourceSpinner, sourceInfoView, v2Sources);
+        } else {
+            // Fallback to v1 source definitions
+            wireV1SourceSpinner(radarSourceSpinner);
+        }
+
+        // Refresh-sources button
+        Button btnRefreshRadarSrc = rootView.findViewById(R.id.btn_refresh_radar_sources);
+        if (btnRefreshRadarSrc != null) {
+            btnRefreshRadarSrc.setOnClickListener(v -> {
+                SourceDefinitionLoader.clearCache();
+                radarSourceSelector.refreshSources();
+                List<WeatherSourceDefinitionV2> refreshed =
+                        radarSourceSelector.getAvailableSources();
+
+                if (!refreshed.isEmpty()) {
+                    // Update spinner with v2 sources
+                    if (radarSourceSpinner.getAdapter() instanceof ArrayAdapter) {
+                        @SuppressWarnings("unchecked")
+                        ArrayAdapter<String> ada =
+                                (ArrayAdapter<String>) radarSourceSpinner.getAdapter();
+                        ada.clear();
+                        for (WeatherSourceDefinitionV2 d : refreshed) {
+                            ada.add(d.getDisplayName());
+                        }
+                        ada.notifyDataSetChanged();
+                    }
+                    Toast.makeText(pluginContext,
+                            pluginContext.getString(R.string.radar_sources_refreshed,
+                                    refreshed.size()),
+                            Toast.LENGTH_SHORT).show();
+                } else {
+                    // Fallback: refresh v1 sources
+                    List<WeatherSourceDefinition> v1Refreshed =
+                            SourceDefinitionLoader.loadRadarSources(pluginContext);
+                    Toast.makeText(pluginContext,
+                            pluginContext.getString(R.string.radar_sources_refreshed,
+                                    v1Refreshed.size()),
+                            Toast.LENGTH_SHORT).show();
+                    if (radarSourceSpinner.getAdapter() instanceof ArrayAdapter) {
+                        @SuppressWarnings("unchecked")
+                        ArrayAdapter<String> ada =
+                                (ArrayAdapter<String>) radarSourceSpinner.getAdapter();
+                        ada.clear();
+                        for (WeatherSourceDefinition d : v1Refreshed) ada.add(d.displayName);
+                        ada.notifyDataSetChanged();
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Wire the spinner using v2 radar source definitions (Sprint 10).
+     */
+    private void wireV2SourceSpinner(android.widget.Spinner spinner,
+                                     TextView sourceInfoView,
+                                     List<WeatherSourceDefinitionV2> v2Sources) {
+        final List<WeatherSourceDefinitionV2> finalSources = v2Sources;
+        List<String> names = new ArrayList<>();
+        for (WeatherSourceDefinitionV2 d : v2Sources) names.add(d.getDisplayName());
+
+        ArrayAdapter<String> adapter =
+                WeatherUiUtils.makeDarkSpinnerAdapter(pluginContext, names);
+        spinner.setAdapter(adapter);
+
+        spinner.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override public void onNothingSelected(android.widget.AdapterView<?> p) {}
+                    @Override public void onItemSelected(android.widget.AdapterView<?> p,
+                                                         android.view.View v,
+                                                         int pos, long id) {
+                        WeatherSourceDefinitionV2 def = finalSources.get(pos);
+                        radarManager.setRadarSource(def);
+
+                        // Persist selection
+                        String sourceId = def.getRadarSourceId() != null
+                                ? def.getRadarSourceId() : def.getSourceId();
+                        radarSourceSelector.setActiveSourceId(sourceId);
+
+                        // Update info text
+                        if (sourceInfoView != null) {
+                            sourceInfoView.setText(
+                                    RadarSourceSelector.getSourceInfoText(def,
+                                            radarManager.getFrameCount()));
+                        }
+                        Log.d(TAG, "Radar source selected: " + def.getDisplayName());
+                    }
+                });
+
+        // Restore persisted selection
+        int activeIdx = radarSourceSelector.getActiveSourceIndex();
+        if (activeIdx >= 0 && activeIdx < v2Sources.size()) {
+            spinner.setSelection(activeIdx);
+        }
+    }
+
+    /**
+     * Wire the spinner using v1 (legacy) radar source definitions.
+     * Kept for backward compatibility when no v2 sources are available.
+     */
+    private void wireV1SourceSpinner(android.widget.Spinner radarSourceSpinner) {
         List<WeatherSourceDefinition> radarSources =
                 SourceDefinitionLoader.loadRadarSources(pluginContext);
 
@@ -85,7 +205,7 @@ public class RadarTabCoordinator {
 
         ArrayAdapter<String> adapter =
                 WeatherUiUtils.makeDarkSpinnerAdapter(
-                        rootView.getContext(), names);
+                        pluginContext, names);
         radarSourceSpinner.setAdapter(adapter);
         radarSourceSpinner.setOnItemSelectedListener(
                 new android.widget.AdapterView.OnItemSelectedListener() {
@@ -99,27 +219,6 @@ public class RadarTabCoordinator {
                         }
                     }
                 });
-
-        // Refresh-sources button
-        Button btnRefreshRadarSrc = rootView.findViewById(R.id.btn_refresh_radar_sources);
-        if (btnRefreshRadarSrc != null) {
-            btnRefreshRadarSrc.setOnClickListener(v -> {
-                SourceDefinitionLoader.clearCache();
-                List<WeatherSourceDefinition> refreshed =
-                        SourceDefinitionLoader.loadRadarSources(pluginContext);
-                Toast.makeText(pluginContext,
-                        pluginContext.getString(R.string.radar_sources_refreshed, refreshed.size()),
-                        Toast.LENGTH_SHORT).show();
-                if (radarSourceSpinner.getAdapter() instanceof ArrayAdapter) {
-                    @SuppressWarnings("unchecked")
-                    ArrayAdapter<String> ada =
-                            (ArrayAdapter<String>) radarSourceSpinner.getAdapter();
-                    ada.clear();
-                    for (WeatherSourceDefinition d : refreshed) ada.add(d.displayName);
-                    ada.notifyDataSetChanged();
-                }
-            });
-        }
     }
 
     private void wireListenerAndButtons(MapView mapView) {
@@ -130,6 +229,7 @@ public class RadarTabCoordinator {
         final Button   btnShow    = rootView.findViewById(R.id.btn_radar_show);
         final Button   btnHide    = rootView.findViewById(R.id.btn_radar_hide);
         final Button   btnRecenter= rootView.findViewById(R.id.btn_radar_recenter);
+        final TextView sourceInfoView = rootView.findViewById(R.id.textview_radar_source_info);
 
         radarManager.setListener(new RadarOverlayManager.Listener() {
             @Override public void onManifestLoaded(int total, int defIdx) {
@@ -137,6 +237,12 @@ public class RadarTabCoordinator {
                 if (statusView != null)
                     statusView.setText(pluginContext.getString(R.string.radar_status_ready, total));
                 updateCacheSizeLabel();
+                // Update source info with frame count
+                if (sourceInfoView != null && radarManager.getActiveRadarDef() != null) {
+                    sourceInfoView.setText(
+                            RadarSourceSelector.getSourceInfoText(
+                                    radarManager.getActiveRadarDef(), total));
+                }
             }
             @Override public void onFrameDisplayed(int idx, String label) {
                 if (timeLabel != null) timeLabel.setText(label);
@@ -146,7 +252,7 @@ public class RadarTabCoordinator {
                 if (diagView != null) diagView.setText(info);
             }
             @Override public void onError(String msg) {
-                if (statusView != null) statusView.setText("⚠ " + msg);
+                if (statusView != null) statusView.setText("\u26a0 " + msg);
                 Toast.makeText(pluginContext, "Radar: " + msg, Toast.LENGTH_SHORT).show();
             }
         });
@@ -154,7 +260,7 @@ public class RadarTabCoordinator {
         if (btnShow != null) btnShow.setOnClickListener(v -> {
             if (mapView.getMapTilt() > 5.0) {
                 Toast.makeText(pluginContext,
-                        "ⓘ Radar overlay is 2D only — disable 3D tilt for geo-locked display",
+                        "\u24d8 Radar overlay is 2D only \u2014 disable 3D tilt for geo-locked display",
                         Toast.LENGTH_LONG).show();
             }
             if (statusView != null) statusView.setText(R.string.radar_status_loading);
@@ -164,7 +270,7 @@ public class RadarTabCoordinator {
         if (btnHide != null) btnHide.setOnClickListener(v -> {
             radarManager.stop();
             if (statusView != null) statusView.setText(R.string.radar_status_idle);
-            if (timeLabel  != null) timeLabel.setText("—");
+            if (timeLabel  != null) timeLabel.setText("\u2014");
             if (diagView   != null) diagView.setText("");
         });
 

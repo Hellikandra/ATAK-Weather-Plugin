@@ -1,0 +1,37 @@
+{
+  "_schema_version": "2.0",
+
+  "radarSourceId": "iowa-mesonet-mrms",
+  "displayName": "NOAA MRMS (Iowa Mesonet)",
+  "description": "NOAA Multi-Radar Multi-Sensor. CONUS only. Free, no key.",
+  "type": "radar",
+  "provider": "iowa-mesonet",
+
+  "model": {
+    "name": "NOAA MRMS",
+    "coverage": "CONUS (Continental US)",
+    "temporalResolution": "Current snapshot only",
+    "source_url": "https://mesonet.agron.iastate.edu/"
+  },
+
+  "auth": {
+    "type": "none"
+  },
+
+  "rateLimit": {
+    "requestsPerMinute": 100,
+    "requestsPerDay": null,
+    "note": "Be courteous to Iowa Mesonet servers. No hard limit published."
+  },
+
+  "manifestUrl": null,
+  "manifestFormat": "static",
+
+  "tileUrlTemplate": "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/q2-n1p-900913/{z}/{x}/{y}.png",
+
+  "tileSize": 256,
+  "maxZoom": 12,
+  "defaultZoom": 5,
+
+  "attribution": "Iowa Environmental Mesonet / NOAA MRMS"
+}

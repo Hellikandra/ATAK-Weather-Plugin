@@ -4,11 +4,14 @@ import android.content.Context;
 import android.graphics.Color;
 
 import com.atakmap.android.maps.MapGroup;
+import com.atakmap.android.maps.MapItem;
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.maps.Marker;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.overlay.WindMapOverlay;
+import com.atakmap.android.util.IconUtilities;
+import com.atakmap.android.weather.plugin.R;
 import com.atakmap.coremap.log.Log;
 import com.atakmap.coremap.maps.coords.GeoPoint;
 
@@ -46,10 +49,9 @@ public class WindMarkerManager {
 
     /**
      * UID prefix shared across WindMarkerManager, WindHudWidget, and
-     * WeatherDropDownReceiver. Promoted to public so referencing code
-     * does not need magic string literals.
+     * WeatherDropDownReceiver. Delegates to {@link com.atakmap.android.weather.util.WeatherConstants#UID_WIND_PREFIX}.
      */
-    public static final String UID_PREFIX = "wx_wind";
+    public static final String UID_PREFIX = com.atakmap.android.weather.util.WeatherConstants.UID_WIND_PREFIX;
 
     private final MapView        mapView;
     private final Context        context;
@@ -98,6 +100,15 @@ public class WindMarkerManager {
         marker.setTitle(callsign);
         marker.setMovable(false);
 
+        // Set wind marker icon
+        try {
+            IconUtilities.setIcon(context, marker, R.drawable.ic_wind_marker, false);
+            marker.setMetaInteger("iconWidth", 28);
+            marker.setMetaInteger("iconHeight", 28);
+        } catch (Exception e) {
+            Log.w(TAG, "setIcon failed: " + e.getMessage());
+        }
+
         Log.d(TAG, "Wind marker placed: uid=" + uid + " at " + point);
     }
 
@@ -115,6 +126,19 @@ public class WindMarkerManager {
     public void removeAllMarkers() {
         MapGroup group = overlay.getWindGroup();
         if (group != null) group.clearItems();
+    }
+
+    /**
+     * Return the number of wind markers currently in the overlay group.
+     */
+    public int getMarkerCount() {
+        final MapGroup group = overlay.getWindGroup();
+        return group != null ? group.getItemCount() : 0;
+    }
+
+    /** Expose the underlying MapGroup for marker list iteration. */
+    public MapGroup getMapGroup() {
+        return overlay.getWindGroup();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

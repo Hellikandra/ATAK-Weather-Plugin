@@ -1,6 +1,7 @@
 package com.atakmap.android.weather.overlay.wind;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.MotionEvent;
@@ -68,7 +69,7 @@ public class WindHudWidget implements AtakMapView.OnMapViewResizedListener {
 
     private static final String TAG = "WindHudWidget";
 
-    public static final String ACTION_TOGGLE_HUD = "com.atakmap.android.weather.TOGGLE_WIND_HUD";
+    public static final String ACTION_TOGGLE_HUD = com.atakmap.android.weather.util.WeatherConstants.ACTION_TOGGLE_HUD;
 
     private static final float PANEL_W  = 380f;
     private static final float PANEL_H  = 112f;
@@ -132,6 +133,10 @@ public class WindHudWidget implements AtakMapView.OnMapViewResizedListener {
     private boolean            visible      = true;
     private List<WindProfileModel> lastProfiles = null;
     private int                maxHourIndex = 167;
+
+    // ── HUD management prefs ────────────────────────────────────────────────
+    private SharedPreferences hudPrefs;
+    private SharedPreferences.OnSharedPreferenceChangeListener hudPrefListener;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -324,12 +329,37 @@ public class WindHudWidget implements AtakMapView.OnMapViewResizedListener {
         windViewModel.getSelectedHour().observeForever(obsHour);
         windViewModel.getWindProfile().observeForever(obsProfile);
 
+        // ── HUD management prefs ────────────────────────────────────────
+        hudPrefs = mapView.getContext().getSharedPreferences("WeatherToolPrefs", Context.MODE_PRIVATE);
+        hudPrefListener = (sp, key) -> {
+            if (key == null) return;
+            switch (key) {
+                case "wx_hud_wind_visible":
+                    applyHudVisibility(sp.getBoolean(key, true));
+                    break;
+                case "wx_hud_wind_position":
+                    applyHudPosition(sp.getString(key, "BL"));
+                    break;
+                case "wx_hud_wind_opacity":
+                    applyHudOpacity(sp.getInt(key, 100));
+                    break;
+            }
+        };
+        hudPrefs.registerOnSharedPreferenceChangeListener(hudPrefListener);
+        applyHudVisibility(hudPrefs.getBoolean("wx_hud_wind_visible", true));
+        applyHudPosition(hudPrefs.getString("wx_hud_wind_position", "BL"));
+        applyHudOpacity(hudPrefs.getInt("wx_hud_wind_opacity", 100));
+
         Log.d(TAG, "WindHudWidget attached");
     }
 
     public void detach() {
         if (!attached) return;
         attached = false;
+
+        if (hudPrefs != null && hudPrefListener != null) {
+            hudPrefs.unregisterOnSharedPreferenceChangeListener(hudPrefListener);
+        }
 
         SeekBarControl.dismiss();
         windViewModel.getSlots().removeObserver(obsSlots);
@@ -531,6 +561,30 @@ public class WindHudWidget implements AtakMapView.OnMapViewResizedListener {
                 slot.getRangeM(), slot.getHeightM(),
                 WindEffectShape.uidSuffix(slot.lat, slot.lon, false),
                 Collections.singletonList(frame));
+    }
+
+    // ── HUD management controls (driven by SharedPreferences) ─────────────
+
+    private void applyHudVisibility(boolean show) {
+        setVisible(show);
+    }
+
+    private void applyHudPosition(String pos) {
+        if (pos == null) pos = "BL";
+        float w = mapView.getWidth();
+        float h = mapView.getHeight();
+        switch (pos) {
+            case "TL": panelX = MARGIN; panelY = MARGIN; break;
+            case "TR": panelX = w - PANEL_W - MARGIN; panelY = MARGIN; break;
+            case "BR": panelX = w - PANEL_W - MARGIN; panelY = h - PANEL_H - MARGIN * 4; break;
+            default: /* BL */ panelX = MARGIN; panelY = h - PANEL_H - MARGIN * 4; break;
+        }
+        root.setPoint(panelX, panelY);
+    }
+
+    private void applyHudOpacity(int percent) {
+        int alpha = (int) (percent * 2.55f); // 0–255
+        panel.setBackingColor(Color.argb(alpha, 18, 18, 22));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -1,0 +1,164 @@
+{
+  "_schema_version": "2.0",
+  "_doc": "TEMPLATE: Copy this file to /sdcard/atak/tools/weather_sources/ and fill in your weather API details. Tap Refresh in the PARM tab to load.",
+
+  "sourceId": "my-custom-source",
+  "_doc_sourceId": "Unique identifier for this source. Use lowercase-kebab-case. Must not conflict with built-in IDs (open-meteo-gfs, open-meteo-ecmwf, open-meteo-dwd, aviation-weather-center).",
+
+  "displayName": "My Custom Weather Source",
+  "_doc_displayName": "Human-readable name shown in the source selector Spinner.",
+
+  "description": "Description of this weather source.",
+  "type": "weather",
+  "_doc_type": "Source type: 'weather' for forecast/observation data, 'radar' for tile-based radar, 'both' for combined.",
+
+  "provider": "my-provider",
+
+  "model": {
+    "_doc": "Metadata about the weather model. Informational only, not used for API calls.",
+    "name": "Model Name",
+    "gridResolutionKm": null,
+    "accuracyRadiusKm": null,
+    "forecastDaysMax": 7,
+    "updateFrequencyHours": 6,
+    "coverage": "Global",
+    "temporalResolution": "1h",
+    "pressureLevels": [],
+    "source_url": "https://example.com/docs"
+  },
+
+  "auth": {
+    "_doc": "Authentication config. type: 'none', 'api_key_header', 'api_key_query', 'bearer'. For API key, set headerName or queryParam and provide value.",
+    "type": "none",
+    "headerName": null,
+    "queryParam": null,
+    "value": ""
+  },
+
+  "rateLimit": {
+    "_doc": "Rate limits for this API. Set null for unlimited.",
+    "requestsPerMinute": null,
+    "requestsPerHour": null,
+    "requestsPerDay": null,
+    "requestsPerMonth": null,
+    "note": ""
+  },
+
+  "endpoints": {
+    "_doc": "Define API endpoints. Each key is a role: current, hourly, daily, windProfile, windProfilePressure, historical. Only define the ones your API supports.",
+
+    "current": {
+      "_doc": "Endpoint for current weather conditions.",
+      "url": "https://api.example.com/current",
+      "method": "GET",
+      "queryParams": {
+        "_doc": "Query parameters. Use {lat}, {lon}, {hours}, {days}, {current_fields}, {hourly_fields}, {daily_fields} as placeholders.",
+        "latitude": "{lat}",
+        "longitude": "{lon}"
+      },
+      "responsePath": "current",
+      "_doc_responsePath": "JSON path to the data object in the API response (e.g., 'current', 'data.observations[0]'). Empty string for root.",
+      "fieldMapping": {
+        "_doc": "Maps internal field names to API response field names. Internal names: temperature, humidity, apparentTemp, windSpeed, windDirection, windGusts, visibility, pressure, weatherCode, precipitation, cloudCover, isDay.",
+        "temperature": "temp",
+        "humidity": "rh",
+        "windSpeed": "wind_spd",
+        "windDirection": "wind_dir",
+        "pressure": "pres",
+        "weatherCode": "weather_code"
+      }
+    },
+
+    "hourly": {
+      "_doc": "Endpoint for hourly forecast data. Remove this block if not supported.",
+      "url": "https://api.example.com/hourly",
+      "method": "GET",
+      "queryParams": {
+        "latitude": "{lat}",
+        "longitude": "{lon}",
+        "hourly": "{hourly_fields}",
+        "forecast_hours": "{hours}"
+      },
+      "responsePath": "hourly",
+      "timeField": "time",
+      "_doc_timeField": "Name of the time/timestamp array in the response.",
+      "fieldMapping": {
+        "temperature": "temp",
+        "humidity": "rh",
+        "windSpeed": "wind_spd",
+        "windDirection": "wind_dir",
+        "pressure": "pres",
+        "weatherCode": "weather_code",
+        "precipProb": "precip_prob",
+        "precipitation": "precip"
+      }
+    },
+
+    "daily": {
+      "_doc": "Endpoint for daily forecast data. Remove this block if not supported.",
+      "url": "https://api.example.com/daily",
+      "method": "GET",
+      "queryParams": {
+        "latitude": "{lat}",
+        "longitude": "{lon}",
+        "daily": "{daily_fields}",
+        "forecast_days": "{days}"
+      },
+      "responsePath": "daily",
+      "timeField": "time",
+      "fieldMapping": {
+        "temperatureMax": "temp_max",
+        "temperatureMin": "temp_min",
+        "weatherCode": "weather_code",
+        "precipitationSum": "precip_sum",
+        "windSpeedMax": "wind_spd_max",
+        "windDirDominant": "wind_dir_dom"
+      }
+    }
+  },
+
+  "unitConversions": {
+    "_doc": "Client-side unit conversions as fallback. Each entry: { from, to, factor, offset }. result = value * factor + offset.",
+    "visibility": { "from": "m", "to": "m", "factor": 1.0, "offset": 0.0 }
+  },
+
+  "serverSideUnits": {
+    "_doc": "If the API supports server-side unit conversion via query params, map unit systems here. Keys match queryParams names.",
+    "temperature_unit": { "metric": "celsius", "imperial": "fahrenheit" },
+    "wind_speed_unit": { "metric": "ms", "imperial": "mph" }
+  },
+
+  "weatherCodeMapping": null,
+  "_doc_weatherCodeMapping": "Optional map from API-specific weather codes to WMO codes. null if API uses WMO codes natively.",
+
+  "batch": {
+    "_doc": "Batch/multi-location request support. Set supported: false if not available.",
+    "supported": false,
+    "maxLocations": 1,
+    "latParam": "latitude",
+    "lonParam": "longitude",
+    "separator": ","
+  },
+
+  "parameters": {
+    "_doc": "Selectable parameters for each category. key = API parameter name, label = display text, unit = unit string, defaultOn = enabled by default.",
+    "hourly": [
+      { "key": "temp", "label": "Temperature", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "rh", "label": "Relative Humidity", "unit": "%", "defaultOn": true },
+      { "key": "wind_spd", "label": "Wind Speed", "unit": "m/s", "defaultOn": true },
+      { "key": "wind_dir", "label": "Wind Direction", "unit": "\u00b0", "defaultOn": true },
+      { "key": "weather_code", "label": "Weather Code", "unit": "", "defaultOn": true }
+    ],
+    "daily": [
+      { "key": "temp_max", "label": "Max Temperature", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "temp_min", "label": "Min Temperature", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "weather_code", "label": "Weather Code", "unit": "", "defaultOn": true }
+    ],
+    "current": [
+      { "key": "temp", "label": "Temperature", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "rh", "label": "Relative Humidity", "unit": "%", "defaultOn": true },
+      { "key": "wind_spd", "label": "Wind Speed", "unit": "m/s", "defaultOn": true },
+      { "key": "wind_dir", "label": "Wind Direction", "unit": "\u00b0", "defaultOn": true }
+    ]
+  }
+}

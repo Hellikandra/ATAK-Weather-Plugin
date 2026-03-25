@@ -44,8 +44,8 @@ import com.atakmap.android.weather.plugin.R;
  */
 public class RadarMapOverlay implements MapOverlay {
 
-    public static final String OVERLAY_ID   = "weather.radar";
-    public static final String OVERLAY_NAME = "WX Radar";
+    public static final String OVERLAY_ID   = com.atakmap.android.weather.util.WeatherConstants.OVERLAY_RADAR_ID;
+    public static final String OVERLAY_NAME = com.atakmap.android.weather.util.WeatherConstants.OVERLAY_RADAR_NAME;
 
     private final MapView             mapView;
     private final Context             pluginContext;

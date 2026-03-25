@@ -1,17 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    tab_parameters.xml — Tab 4: Parameter Selector
+    tab_parameters.xml — Tab: Settings
 
-    Sources come from two places (priority order):
-      1. Plugin assets:  assets/weather_sources/*.json  (built-in)
-      2. User overrides: /sdcard/atak/tools/weather_sources/*.json  (tap ⟳ to reload)
-
-    The Hourly / Daily / Current sections are DYNAMIC — they rebuild whenever the
-    active source changes or the user taps the Refresh button.  The static layout
-    provides only the container IDs that ParametersView populates at runtime.
-
-    Spinner rule: always spinnerMode="dropdown" + appContext adapter to avoid
-    BadTokenException (ATAK plugin context has no Activity window token).
+    Sections:
+      1. Weather Sources — source list with ON/OFF + Browse & Import + Scan Folder
+      2. Radar Sources — radar source list with ON/OFF + Import + Scan Folder
+      3. Auto-Refresh — interval spinner
+      4. Theme — Dark / Light / NVG
+      5. Mission Prep — download, progress, cache management
 -->
 <ScrollView
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -25,265 +21,360 @@
     android:orientation="vertical"
     android:padding="6dp">
 
-    <!-- ══ DATA SOURCE SELECTOR ══════════════════════════════════════════
-         Source spinner + ⟳ Refresh button in one row.
-         Tapping ⟳ rescans assets/ and /sdcard/atak/tools/weather_sources/
-         without restarting the plugin.
-    -->
-    <TextView
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text="@string/source_section_title"
-      android:textSize="13sp"
-      android:textStyle="bold"
-      android:layout_marginBottom="4dp"/>
-
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 1: WEATHER SOURCES
+         ══════════════════════════════════════════════════════════════════ -->
     <LinearLayout
+      android:id="@+id/settings_section_sources"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:orientation="horizontal"
-      android:gravity="center_vertical"
+      android:orientation="vertical"
       android:layout_marginBottom="4dp">
 
-      <Spinner
-        android:id="@+id/spinner_parm_source"
-        android:layout_width="0dp"
-        android:layout_height="44dp"
-        android:layout_weight="1"
-        android:spinnerMode="dropdown"
-        android:background="@drawable/image_view_bg"/>
-
-      <!-- Flight-category chip: hidden for Open-Meteo, coloured for AWC -->
       <TextView
-        android:id="@+id/badge_parm_flt_cat"
-        android:layout_width="wrap_content"
+        android:id="@+id/settings_header_sources"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text=""
-        android:textSize="10sp"
+        android:text="\u25BC Weather Sources"
+        android:textSize="13sp"
         android:textStyle="bold"
-        android:textColor="#FFFFFF"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="3dp"
-        android:paddingBottom="3dp"
-        android:layout_marginStart="6dp"
-        android:background="#555555"
-        android:visibility="gone"/>
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/image_view_bg"
+        android:padding="8dp"
+        android:layout_marginBottom="4dp"/>
 
-      <!-- Refresh sources — rescans assets + /sdcard folder without restart -->
-      <Button
-        android:id="@+id/btn_refresh_sources"
-        style="@style/darkButton"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:text="⟳"
-        android:textSize="16sp"
-        android:layout_marginStart="4dp"
-        android:padding="0dp"/>
+      <LinearLayout
+        android:id="@+id/settings_content_sources"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
 
+        <!-- Source Manager (list with ON/OFF per source) -->
+        <include layout="@layout/view_source_manager"
+          android:id="@+id/source_manager_section"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content" />
+
+        <!-- Active source status (kept for DDR binding) -->
+        <TextView
+          android:id="@+id/textview_parm_source_status"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:text=""
+          android:textSize="10sp"
+          android:textStyle="italic"
+          android:alpha="0.7"
+          android:layout_marginBottom="2dp"
+          android:visibility="gone"/>
+
+        <TextView
+          android:id="@+id/textview_parm_source_desc"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:text=""
+          android:textSize="9sp"
+          android:alpha="0.6"
+          android:layout_marginBottom="4dp"
+          android:visibility="gone"/>
+
+        <!-- Hidden spinner kept for backward compat (DDR wireParmSourceSpinner uses it) -->
+        <Spinner
+          android:id="@+id/spinner_parm_source"
+          android:layout_width="0dp"
+          android:layout_height="0dp"
+          android:spinnerMode="dropdown"
+          android:visibility="gone"/>
+
+        <!-- Hidden flight-category badge (DDR still references it) -->
+        <TextView
+          android:id="@+id/badge_parm_flt_cat"
+          android:layout_width="0dp"
+          android:layout_height="0dp"
+          android:visibility="gone"/>
+
+        <!-- Hidden refresh button (DDR still references it) -->
+        <Button
+          android:id="@+id/btn_refresh_sources"
+          android:layout_width="0dp"
+          android:layout_height="0dp"
+          android:visibility="gone"/>
+
+      </LinearLayout>
     </LinearLayout>
 
-    <TextView
-      android:id="@+id/textview_parm_source_status"
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 2: RADAR SOURCES
+         ══════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:id="@+id/settings_section_radar_sources"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:text=""
-      android:textSize="10sp"
-      android:textStyle="italic"
-      android:alpha="0.7"
-      android:layout_marginBottom="4dp"/>
+      android:orientation="vertical"
+      android:layout_marginBottom="4dp">
 
-    <!-- Source description (from JSON "description" field) -->
-    <TextView
-      android:id="@+id/textview_parm_source_desc"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text=""
-      android:textSize="9sp"
-      android:alpha="0.6"
-      android:layout_marginBottom="8dp"/>
+      <TextView
+        android:id="@+id/settings_header_radar_sources"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="\u25B6 Radar Sources"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="@drawable/image_view_bg"
+        android:padding="8dp"
+        android:layout_marginBottom="4dp"/>
+
+      <LinearLayout
+        android:id="@+id/settings_content_radar_sources"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:layout_marginBottom="4dp">
+
+        <!-- Radar source list (items added programmatically with ON/OFF toggles) -->
+        <LinearLayout
+          android:id="@+id/radar_source_list"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:layout_marginBottom="6dp"/>
+
+        <!-- Hidden spinner for backward compat -->
+        <Spinner
+          android:id="@+id/spinner_radar_source"
+          android:layout_width="0dp"
+          android:layout_height="0dp"
+          android:spinnerMode="dropdown"
+          android:visibility="gone"/>
+
+        <!-- Action buttons row -->
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical"
+          android:layout_marginTop="4dp">
+
+          <Button
+            android:id="@+id/btn_import_tile_source"
+            style="@style/darkButton"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="Import Radar Source"
+            android:textSize="10sp"
+            android:layout_marginEnd="4dp"/>
+
+          <Button
+            android:id="@+id/btn_scan_radar_folder"
+            style="@style/darkButton"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:text="Scan Folder"
+            android:textSize="10sp"/>
+        </LinearLayout>
+
+      </LinearLayout>
+    </LinearLayout>
 
     <!-- ── Divider ───────────────────────────────────────────────── -->
     <View android:layout_width="match_parent" android:layout_height="1dp"
-      android:background="#55FFFFFF" android:layout_marginBottom="10dp"/>
+      android:background="#30363d" android:layout_marginBottom="4dp"/>
 
-    <!-- ── Refresh hint ─────────────────────────────────────────── -->
-    <TextView
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 3: AUTO-REFRESH
+         ══════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:id="@+id/settings_section_auto_refresh"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:text="@string/params_info_banner"
-      android:textSize="11sp"
-      android:textStyle="italic"
-      android:layout_marginBottom="4dp"/>
+      android:orientation="vertical"
+      android:layout_marginBottom="4dp">
 
-    <TextView
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:text="@string/params_change_hint"
-      android:textSize="10sp"
-      android:textStyle="italic"
-      android:alpha="0.7"
-      android:layout_marginBottom="8dp"/>
-
-    <!-- ══ DYNAMIC PARAMETER SECTIONS ══════════════════════════════
-         These three sections are rebuilt by ParametersView.setDefinitionParams()
-         or ParametersView.setAvailableParameters() whenever the active source
-         changes.  The section headers (HOURLY / DAILY / CURRENT) and their
-         ListView + All/None buttons are the same for every source — only the
-         items inside the ListViews change.
-
-         For sources with no "daily" or "current" parameters, the corresponding
-         section header + ListView are hidden programmatically.
-    -->
-
-    <!-- ══ HOURLY ═══════════════════════════════════════════════ -->
-    <LinearLayout android:id="@+id/section_hourly"
-      android:layout_width="match_parent"
-      android:visibility="gone"
-      android:layout_height="wrap_content"
-      android:orientation="vertical">
-
-      <LinearLayout
+      <TextView
+        android:id="@+id/settings_header_auto_refresh"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:text="\u25B6 Auto-Refresh"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:clickable="true"
+        android:focusable="true"
         android:background="@drawable/image_view_bg"
-        android:padding="4dp">
-        <TextView
-          android:layout_width="0dp"
-          android:layout_height="wrap_content"
-          android:layout_weight="1"
-          android:text="@string/params_section_hourly"
-          android:textSize="13sp"
-          android:textStyle="bold"/>
-        <Button
-          android:id="@+id/params_all_hourly"
-          style="@style/darkButton"
-          android:layout_width="wrap_content"
-          android:layout_height="48dp"
-          android:minWidth="72dp"
-          android:text="@string/params_select_all"
-          android:textSize="10sp"
-          android:layout_marginEnd="4dp"/>
-        <Button
-          android:id="@+id/params_none_hourly"
-          style="@style/darkButton"
-          android:layout_width="wrap_content"
-          android:layout_height="48dp"
-          android:minWidth="72dp"
-          android:text="@string/params_select_none"
-          android:textSize="10sp"/>
-      </LinearLayout>
+        android:padding="8dp"
+        android:layout_marginBottom="4dp"/>
 
-      <!-- CheckBox items added dynamically by ParametersView.bindSection() -->
       <LinearLayout
-        android:id="@+id/params_list_hourly"
+        android:id="@+id/settings_content_auto_refresh"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginBottom="10dp"/>
+        android:visibility="gone"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:layout_marginBottom="4dp">
 
+        <Spinner
+          android:id="@+id/spinner_auto_refresh"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:minHeight="44dp"
+          android:spinnerMode="dropdown"/>
+      </LinearLayout>
     </LinearLayout>
 
-    <!-- ══ DAILY ════════════════════════════════════════════════ -->
-    <LinearLayout android:id="@+id/section_daily"
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 4: THEME
+         ══════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:id="@+id/settings_section_theme"
       android:layout_width="match_parent"
-      android:visibility="gone"
       android:layout_height="wrap_content"
-      android:orientation="vertical">
+      android:orientation="vertical"
+      android:layout_marginBottom="4dp">
 
-      <LinearLayout
+      <TextView
+        android:id="@+id/settings_header_theme"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:text="\u25B6 Theme"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:clickable="true"
+        android:focusable="true"
         android:background="@drawable/image_view_bg"
-        android:padding="4dp">
-        <TextView
-          android:layout_width="0dp"
-          android:layout_height="wrap_content"
-          android:layout_weight="1"
-          android:text="@string/params_section_daily"
-          android:textSize="13sp"
-          android:textStyle="bold"/>
-        <Button
-          android:id="@+id/params_all_daily"
-          style="@style/darkButton"
-          android:layout_width="wrap_content"
-          android:layout_height="48dp"
-          android:minWidth="72dp"
-          android:text="@string/params_select_all"
-          android:textSize="10sp"
-          android:layout_marginEnd="4dp"/>
-        <Button
-          android:id="@+id/params_none_daily"
-          style="@style/darkButton"
-          android:layout_width="wrap_content"
-          android:layout_height="48dp"
-          android:minWidth="72dp"
-          android:text="@string/params_select_none"
-          android:textSize="10sp"/>
-      </LinearLayout>
+        android:padding="8dp"
+        android:layout_marginBottom="4dp"/>
 
-      <!-- CheckBox items added dynamically by ParametersView.bindSection() -->
       <LinearLayout
-        android:id="@+id/params_list_daily"
+        android:id="@+id/settings_content_theme"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginBottom="10dp"/>
+        android:visibility="gone"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:layout_marginBottom="4dp">
 
+        <Spinner
+          android:id="@+id/spinner_theme"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:minHeight="44dp"
+          android:spinnerMode="dropdown"/>
+      </LinearLayout>
     </LinearLayout>
 
-    <!-- ══ CURRENT ═══════════════════════════════════════════════ -->
-    <LinearLayout android:id="@+id/section_current"
-      android:layout_width="match_parent"
-      android:visibility="gone"
-      android:layout_height="wrap_content"
-      android:orientation="vertical">
+    <!-- ── Divider ───────────────────────────────────────────────── -->
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+      android:background="#30363d" android:layout_marginBottom="4dp"/>
 
-      <LinearLayout
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 5: MISSION PREP
+         ══════════════════════════════════════════════════════════════════ -->
+    <LinearLayout
+      android:id="@+id/settings_section_mission_prep"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:layout_marginBottom="4dp">
+
+      <TextView
+        android:id="@+id/settings_header_mission_prep"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:text="\u25B6 Mission Prep"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:clickable="true"
+        android:focusable="true"
         android:background="@drawable/image_view_bg"
-        android:padding="4dp">
-        <TextView
-          android:layout_width="0dp"
-          android:layout_height="wrap_content"
-          android:layout_weight="1"
-          android:text="@string/params_section_current"
-          android:textSize="13sp"
-          android:textStyle="bold"/>
-        <Button
-          android:id="@+id/params_all_current"
-          style="@style/darkButton"
-          android:layout_width="wrap_content"
-          android:layout_height="48dp"
-          android:minWidth="72dp"
-          android:text="@string/params_select_all"
-          android:textSize="10sp"
-          android:layout_marginEnd="4dp"/>
-        <Button
-          android:id="@+id/params_none_current"
-          style="@style/darkButton"
-          android:layout_width="wrap_content"
-          android:layout_height="48dp"
-          android:minWidth="72dp"
-          android:text="@string/params_select_none"
-          android:textSize="10sp"/>
-      </LinearLayout>
+        android:padding="8dp"
+        android:layout_marginBottom="4dp"/>
 
-      <!-- CheckBox items added dynamically by ParametersView.bindSection() -->
       <LinearLayout
-        android:id="@+id/params_list_current"
+        android:id="@+id/settings_content_mission_prep"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginBottom="10dp"/>
+        android:visibility="gone"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:layout_marginBottom="4dp">
 
+        <TextView
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:text="@string/mission_prep_desc"
+          android:textSize="10sp"
+          android:alpha="0.7"
+          android:layout_marginBottom="4dp"/>
+
+        <Button
+          android:id="@+id/btn_mission_prep"
+          style="@style/darkButton"
+          android:layout_width="match_parent"
+          android:layout_height="44dp"
+          android:text="@string/mission_prep_download"
+          android:textSize="11sp"
+          android:layout_marginBottom="4dp"/>
+
+        <ProgressBar
+          android:id="@+id/mission_prep_progress"
+          style="?android:attr/progressBarStyleHorizontal"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:max="100"
+          android:progress="0"
+          android:layout_marginBottom="2dp"
+          android:visibility="gone"/>
+
+        <TextView
+          android:id="@+id/mission_prep_status"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:text=""
+          android:textSize="10sp"
+          android:alpha="0.7"
+          android:layout_marginBottom="4dp"
+          android:visibility="gone"/>
+
+        <!-- Cache Info + Clear -->
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="horizontal"
+          android:gravity="center_vertical"
+          android:layout_marginBottom="4dp">
+
+          <TextView
+            android:id="@+id/cache_info_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Cache: 0 MB"
+            android:textSize="10sp"
+            android:alpha="0.7"/>
+
+          <Button
+            android:id="@+id/btn_clear_cache"
+            style="@style/darkButton"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="@string/btn_clear_cache_label"
+            android:textSize="10sp"
+            android:layout_marginStart="8dp"/>
+        </LinearLayout>
+
+      </LinearLayout>
     </LinearLayout>
 
   </LinearLayout>

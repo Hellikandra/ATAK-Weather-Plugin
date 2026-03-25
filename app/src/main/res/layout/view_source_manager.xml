@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    view_source_manager.xml — Sprint 8.5: Source Management UI
+
+    Included at the top of tab_parameters.xml.  Lists all registered
+    IWeatherRemoteSource providers, lets the user activate/test them,
+    manage API keys, and scan for external JSON definitions.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical"
+  android:padding="6dp">
+
+  <!-- ── Header row ─────────────────────────────────────────────────── -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginBottom="6dp">
+
+    <TextView
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="@string/src_mgr_title"
+      android:textSize="13sp"
+      android:textStyle="bold"
+      android:textColor="#c9d1d9"/>
+
+    <Button
+      android:id="@+id/btn_src_mgr_refresh"
+      style="@style/darkButton"
+      android:layout_width="wrap_content"
+      android:layout_height="36dp"
+      android:minWidth="72dp"
+      android:text="@string/src_mgr_refresh"
+      android:textSize="10sp"
+      android:padding="0dp"/>
+
+  </LinearLayout>
+
+  <!-- ── Source list (items added programmatically) ──────────────────── -->
+  <LinearLayout
+    android:id="@+id/source_list_container"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"/>
+
+  <!-- ── Empty-state label ──────────────────────────────────────────── -->
+  <TextView
+    android:id="@+id/src_mgr_empty_label"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:text="@string/src_mgr_no_sources"
+    android:textSize="11sp"
+    android:textColor="#8b949e"
+    android:gravity="center"
+    android:padding="16dp"
+    android:visibility="gone"/>
+
+  <!-- ── Bottom action row ──────────────────────────────────────────── -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginTop="6dp">
+
+    <Button
+      android:id="@+id/btn_src_mgr_add"
+      style="@style/darkButton"
+      android:layout_width="0dp"
+      android:layout_height="36dp"
+      android:layout_weight="1"
+      android:text="@string/src_mgr_add_source"
+      android:textSize="10sp"
+      android:layout_marginEnd="4dp"/>
+
+    <Button
+      android:id="@+id/btn_src_mgr_scan"
+      style="@style/darkButton"
+      android:layout_width="0dp"
+      android:layout_height="36dp"
+      android:layout_weight="1"
+      android:text="@string/src_mgr_scan_folder"
+      android:textSize="10sp"/>
+
+  </LinearLayout>
+
+</LinearLayout>

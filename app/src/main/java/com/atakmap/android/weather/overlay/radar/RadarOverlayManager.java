@@ -7,12 +7,11 @@ import android.util.LruCache;
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.weather.data.cache.RadarTileCache;
 import com.atakmap.android.weather.data.remote.HttpClient;
+import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
+import com.atakmap.android.weather.data.remote.schema.RateLimitConfig;
 import com.atakmap.coremap.log.Log;
 import com.atakmap.coremap.maps.coords.GeoBounds;
 import com.atakmap.coremap.maps.coords.GeoPoint;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -28,8 +27,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.atakmap.android.weather.util.RateLimiter;
+
 /**
- * RadarOverlayManager — RainViewer precipitation radar tiles displayed on the ATAK map.
+ * RadarOverlayManager — Multi-provider precipitation radar tiles displayed on the ATAK map.
  *
  * <h3>Rendering approach</h3>
  * Tiles are rendered by {@link RadarOverlayView}, a transparent {@code View} added on top
@@ -50,14 +51,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * On HTTP success, tile is written to both L1 and L2 simultaneously.
  * On network failure, L2 serves expired (stale) tiles for offline fallback.
  *
- * <h3>Changes vs original</h3>
+ * <h3>Multi-provider support (Sprint 10)</h3>
  * <ul>
- *   <li>{@link #isActive()} added — used by {@code RadarMapOverlay.RadarHierarchyListItem}
- *       to keep the Overlay Manager toggle in sync with actual state.</li>
- *   <li>{@link #setVisibleFromOverlayManager(boolean)} added — lets the Overlay Manager
- *       toggle start/stop without going through the DDR, keeping both in sync.</li>
- *   <li><b>Sprint 1.1b:</b> L2 {@link RadarTileCache} integrated for persistent
- *       disk caching, offline fallback, and cache management UI support.</li>
+ *   <li>{@link #setRadarSource(WeatherSourceDefinitionV2)} switches to any v2 radar
+ *       source definition, using the appropriate {@link IRadarManifestParser} via
+ *       {@link RadarManifestParserFactory}.</li>
+ *   <li>Backward compatible: without a v2 definition, falls back to built-in
+ *       RainViewer behavior via legacy methods.</li>
+ *   <li>Rate limiter is reconfigured per source from {@code def.getRateLimit()}.</li>
  * </ul>
  *
  * <h3>Lifecycle</h3>
@@ -101,16 +102,29 @@ public class RadarOverlayManager {
     private final AtomicBoolean       active   = new AtomicBoolean(false);
     private final AtomicInteger       frameIdx = new AtomicInteger(0);
 
+    /** Rate limiter — reconfigured per-source from v2 definition. */
+    private RateLimiter rateLimiter = new RateLimiter(90, 60_000);
+
     /** L2 disk cache — null if not injected (graceful degradation). */
     private RadarTileCache diskCache;
+
+    /** Active v2 radar source definition (Sprint 10). Null = legacy RainViewer mode. */
+    private WeatherSourceDefinitionV2 activeRadarDef;
+
+    /** Manifest parser for the active source (Sprint 10). */
+    private IRadarManifestParser manifestParser;
+
+    /** Parsed manifest from the active source (Sprint 10). */
+    private RadarManifest currentManifest;
 
     /** Configurable radar source — defaults to bundled RainViewer values. */
     private String manifestUrl     = RadarTileProvider.MANIFEST_URL;
     private String tileUrlTemplate = null;  // null = use RadarTileProvider.tileUrl()
 
-    private List<Long> pastTs    = Collections.emptyList();
-    private List<Long> nowcastTs = Collections.emptyList();
-    private List<Long> allTs     = Collections.emptyList();
+    private List<Long>    pastTs    = Collections.emptyList();
+    private List<Long>    nowcastTs = Collections.emptyList();
+    private List<Long>    allTs     = Collections.emptyList();
+    private List<RadarManifest.RadarFrame> allFrames = Collections.emptyList();
 
     private int              overlayAlpha = 153;  // 60 %
     private Listener         listener;
@@ -121,6 +135,8 @@ public class RadarOverlayManager {
 
     public RadarOverlayManager(MapView mapView) {
         this.mapView = mapView;
+        // Default parser: RainViewer
+        this.manifestParser = new RainViewerManifestParser();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -138,7 +154,41 @@ public class RadarOverlayManager {
         return diskCache;
     }
 
+    /**
+     * Register a listener. Supports multiple listeners — both RadarTabCoordinator
+     * and OverlayTabCoordinator can receive callbacks simultaneously.
+     */
     public void setListener(Listener l) { this.listener = l; }
+
+    /** Add a secondary listener without replacing the primary one. */
+    public void addListener(Listener l) {
+        if (l == null) return;
+        if (this.listener == null) {
+            this.listener = l;
+        } else {
+            // Wrap both into a composite
+            final Listener primary = this.listener;
+            final Listener secondary = l;
+            this.listener = new Listener() {
+                @Override public void onManifestLoaded(int total, int defIdx) {
+                    primary.onManifestLoaded(total, defIdx);
+                    secondary.onManifestLoaded(total, defIdx);
+                }
+                @Override public void onFrameDisplayed(int idx, String label) {
+                    primary.onFrameDisplayed(idx, label);
+                    secondary.onFrameDisplayed(idx, label);
+                }
+                @Override public void onDiagnosticsUpdated(String info) {
+                    primary.onDiagnosticsUpdated(info);
+                    secondary.onDiagnosticsUpdated(info);
+                }
+                @Override public void onError(String msg) {
+                    primary.onError(msg);
+                    secondary.onError(msg);
+                }
+            };
+        }
+    }
 
     /**
      * Register a listener notified when the overlay is started/stopped.
@@ -165,7 +215,56 @@ public class RadarOverlayManager {
     }
 
     /**
-     * Switch to a different radar source definition.
+     * Switch to a different radar source via a v2 definition (Sprint 10).
+     *
+     * <p>Stops the current overlay, clears in-memory cache, reconfigures the
+     * manifest URL, parser, and rate limiter from the definition, then restarts
+     * if the overlay was previously active.</p>
+     *
+     * @param radarDef the v2 radar source definition to activate
+     */
+    public void setRadarSource(WeatherSourceDefinitionV2 radarDef) {
+        if (radarDef == null) return;
+        boolean wasActive = active.get();
+        if (wasActive) stop();
+
+        // Clear in-memory cache (disk cache uses per-source keyed entries)
+        memoryCache.evictAll();
+        currentManifest = null;
+        allFrames = Collections.emptyList();
+        pastTs = Collections.emptyList();
+        nowcastTs = Collections.emptyList();
+        allTs = Collections.emptyList();
+
+        // Configure from v2 definition
+        this.activeRadarDef = radarDef;
+        this.manifestUrl = radarDef.getManifestUrl() != null
+                ? radarDef.getManifestUrl() : "";
+        this.tileUrlTemplate = radarDef.getTileUrlTemplate();
+        this.manifestParser = RadarManifestParserFactory.getParser(
+                radarDef.getManifestFormat());
+
+        // Reconfigure rate limiter from source definition
+        RateLimitConfig rlConfig = radarDef.getRateLimit();
+        if (rlConfig != null && rlConfig.getRequestsPerMinute() != null) {
+            int rpm = rlConfig.getRequestsPerMinute();
+            // Apply 10% headroom
+            int headroom = Math.max(1, (int) (rpm * 0.9));
+            this.rateLimiter = new RateLimiter(headroom, 60_000);
+            Log.d(TAG, "Rate limiter set to " + headroom + " req/min for "
+                    + radarDef.getRadarSourceId());
+        } else {
+            this.rateLimiter = new RateLimiter(90, 60_000);
+        }
+
+        Log.d(TAG, "Radar source switched to: " + radarDef.getDisplayName()
+                + " (format=" + radarDef.getManifestFormat() + ")");
+
+        if (wasActive) start();
+    }
+
+    /**
+     * Switch to a different radar source definition (legacy method).
      * If the overlay is currently active it is stopped, cache cleared, then
      * restarted with the new manifest URL so tiles refresh immediately.
      */
@@ -174,12 +273,19 @@ public class RadarOverlayManager {
         boolean wasActive = active.get();
         if (wasActive) stop();
         memoryCache.evictAll();
+        currentManifest = null;
+        allFrames = Collections.emptyList();
         // Note: disk cache is NOT cleared on source switch — tiles from different
         // sources use different timestamps, so old entries will expire naturally.
         this.manifestUrl     = newManifestUrl;
         this.tileUrlTemplate = newTileUrlTemplate;
+        this.activeRadarDef  = null;
+        this.manifestParser  = new RainViewerManifestParser();
         if (wasActive) start();
     }
+
+    /** Get the active v2 radar source definition (Sprint 10). May be null in legacy mode. */
+    public WeatherSourceDefinitionV2 getActiveRadarDef() { return activeRadarDef; }
 
     public String getManifestUrl() { return manifestUrl; }
 
@@ -223,7 +329,10 @@ public class RadarOverlayManager {
         if (index < 0 || index >= allTs.size()) return "---";
         String t = new SimpleDateFormat("HH:mm", Locale.getDefault())
                 .format(new Date(allTs.get(index) * 1000L));
-        return index >= pastTs.size() ? t + "  > NOWCAST" : t;
+        if (index >= pastTs.size()) {
+            return nowcastTs.isEmpty() ? t + "  > NOWCAST (unavailable)" : t + "  > NOWCAST";
+        }
+        return t;
     }
 
     public void setFrameIndex(int index) {
@@ -279,6 +388,27 @@ public class RadarOverlayManager {
     // ── Manifest ──────────────────────────────────────────────────────────────
 
     private void fetchManifest() {
+        // For static sources with no manifest URL, parse immediately with null JSON
+        if (manifestUrl == null || manifestUrl.isEmpty()) {
+            if (!active.get()) return;
+            try {
+                parseManifest(null);
+                if (allTs.isEmpty()) { emit("No radar frames available"); return; }
+                int def = getLatestPastIndex();
+                frameIdx.set(def);
+                final int fDef = def;
+                notifyMain(() -> {
+                    if (!active.get()) return;
+                    if (listener != null) listener.onManifestLoaded(allTs.size(), fDef);
+                });
+                displayFrame(def);
+            } catch (Exception e) {
+                Log.e(TAG, "Static manifest parse", e);
+                emit("Static source init error: " + e.getMessage());
+            }
+            return;
+        }
+
         HttpClient.get(manifestUrl, new HttpClient.Callback() {
             @Override public void onSuccess(String body) {
                 if (!active.get()) return;
@@ -305,26 +435,30 @@ public class RadarOverlayManager {
     }
 
     private void parseManifest(String json) throws Exception {
-        JSONObject root  = new JSONObject(json);
-        JSONObject radar = root.optJSONObject("radar");
-        List<Long> past = new ArrayList<>(), nowcast = new ArrayList<>();
-        if (radar != null) {
-            JSONArray pArr = radar.optJSONArray("past");
-            if (pArr != null) for (int i = 0; i < pArr.length(); i++) {
-                long t = pArr.getJSONObject(i).optLong("time", 0);
-                if (t > 0) past.add(t);
-            }
-            JSONArray nArr = radar.optJSONArray("nowcast");
-            if (nArr != null) for (int i = 0; i < nArr.length(); i++) {
-                long t = nArr.getJSONObject(i).optLong("time", 0);
-                if (t > 0) nowcast.add(t);
-            }
+        // Delegate to the active manifest parser (Sprint 10)
+        RadarManifest manifest = manifestParser.parse(json,
+                activeRadarDef != null ? activeRadarDef.getManifestParsing() : null);
+        this.currentManifest = manifest;
+
+        // Extract timestamp lists for backward compatibility with frame indexing
+        List<Long> past = new ArrayList<>();
+        for (RadarManifest.RadarFrame f : manifest.getPast()) {
+            past.add(f.getTimestamp());
         }
+        List<Long> nowcast = new ArrayList<>();
+        for (RadarManifest.RadarFrame f : manifest.getFuture()) {
+            nowcast.add(f.getTimestamp());
+        }
+
         pastTs    = Collections.unmodifiableList(past);
         nowcastTs = Collections.unmodifiableList(nowcast);
         List<Long> all = new ArrayList<>(past); all.addAll(nowcast);
         allTs     = Collections.unmodifiableList(all);
-        Log.d(TAG, "Manifest: " + past.size() + " past + " + nowcast.size() + " nowcast");
+        allFrames = manifest.getAllFrames();
+
+        Log.d(TAG, "Manifest: " + past.size() + " past + " + nowcast.size()
+                + " future (source=" + (activeRadarDef != null
+                ? activeRadarDef.getRadarSourceId() : "legacy") + ")");
     }
 
     // ── Frame display ─────────────────────────────────────────────────────────
@@ -336,7 +470,8 @@ public class RadarOverlayManager {
         GeoBounds bounds = mapView.getBounds();
         if (bounds == null) return;
 
-        int z    = RadarTileProvider.TILE_ZOOM;
+        // Use zoom from v2 definition if available, otherwise legacy default
+        int z = getEffectiveZoom();
         int xMin = RadarTileProvider.lonToTileX(bounds.getWest(),  z);
         int xMax = RadarTileProvider.lonToTileX(bounds.getEast(),  z);
         int yMin = RadarTileProvider.latToTileY(bounds.getNorth(), z);
@@ -361,10 +496,12 @@ public class RadarOverlayManager {
                     "\nL2 cache: %s  (%d tiles)",
                     diskCache.getCacheSizeLabel(), diskCache.getTileCount());
         }
+        String sourceLabel = activeRadarDef != null
+                ? activeRadarDef.getDisplayName() : "RainViewer (legacy)";
         final String diagText = String.format(Locale.US,
-                "z=%d  tiles=%d (%dx%d)  area=%.1f°×%.1f°\ncenter=%.4f°N %.4f°E%s",
+                "z=%d  tiles=%d (%dx%d)  area=%.1f\u00b0\u00d7%.1f\u00b0\ncenter=%.4f\u00b0N %.4f\u00b0E%s\nsource: %s",
                 z, nTiles, tileW, tileH, areaDegW, areaDegH, centreLat, centreLon,
-                cacheInfo);
+                cacheInfo, sourceLabel);
         notifyMain(() -> { if (listener != null) listener.onDiagnosticsUpdated(diagText); });
 
         final List<RadarOverlayView.Tile> ready   = new ArrayList<>();
@@ -396,9 +533,10 @@ public class RadarOverlayManager {
         }
 
         notifyMain(() -> { if (overlayView != null) overlayView.setTiles(ready); });
+        final int fz = z;
         for (int[] xy : missing) {
             final int fx = xy[0], fy = xy[1];
-            exec.submit(() -> downloadAndAdd(ts, z, fx, fy, ready));
+            exec.submit(() -> downloadAndAdd(ts, fz, fx, fy, index, ready));
         }
 
         final String label = getFrameLabel(index);
@@ -417,12 +555,17 @@ public class RadarOverlayManager {
                 overlayAlpha);
     }
 
-    private void downloadAndAdd(long ts, int z, int x, int y,
+    private void downloadAndAdd(long ts, int z, int x, int y, int frameIndex,
                                 List<RadarOverlayView.Tile> accumulator) {
         if (!active.get()) return;
+        if (!rateLimiter.tryAcquire()) {
+            Log.w(TAG, "Rate limit approaching, skipping tile [" + z + "/" + x + "/" + y + "]");
+            return;
+        }
         try {
+            String tileUrl = buildTileUrlForFrame(ts, z, x, y, frameIndex);
             HttpURLConnection conn = (HttpURLConnection)
-                    new URL(buildTileUrl(ts, z, x, y)).openConnection();
+                    new URL(tileUrl).openConnection();
             conn.setConnectTimeout(8_000);
             conn.setReadTimeout(12_000);
             conn.setRequestProperty("User-Agent", "ATAK-WeatherPlugin/3.0");
@@ -438,8 +581,16 @@ public class RadarOverlayManager {
                         diskCache.putTile(z, x, y, ts, bmp);    // L2 (async buffered)
                     }
 
-                    if (!active.get() || frameIdx.get() >= allTs.size()
-                            || ts != allTs.get(frameIdx.get())) return;
+                    if (!active.get()) return;
+                    // Check if user has moved to a different frame while downloading
+                    int currentIdx = frameIdx.get();
+                    boolean stale = (currentIdx >= 0 && currentIdx < allTs.size()
+                            && ts != allTs.get(currentIdx));
+                    if (stale) {
+                        // Tile cached (L1+L2) but don't render since frame changed.
+                        // Next time this frame is selected, it'll be served from cache.
+                        return;
+                    }
                     RadarOverlayView.Tile tile = makeTile(bmp, z, x, y);
                     notifyMain(() -> {
                         if (overlayView == null) return;
@@ -481,20 +632,81 @@ public class RadarOverlayManager {
     }
 
     /**
-     * Build a tile URL for the given timestamp and tile coordinates.
-     * Uses {@code tileUrlTemplate} if set, otherwise falls back to
-     * {@link RadarTileProvider#tileUrl(long, int, int, int)}.
+     * Get the effective tile zoom level for the active source.
+     * Uses {@code def.getDefaultZoom()} from the v2 definition if available,
+     * otherwise falls back to {@link RadarTileProvider#TILE_ZOOM}.
+     */
+    private int getEffectiveZoom() {
+        if (activeRadarDef != null && activeRadarDef.getDefaultZoom() > 0) {
+            return Math.min(activeRadarDef.getDefaultZoom(), getEffectiveMaxZoom());
+        }
+        return RadarTileProvider.TILE_ZOOM;
+    }
+
+    /**
+     * Get the effective max tile zoom for the active source.
+     */
+    private int getEffectiveMaxZoom() {
+        if (activeRadarDef != null && activeRadarDef.getMaxZoom() > 0) {
+            return activeRadarDef.getMaxZoom();
+        }
+        return RadarTileProvider.MAX_TILE_ZOOM;
+    }
+
+    /**
+     * Build a tile URL for the given frame index and tile coordinates.
+     *
+     * <p>If a v2 definition and parsed manifest are available, delegates to
+     * the active {@link IRadarManifestParser#buildTileUrl}. Otherwise falls
+     * back to the legacy template / {@link RadarTileProvider} approach.</p>
+     */
+    private String buildTileUrlForFrame(long ts, int z, int x, int y, int frameIndex) {
+        // Sprint 10: use manifest parser if available
+        if (manifestParser != null && currentManifest != null
+                && activeRadarDef != null
+                && frameIndex >= 0 && frameIndex < allFrames.size()) {
+            RadarManifest.RadarFrame frame = allFrames.get(frameIndex);
+            return manifestParser.buildTileUrl(currentManifest, frame, activeRadarDef, z, x, y);
+        }
+
+        // Legacy fallback
+        return buildTileUrlLegacy(ts, z, x, y);
+    }
+
+    /**
+     * Legacy tile URL builder — uses tileUrlTemplate if set, otherwise
+     * falls back to {@link RadarTileProvider#tileUrl(long, int, int, int)}.
      *
      * Template placeholders: {@code {timestamp} {size} {z} {x} {y}}
      */
-    private String buildTileUrl(long ts, int z, int x, int y) {
+    private String buildTileUrlLegacy(long ts, int z, int x, int y) {
         if (tileUrlTemplate != null && !tileUrlTemplate.isEmpty()) {
+            // Resolve host and path from manifest if available
+            String host = currentManifest != null && currentManifest.getHost() != null
+                    ? currentManifest.getHost() : "https://tilecache.rainviewer.com";
+            String path = "";
+            // Find matching frame path by timestamp
+            for (RadarManifest.RadarFrame f : allFrames) {
+                if (f.getTimestamp() == ts) { path = f.getPath() != null ? f.getPath() : ""; break; }
+            }
             return tileUrlTemplate
+                    .replace("{host}",      host)
+                    .replace("{path}",      path)
                     .replace("{timestamp}", String.valueOf(ts))
                     .replace("{z}",         String.valueOf(z))
                     .replace("{x}",         String.valueOf(x))
                     .replace("{y}",         String.valueOf(y))
-                    .replace("{size}",      "256");
+                    .replace("{size}",      "256")
+                    .replace("{color}",     "2")
+                    .replace("{options}",   "1_1");
+        }
+        // Absolute fallback — use path-based URL if manifest has frame paths
+        for (RadarManifest.RadarFrame f : allFrames) {
+            if (f.getTimestamp() == ts && f.getPath() != null && !f.getPath().isEmpty()) {
+                String host = currentManifest != null && currentManifest.getHost() != null
+                        ? currentManifest.getHost() : "https://tilecache.rainviewer.com";
+                return RadarTileProvider.tileUrl(host, f.getPath(), z, x, y);
+            }
         }
         return RadarTileProvider.tileUrl(ts, z, x, y);
     }

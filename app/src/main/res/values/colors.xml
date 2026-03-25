@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    colors.xml — Theme colour definitions (Sprint 13 — S13.3)
+
+    Three theme palettes: Dark (default), Light, NVG.
+    Referenced by ThemeManager.java and layout XML.
+-->
+<resources>
+
+    <!-- ══ Dark Theme (default) ═══════════════════════════════════════════ -->
+    <color name="theme_dark_bg">#0d1117</color>
+    <color name="theme_dark_surface">#161b22</color>
+    <color name="theme_dark_text">#c9d1d9</color>
+    <color name="theme_dark_muted">#8b949e</color>
+    <color name="theme_dark_accent">#58a6ff</color>
+    <color name="theme_dark_green">#3fb950</color>
+    <color name="theme_dark_amber">#d29922</color>
+    <color name="theme_dark_red">#f85149</color>
+    <color name="theme_dark_border">#30363d</color>
+
+    <!-- ══ Light Theme ════════════════════════════════════════════════════ -->
+    <color name="theme_light_bg">#ffffff</color>
+    <color name="theme_light_surface">#f6f8fa</color>
+    <color name="theme_light_text">#24292f</color>
+    <color name="theme_light_muted">#57606a</color>
+    <color name="theme_light_accent">#0969da</color>
+    <color name="theme_light_green">#1a7f37</color>
+    <color name="theme_light_amber">#9a6700</color>
+    <color name="theme_light_red">#cf222e</color>
+    <color name="theme_light_border">#d0d7de</color>
+
+    <!-- ══ NVG Theme (Night Vision Goggle — green-on-black) ═══════════════ -->
+    <color name="theme_nvg_bg">#000000</color>
+    <color name="theme_nvg_surface">#001100</color>
+    <color name="theme_nvg_text">#00ff00</color>
+    <color name="theme_nvg_muted">#009900</color>
+    <color name="theme_nvg_accent">#00cc00</color>
+    <color name="theme_nvg_green">#00ff00</color>
+    <color name="theme_nvg_amber">#88cc00</color>
+    <color name="theme_nvg_red">#ff3300</color>
+    <color name="theme_nvg_border">#003300</color>
+
+    <!-- ══ Staleness badge colours ════════════════════════════════════════ -->
+    <color name="staleness_fresh">#3fb950</color>
+    <color name="staleness_aging">#d29922</color>
+    <color name="staleness_stale">#f85149</color>
+
+    <!-- ══ Offline badge ══════════════════════════════════════════════════ -->
+    <color name="offline_badge_color">#f85149</color>
+
+</resources>

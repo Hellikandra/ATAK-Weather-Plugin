@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    item_source_entry.xml — Sprint 8.5: Single source row inside the source list.
+
+    Inflated programmatically by SourceManagerView.createSourceEntry().
+    Background highlights the active source.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical"
+  android:padding="10dp"
+  android:layout_marginBottom="4dp"
+  android:background="@drawable/image_view_bg">
+
+  <!-- ── Top row: status dot + name/description + toggle ────────────── -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical">
+
+    <!-- Status indicator (coloured programmatically) -->
+    <View
+      android:id="@+id/status_dot"
+      android:layout_width="10dp"
+      android:layout_height="10dp"
+      android:layout_marginEnd="8dp"
+      android:background="#888888"/>
+
+    <!-- Name + short description -->
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:orientation="vertical">
+
+      <TextView
+        android:id="@+id/source_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="#c9d1d9"/>
+
+      <TextView
+        android:id="@+id/source_description"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textColor="#8b949e"
+        android:maxLines="2"
+        android:ellipsize="end"/>
+
+    </LinearLayout>
+
+    <!-- Enable / disable toggle -->
+    <Switch
+      android:id="@+id/source_toggle"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"/>
+
+  </LinearLayout>
+
+  <!-- ── Metadata row ───────────────────────────────────────────────── -->
+  <TextView
+    android:id="@+id/source_metadata"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:textSize="10sp"
+    android:textColor="#8b949e"
+    android:layout_marginTop="4dp"
+    android:visibility="gone"/>
+
+  <!-- ── API key row (visible only when auth is required) ───────────── -->
+  <LinearLayout
+    android:id="@+id/api_key_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginTop="6dp"
+    android:visibility="gone">
+
+    <EditText
+      android:id="@+id/api_key_input"
+      android:layout_width="0dp"
+      android:layout_height="36dp"
+      android:layout_weight="1"
+      android:hint="@string/src_mgr_api_key_hint"
+      android:textSize="11sp"
+      android:textColor="#c9d1d9"
+      android:textColorHint="#555555"
+      android:inputType="textPassword"
+      android:background="@drawable/image_view_bg"
+      android:paddingStart="8dp"
+      android:paddingEnd="8dp"
+      android:singleLine="true"/>
+
+    <Button
+      android:id="@+id/btn_save_key"
+      style="@style/darkButton"
+      android:layout_width="wrap_content"
+      android:layout_height="36dp"
+      android:minWidth="56dp"
+      android:text="@string/src_mgr_save_key"
+      android:textSize="10sp"
+      android:layout_marginStart="4dp"/>
+
+  </LinearLayout>
+
+  <!-- ── Action row: Test + Info + result label ─────────────────────── -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:layout_marginTop="6dp">
+
+    <Button
+      android:id="@+id/btn_test_source"
+      style="@style/darkButton"
+      android:layout_width="wrap_content"
+      android:layout_height="32dp"
+      android:minWidth="56dp"
+      android:text="@string/src_mgr_test"
+      android:textSize="10sp"
+      android:layout_marginEnd="4dp"/>
+
+    <Button
+      android:id="@+id/btn_source_info"
+      style="@style/darkButton"
+      android:layout_width="wrap_content"
+      android:layout_height="32dp"
+      android:minWidth="56dp"
+      android:text="@string/src_mgr_info"
+      android:textSize="10sp"
+      android:layout_marginEnd="8dp"/>
+
+    <TextView
+      android:id="@+id/test_result"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:textSize="10sp"
+      android:textColor="#8b949e"
+      android:visibility="gone"/>
+
+  </LinearLayout>
+
+</LinearLayout>

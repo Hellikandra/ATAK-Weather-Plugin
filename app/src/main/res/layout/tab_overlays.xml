@@ -1,0 +1,721 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    tab_overlays.xml — Sprint 16+: Overlays View
+
+    Sub-tab pill navigation at top (Radar | Heatmap | Aviation | CBRN).
+    FrameLayout below holds 4 sub-panels; only one visible at a time.
+    Managed by OverlayTabCoordinator.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical">
+
+    <!-- ── Sub-tab pill row ────────────────────────────────────────────── -->
+    <HorizontalScrollView
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:scrollbars="none"
+      android:layout_marginBottom="4dp">
+
+      <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="4dp">
+
+        <Button android:id="@+id/pill_radar"
+          style="@style/darkButton"
+          android:layout_width="wrap_content" android:layout_height="32dp"
+          android:text="Radar" android:textSize="11sp" android:textAllCaps="false"
+          android:paddingStart="12dp" android:paddingEnd="12dp"
+          android:minWidth="0dp" android:minHeight="0dp"
+          android:layout_marginEnd="4dp"/>
+
+        <Button android:id="@+id/pill_heatmap"
+          style="@style/darkButton"
+          android:layout_width="wrap_content" android:layout_height="32dp"
+          android:text="Heatmap" android:textSize="11sp" android:textAllCaps="false"
+          android:paddingStart="12dp" android:paddingEnd="12dp"
+          android:minWidth="0dp" android:minHeight="0dp"
+          android:layout_marginEnd="4dp"/>
+
+        <Button android:id="@+id/pill_aviation"
+          style="@style/darkButton"
+          android:layout_width="wrap_content" android:layout_height="32dp"
+          android:text="Aviation" android:textSize="11sp" android:textAllCaps="false"
+          android:paddingStart="12dp" android:paddingEnd="12dp"
+          android:minWidth="0dp" android:minHeight="0dp"
+          android:layout_marginEnd="4dp"/>
+
+        <Button android:id="@+id/pill_cbrn"
+          style="@style/darkButton"
+          android:layout_width="wrap_content" android:layout_height="32dp"
+          android:text="CBRN" android:textSize="11sp" android:textAllCaps="false"
+          android:paddingStart="12dp" android:paddingEnd="12dp"
+          android:minWidth="0dp" android:minHeight="0dp"/>
+
+      </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- ── Panel container (only one panel visible at a time) ──────────── -->
+    <FrameLayout
+      android:layout_width="match_parent"
+      android:layout_height="match_parent">
+
+      <!-- ════════════════════════════════════════════════════════════════
+           RADAR PANEL
+           ════════════════════════════════════════════════════════════════ -->
+      <ScrollView
+        android:id="@+id/overlay_radar_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible">
+
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:padding="8dp">
+
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Radar Overlay" android:textSize="12sp" android:textStyle="bold"
+            android:layout_marginBottom="6dp"/>
+
+          <!-- Source spinner -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="Source" android:textSize="10sp" android:alpha="0.85"
+              android:layout_marginEnd="6dp"/>
+            <Spinner android:id="@+id/overlay_radar_source"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:minHeight="44dp"
+              android:spinnerMode="dropdown"/>
+            <Button android:id="@+id/overlay_radar_refresh_src"
+              style="@style/darkButton"
+              android:layout_width="40dp" android:layout_height="40dp"
+              android:text="\u27F3" android:textSize="16sp" android:padding="0dp"
+              android:layout_marginStart="4dp"/>
+          </LinearLayout>
+
+          <!-- Show/Hide toggle -->
+          <CheckBox android:id="@+id/overlay_radar_toggle"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Show Radar" android:textSize="11sp"
+            android:layout_marginBottom="6dp"/>
+
+          <!-- Opacity -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Opacity" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_radar_opacity_label"
+              android:layout_width="40dp" android:layout_height="wrap_content"
+              android:text="80%" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_radar_opacity"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="100" android:progress="80" android:layout_marginBottom="6dp"/>
+
+          <!-- Frame scrubber -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Frame" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_radar_time"
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="\u2014" android:textSize="10sp" android:textStyle="bold"
+              android:fontFamily="monospace"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_radar_frame"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="0" android:progress="0" android:layout_marginBottom="8dp"/>
+
+          <!-- Playback -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="8dp">
+            <Button android:id="@+id/overlay_radar_play" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+              android:text="\u25B6 Play" android:textSize="11sp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/overlay_radar_stop" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+              android:text="\u25A0 Stop" android:textSize="11sp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/overlay_radar_step" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+              android:text="\u25B6\u25B6 Step" android:textSize="11sp"/>
+          </LinearLayout>
+
+          <!-- Status -->
+          <TextView android:id="@+id/overlay_radar_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Idle" android:textSize="10sp" android:textStyle="italic"
+            android:alpha="0.7" android:fontFamily="monospace"
+            android:layout_marginBottom="4dp"/>
+
+          <!-- Data info: center GPS + cache/fetch indicator -->
+          <TextView android:id="@+id/overlay_radar_data_info"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="" android:textSize="9sp" android:fontFamily="monospace"
+            android:alpha="0.6" android:layout_marginBottom="2dp"/>
+
+        </LinearLayout>
+      </ScrollView>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           HEATMAP PANEL
+           ════════════════════════════════════════════════════════════════ -->
+      <ScrollView
+        android:id="@+id/overlay_heatmap_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:padding="8dp">
+
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Heatmap Overlay" android:textSize="12sp" android:textStyle="bold"
+            android:layout_marginBottom="6dp"/>
+
+          <!-- Show/Hide toggle + Refetch + cache badge -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <CheckBox android:id="@+id/overlay_heatmap_toggle"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Show Heatmap" android:textSize="11sp"/>
+            <Button android:id="@+id/overlay_heatmap_refetch" style="@style/darkButton"
+              android:layout_width="wrap_content" android:layout_height="32dp"
+              android:text="\u27F3 Fetch" android:textSize="10sp"
+              android:paddingStart="8dp" android:paddingEnd="8dp"
+              android:layout_marginEnd="6dp"/>
+            <TextView android:id="@+id/overlay_heatmap_cache_badge"
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="" android:textSize="9sp" android:textColor="#FFCC44"
+              android:textStyle="italic" android:visibility="gone"/>
+          </LinearLayout>
+
+          <!-- Parameter spinner -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="Parameter" android:textSize="10sp" android:alpha="0.85"
+              android:layout_marginEnd="6dp"/>
+            <Spinner android:id="@+id/overlay_heatmap_param"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:minHeight="44dp"
+              android:spinnerMode="dropdown"/>
+          </LinearLayout>
+
+          <!-- Wind arrow config (visible only for Wind Speed parameter) -->
+          <LinearLayout android:id="@+id/overlay_wind_arrow_config"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone"
+            android:layout_marginBottom="4dp">
+
+            <!-- Show/Hide wind arrows checkbox -->
+            <CheckBox android:id="@+id/overlay_wind_arrow_toggle"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:text="Show Wind Arrows" android:textSize="10sp"
+              android:checked="true" android:layout_marginBottom="2dp"/>
+
+            <!-- Grid density -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical"
+              android:layout_marginBottom="2dp">
+              <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Grid" android:textSize="10sp"/>
+              <TextView android:id="@+id/overlay_arrow_grid_label"
+                android:layout_width="30dp" android:layout_height="wrap_content"
+                android:text="8" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+            </LinearLayout>
+            <SeekBar android:id="@+id/overlay_arrow_grid"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:max="13" android:progress="5" android:layout_marginBottom="4dp"/>
+
+            <!-- Arrow size -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical"
+              android:layout_marginBottom="2dp">
+              <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1" android:text="Size" android:textSize="10sp"/>
+              <TextView android:id="@+id/overlay_arrow_size_label"
+                android:layout_width="40dp" android:layout_height="wrap_content"
+                android:text="18dp" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+            </LinearLayout>
+            <SeekBar android:id="@+id/overlay_arrow_size"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:max="32" android:progress="10" android:layout_marginBottom="4dp"/>
+
+            <!-- Style selector -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical"
+              android:layout_marginBottom="4dp">
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Style" android:textSize="10sp" android:alpha="0.85"
+                android:layout_marginEnd="4dp"/>
+              <Button android:id="@+id/overlay_arrow_style_arrow" style="@style/darkButton"
+                android:layout_width="0dp" android:layout_height="28dp" android:layout_weight="1"
+                android:text="Arrow" android:textSize="9sp" android:layout_marginEnd="2dp"/>
+              <Button android:id="@+id/overlay_arrow_style_barb" style="@style/darkButton"
+                android:layout_width="0dp" android:layout_height="28dp" android:layout_weight="1"
+                android:text="Barb" android:textSize="9sp" android:layout_marginEnd="2dp"/>
+              <Button android:id="@+id/overlay_arrow_style_chevron" style="@style/darkButton"
+                android:layout_width="0dp" android:layout_height="28dp" android:layout_weight="1"
+                android:text="Chevron" android:textSize="9sp" android:layout_marginEnd="2dp"/>
+              <Button android:id="@+id/overlay_arrow_style_dot" style="@style/darkButton"
+                android:layout_width="0dp" android:layout_height="28dp" android:layout_weight="1"
+                android:text="Dot" android:textSize="9sp"/>
+            </LinearLayout>
+
+            <!-- Particle flow toggle (Windy.com style) -->
+            <CheckBox android:id="@+id/overlay_wind_particle_toggle"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:text="Particle Flow (Windy style)" android:textSize="10sp"
+              android:layout_marginBottom="2dp"/>
+
+            <!-- Particle config (visible when particle flow enabled) -->
+            <LinearLayout android:id="@+id/overlay_particle_config"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="vertical" android:visibility="gone">
+
+              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Particles" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_count_label"
+                  android:layout_width="50dp" android:layout_height="wrap_content"
+                  android:text="3000" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_count"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="19" android:progress="5" android:layout_marginBottom="4dp"/>
+
+              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Speed" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_speed_label"
+                  android:layout_width="40dp" android:layout_height="wrap_content"
+                  android:text="1.0x" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_speed"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="18" android:progress="8" android:layout_marginBottom="4dp"/>
+
+              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Trail" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_trail_label"
+                  android:layout_width="40dp" android:layout_height="wrap_content"
+                  android:text="80" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_trail"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="18" android:progress="6" android:layout_marginBottom="4dp"/>
+
+              <!-- Intensity (alpha) -->
+              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Intensity" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_intensity_label"
+                  android:layout_width="40dp" android:layout_height="wrap_content"
+                  android:text="100%" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_intensity"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="100" android:progress="100" android:layout_marginBottom="4dp"/>
+
+              <!-- Saturation -->
+              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Saturation" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_saturation_label"
+                  android:layout_width="40dp" android:layout_height="wrap_content"
+                  android:text="100%" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_saturation"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="100" android:progress="100" android:layout_marginBottom="4dp"/>
+
+              <!-- Brightness -->
+              <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Brightness" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_brightness_label"
+                  android:layout_width="40dp" android:layout_height="wrap_content"
+                  android:text="100%" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_brightness"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="150" android:progress="100" android:layout_marginBottom="4dp"/>
+            </LinearLayout>
+          </LinearLayout>
+
+          <!-- Color legend bar -->
+          <FrameLayout android:id="@+id/overlay_heatmap_legend_frame"
+            android:layout_width="match_parent" android:layout_height="40dp"
+            android:layout_marginBottom="6dp"/>
+
+          <!-- Opacity -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Opacity" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_heatmap_opacity_label"
+              android:layout_width="40dp" android:layout_height="wrap_content"
+              android:text="60%" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_heatmap_opacity"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="100" android:progress="60" android:layout_marginBottom="6dp"/>
+
+          <!-- Time scrubber -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Time" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_heatmap_time_label"
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="\u2014" android:textSize="10sp" android:textStyle="bold"
+              android:fontFamily="monospace"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_heatmap_time"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="47" android:progress="0" android:layout_marginBottom="8dp"/>
+
+          <!-- Playback controls (same as Radar) -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="8dp">
+            <Button android:id="@+id/overlay_heatmap_play" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+              android:text="\u25B6 Play" android:textSize="11sp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/overlay_heatmap_stop" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+              android:text="\u25A0 Stop" android:textSize="11sp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/overlay_heatmap_step" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="40dp" android:layout_weight="1"
+              android:text="\u25B6\u25B6 Step" android:textSize="11sp"/>
+          </LinearLayout>
+
+          <!-- Grid info / status -->
+          <TextView android:id="@+id/overlay_heatmap_grid_info"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Grid: not loaded" android:textSize="10sp"
+            android:fontFamily="monospace" android:alpha="0.7"
+            android:layout_marginBottom="2dp"/>
+
+          <!-- Data info: center GPS + cache/fetch indicator -->
+          <TextView android:id="@+id/overlay_heatmap_data_info"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="" android:textSize="9sp" android:fontFamily="monospace"
+            android:alpha="0.6" android:layout_marginBottom="4dp"/>
+
+        </LinearLayout>
+      </ScrollView>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           AVIATION PANEL
+           ════════════════════════════════════════════════════════════════ -->
+      <ScrollView
+        android:id="@+id/overlay_aviation_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:padding="8dp">
+
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Aviation Overlays" android:textSize="12sp" android:textStyle="bold"
+            android:layout_marginBottom="8dp"/>
+
+          <!-- ── SIGMETs ──────────────────────────────────────────── -->
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="SIGMETs (Significant Meteorological Info)" android:textSize="11sp"
+            android:textStyle="bold" android:layout_marginBottom="2dp"/>
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Hazardous weather polygons from FAA AWC: turbulence, icing, convection, volcanic ash."
+            android:textSize="9sp" android:alpha="0.65" android:layout_marginBottom="4dp"/>
+
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <CheckBox android:id="@+id/overlay_sigmet_toggle"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Show SIGMETs" android:textSize="11sp"/>
+            <Button android:id="@+id/overlay_sigmet_refresh" style="@style/darkButton"
+              android:layout_width="72dp" android:layout_height="36dp"
+              android:text="Refresh" android:textSize="11sp"/>
+          </LinearLayout>
+
+          <TextView android:id="@+id/overlay_sigmet_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Off" android:textSize="10sp" android:alpha="0.7"
+            android:layout_marginBottom="4dp"/>
+
+          <!-- SIGMET opacity -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Opacity" android:textSize="10sp"/>
+            <TextView android:id="@+id/overlay_sigmet_opacity_label"
+              android:layout_width="40dp" android:layout_height="wrap_content"
+              android:text="60%" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_sigmet_opacity"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="100" android:progress="60" android:layout_marginBottom="12dp"/>
+
+          <!-- Divider -->
+          <View
+            android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#33FFFFFF" android:layout_marginBottom="12dp"/>
+
+          <!-- ── Lightning ────────────────────────────────────────── -->
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Lightning" android:textSize="11sp" android:textStyle="bold"
+            android:layout_marginBottom="2dp"/>
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Real-time lightning strikes via Blitzortung. Age-colored markers (yellow=new, orange=old). 30 min TTL."
+            android:textSize="9sp" android:alpha="0.65" android:layout_marginBottom="4dp"/>
+
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <CheckBox android:id="@+id/overlay_lightning_toggle"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Show Lightning" android:textSize="11sp"/>
+          </LinearLayout>
+
+          <!-- Radius + Altitude in one row -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="Radius" android:textSize="10sp" android:alpha="0.85"
+              android:layout_marginEnd="4dp"/>
+            <Spinner android:id="@+id/overlay_lightning_radius"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:minHeight="44dp"
+              android:spinnerMode="dropdown"/>
+          </LinearLayout>
+
+          <!-- Altitude filter -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Min altitude" android:textSize="10sp"/>
+            <TextView android:id="@+id/overlay_lightning_alt_min_label"
+              android:layout_width="50dp" android:layout_height="wrap_content"
+              android:text="0 m" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_lightning_alt_min"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="20" android:progress="0" android:layout_marginBottom="4dp"/>
+
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Max altitude" android:textSize="10sp"/>
+            <TextView android:id="@+id/overlay_lightning_alt_max_label"
+              android:layout_width="50dp" android:layout_height="wrap_content"
+              android:text="20 km" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_lightning_alt_max"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="20" android:progress="20" android:layout_marginBottom="4dp"/>
+
+          <TextView android:id="@+id/overlay_lightning_count"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Strikes: --" android:textSize="10sp" android:alpha="0.7"
+            android:layout_marginBottom="4dp"/>
+
+          <TextView android:id="@+id/overlay_lightning_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Off" android:textSize="10sp" android:alpha="0.7"
+            android:layout_marginBottom="4dp"/>
+
+        </LinearLayout>
+      </ScrollView>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           CBRN PANEL
+           ════════════════════════════════════════════════════════════════ -->
+      <ScrollView
+        android:id="@+id/overlay_cbrn_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:padding="8dp">
+
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="CBRN Dispersion Estimate" android:textSize="12sp"
+            android:textStyle="bold" android:layout_marginBottom="4dp"/>
+
+          <!-- Warning -->
+          <TextView android:id="@+id/overlay_cbrn_warning"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="\u26A0 ESTIMATE ONLY \u2014 not ATP-45/HPAC"
+            android:textColor="#FFf85149" android:textSize="10sp"
+            android:layout_marginBottom="4dp"/>
+
+          <!-- Help description -->
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Gaussian plume model using current wind + atmospheric stability.\n\u2022 Red cone = high concentration (1\u03C3)\n\u2022 Yellow cone = low concentration (2\u03C3)\n\u2022 White arrow = wind direction\n\nTap \u201CPlace Release Point\u201D then tap the map at the CBRN event location."
+            android:textSize="9sp" android:alpha="0.65"
+            android:layout_marginBottom="8dp"/>
+
+          <!-- Distance selector -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="Downwind range" android:textSize="10sp" android:alpha="0.85"
+              android:layout_marginEnd="6dp"/>
+            <Spinner android:id="@+id/overlay_cbrn_distance"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:minHeight="44dp"
+              android:spinnerMode="dropdown"/>
+          </LinearLayout>
+
+          <!-- Stability + Wind readouts -->
+          <TextView android:id="@+id/overlay_cbrn_stability"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Stability class: --" android:textSize="10sp" android:alpha="0.7"
+            android:fontFamily="monospace" android:layout_marginBottom="2dp"/>
+
+          <TextView android:id="@+id/overlay_cbrn_wind"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Wind: --" android:textSize="10sp" android:alpha="0.7"
+            android:fontFamily="monospace" android:layout_marginBottom="8dp"/>
+
+          <!-- Plume mode toggle -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="Plume shape" android:textSize="10sp" android:alpha="0.85"
+              android:layout_marginEnd="6dp"/>
+            <Button android:id="@+id/overlay_cbrn_mode_straight" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="32dp" android:layout_weight="1"
+              android:text="Straight" android:textSize="10sp" android:layout_marginEnd="3dp"/>
+            <Button android:id="@+id/overlay_cbrn_mode_curved" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="32dp" android:layout_weight="1"
+              android:text="Curved (wind)" android:textSize="10sp"/>
+          </LinearLayout>
+
+          <!-- NBC-1 report toggle -->
+          <CheckBox android:id="@+id/overlay_cbrn_nbc1_toggle"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Show NBC-1 Report on map" android:textSize="10sp"
+            android:checked="true" android:layout_marginBottom="6dp"/>
+
+          <!-- Action buttons -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="4dp">
+            <Button android:id="@+id/overlay_cbrn_place" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+              android:text="Place Release Point" android:textSize="11sp"
+              android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/overlay_cbrn_clear" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1"
+              android:text="Clear" android:textSize="11sp"/>
+          </LinearLayout>
+
+          <TextView android:id="@+id/overlay_cbrn_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="" android:textSize="10sp" android:alpha="0.7"
+            android:fontFamily="monospace" android:layout_marginBottom="8dp"/>
+
+          <!-- Time evolution seekbar -->
+          <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#33FFFFFF" android:layout_marginBottom="8dp"/>
+
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Time Evolution" android:textSize="11sp" android:textStyle="bold"
+            android:layout_marginBottom="2dp"/>
+          <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Scrub to see how the plume shifts as wind changes over time. Requires forecast data."
+            android:textSize="9sp" android:alpha="0.65" android:layout_marginBottom="4dp"/>
+
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Hour" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_cbrn_time_label"
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="Now" android:textSize="10sp" android:textStyle="bold"
+              android:fontFamily="monospace"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_cbrn_time"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="47" android:progress="0"
+            android:layout_marginBottom="4dp"/>
+
+        </LinearLayout>
+      </ScrollView>
+
+    </FrameLayout>
+</LinearLayout>

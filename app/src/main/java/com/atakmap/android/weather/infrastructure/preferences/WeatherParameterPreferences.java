@@ -38,10 +38,11 @@ import java.util.Set;
  */
 public class WeatherParameterPreferences {
 
-    private static final String PREFS_NAME  = "weather_parameters";
-    private static final String KEY_HOURLY  = "selected_hourly";
-    private static final String KEY_DAILY   = "selected_daily";
-    private static final String KEY_CURRENT = "selected_current";
+    // Preference keys — delegated to WeatherConstants (S2.1)
+    private static final String PREFS_NAME  = com.atakmap.android.weather.util.WeatherConstants.PREF_PARAMETERS;
+    private static final String KEY_HOURLY  = com.atakmap.android.weather.util.WeatherConstants.KEY_HOURLY;
+    private static final String KEY_DAILY   = com.atakmap.android.weather.util.WeatherConstants.KEY_DAILY;
+    private static final String KEY_CURRENT = com.atakmap.android.weather.util.WeatherConstants.KEY_CURRENT;
 
     // ── Change notification ───────────────────────────────────────────────────
 

@@ -19,6 +19,39 @@
     android:orientation="vertical"
     android:padding="6dp">
 
+    <!-- ── Alert banner (Sprint 5 — S5.4) ─────────────────────────── -->
+    <!-- Visible only when WeatherAlertService detects threshold breaches -->
+    <LinearLayout
+      android:id="@+id/alert_banner"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:background="#44FF3333"
+      android:padding="6dp"
+      android:layout_marginBottom="4dp"
+      android:visibility="gone">
+
+      <TextView
+        android:id="@+id/textview_alert_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="#FFFF4444"/>
+
+      <TextView
+        android:id="@+id/textview_alert_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textSize="10sp"
+        android:textColor="#FFDDDDDD"
+        android:maxLines="3"
+        android:ellipsize="end"/>
+
+    </LinearLayout>
+
     <!-- ── Refresh button ─────────────────────────────────────────── -->
     <ImageButton
       android:id="@+id/imageButton"
@@ -268,6 +301,81 @@
         android:background="#1AFFFFFF"
         android:padding="6dp"/>
 
+    </LinearLayout>
+
+    <!-- ── Derived Conditions card (Sprint 4 — S4.3) ────────────── -->
+    <!-- Shows computed analytics: feels-like, dew point, Beaufort, flight cat -->
+    <LinearLayout
+      android:id="@+id/derived_card"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:background="@drawable/image_view_bg"
+      android:padding="8dp"
+      android:layout_marginTop="8dp"
+      android:layout_marginBottom="4dp"
+      android:visibility="gone">
+
+      <!-- Header -->
+      <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Derived Conditions"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="4dp"/>
+
+      <TableLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:stretchColumns="1">
+
+        <!-- Feels Like -->
+        <TableRow>
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Feels like" android:textStyle="bold" android:textSize="11sp" android:paddingEnd="8dp"/>
+          <TextView android:id="@+id/textview_derived_feels_like"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="—" android:textSize="11sp"/>
+        </TableRow>
+
+        <!-- Dew Point -->
+        <TableRow>
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Dew point" android:textStyle="bold" android:textSize="11sp" android:paddingEnd="8dp"/>
+          <TextView android:id="@+id/textview_derived_dew_point"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="—" android:textSize="11sp"/>
+        </TableRow>
+
+        <!-- Beaufort -->
+        <TableRow>
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Beaufort" android:textStyle="bold" android:textSize="11sp" android:paddingEnd="8dp"/>
+          <TextView android:id="@+id/textview_derived_beaufort"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="—" android:textSize="11sp"/>
+        </TableRow>
+
+        <!-- Flight Category (visibility-based when no METAR) -->
+        <TableRow>
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Flt Cat" android:textStyle="bold" android:textSize="11sp" android:paddingEnd="8dp"/>
+          <TextView android:id="@+id/textview_derived_flt_cat"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="—" android:textSize="11sp"/>
+        </TableRow>
+
+        <!-- Tactical Condition -->
+        <TableRow>
+          <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="Condition" android:textStyle="bold" android:textSize="11sp" android:paddingEnd="8dp"/>
+          <TextView android:id="@+id/textview_derived_condition"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="—" android:textSize="11sp"/>
+        </TableRow>
+
+      </TableLayout>
     </LinearLayout>
 
     <!-- ── Hourly SeekBar with time label (#2) ────────────────────── -->

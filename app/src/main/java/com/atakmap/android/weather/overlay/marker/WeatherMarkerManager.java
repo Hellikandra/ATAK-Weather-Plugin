@@ -11,6 +11,7 @@ import com.atakmap.android.weather.overlay.WeatherMenuFactory;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.overlay.WeatherMapOverlay;
+import com.atakmap.android.weather.util.WeatherUnitConverter;
 import com.atakmap.android.weather.util.WmoCodeMapper;
 import com.atakmap.coremap.log.Log;
 import com.atakmap.coremap.maps.coords.GeoPoint;
@@ -65,13 +66,14 @@ import java.util.Locale;
 public class WeatherMarkerManager {
 
     private static final String TAG      = "WeatherMarkerManager";
-    private static final String UID_SELF = "wx_self";
+    private static final String UID_SELF = com.atakmap.android.weather.util.WeatherConstants.UID_WX_SELF;
 
     /**
      * CoT type for weather observation markers.
      * Declared public so WeatherMapComponent can register the radial menu for this type.
+     * Delegates to {@link com.atakmap.android.weather.util.WeatherConstants#COT_WEATHER_OBS}.
      */
-    public static final String MARKER_TYPE = "a-n-G-E-V-c";
+    public static final String MARKER_TYPE = com.atakmap.android.weather.util.WeatherConstants.COT_WEATHER_OBS;
 
     /**
      * Radial menu is provided by WeatherMenuFactory (registered via
@@ -127,6 +129,22 @@ public class WeatherMarkerManager {
         });
     }
 
+    /**
+     * Return the number of weather markers currently in the overlay group.
+     * Must be called on the main thread (or accept a slightly stale count
+     * if called from a background thread — MapGroup.getItemCount() is
+     * synchronized internally).
+     */
+    public int getMarkerCount() {
+        final MapGroup group = overlay.getWeatherGroup();
+        return group != null ? group.getItemCount() : 0;
+    }
+
+    /** Expose the underlying MapGroup for marker list iteration. */
+    public MapGroup getMapGroup() {
+        return overlay.getWeatherGroup();
+    }
+
     // ── Private ───────────────────────────────────────────────────────────────
 
     private void doPlaceMarker(final LocationSnapshot snapshot,
@@ -160,23 +178,24 @@ public class WeatherMarkerManager {
         }
 
         // ── Configure the marker ──────────────────────────────────────────────
+        // Use WeatherConstants for all meta-string keys (S2.1)
         marker.setType(MARKER_TYPE);
         marker.setTitle(buildCallsign(snapshot, weather));
-        marker.setMetaString("callsign",      buildCallsign(snapshot, weather));
-        marker.setMetaString("how",           "m-g");
-        marker.setMetaString("detail",        buildDetail(snapshot, weather));
-        marker.setMetaString("wx_source",     snapshot.getSource().name());
-        marker.setMetaString("wx_timestamp",  weather.getRequestTimestamp());
-        marker.setMetaString("wx_temp_max",   String.valueOf(weather.getTemperatureMax()));
-        marker.setMetaString("wx_temp_min",   String.valueOf(weather.getTemperatureMin()));
-        marker.setMetaString("wx_humidity",   String.valueOf(weather.getHumidity()));
-        marker.setMetaString("wx_wind_speed", String.valueOf(weather.getWindSpeed()));
-        marker.setMetaString("wx_wind_dir",   String.valueOf(weather.getWindDirection()));
-        marker.setMetaString("wx_pressure",   String.valueOf(weather.getPressure()));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_CALLSIGN,      buildCallsign(snapshot, weather));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_HOW,            com.atakmap.android.weather.util.WeatherConstants.HOW_MACHINE_GENERATED);
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_DETAIL,         buildDetail(snapshot, weather));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_SOURCE,      snapshot.getSource().name());
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_TIMESTAMP,   weather.getRequestTimestamp());
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_TEMP_MAX,    String.valueOf(weather.getTemperatureMax()));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_TEMP_MIN,    String.valueOf(weather.getTemperatureMin()));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_HUMIDITY,    String.valueOf(weather.getHumidity()));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_WIND_SPEED,  String.valueOf(weather.getWindSpeed()));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_WIND_DIR,    String.valueOf(weather.getWindDirection()));
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_PRESSURE,    String.valueOf(weather.getPressure()));
         // AWC METAR-specific (empty strings for Open-Meteo source — harmless)
-        marker.setMetaString("wx_icao_id",    weather.getIcaoId());
-        marker.setMetaString("wx_flt_cat",    weather.getFlightCategory());
-        marker.setMetaString("wx_raw_metar",  weather.getRawMetar());
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_ICAO_ID,     weather.getIcaoId());
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_FLT_CAT,     weather.getFlightCategory());
+        marker.setMetaString(com.atakmap.android.weather.util.WeatherConstants.META_WX_RAW_METAR,   weather.getRawMetar());
 
         // Radial menu is provided by WeatherMenuFactory registered in
         // WeatherMapComponent.onCreate(). No per-marker setup needed.
@@ -184,13 +203,17 @@ public class WeatherMarkerManager {
         marker.setClickable(true);
         marker.setVisible(true);
 
-        // ── Set the WMO weather icon ──────────────────────────────────────────
+        // ── Set the WMO weather icon (day/night aware) ────────────────────────
         // adapt=false: ATAK must never replace this icon automatically when
         // the marker type changes. We manage the icon lifecycle ourselves.
-        final WmoCodeMapper.WmoInfo wmoInfo =
-                WmoCodeMapper.resolve(weather.getWeatherCode());
+        final WmoCodeMapper.WmoInfo wmoInfo = WmoCodeMapper.resolve(
+                weather.getWeatherCode(),
+                snapshot.getLatitude(), snapshot.getLongitude());
         try {
             IconUtilities.setIcon(pluginContext, marker, wmoInfo.drawableResId, false);
+            // Reduce marker icon size (32x32dp instead of default 48)
+            marker.setMetaInteger("iconWidth", 32);
+            marker.setMetaInteger("iconHeight", 32);
         } catch (Exception e) {
             Log.w(TAG, "setIcon failed, marker uses type-default icon: " + e.getMessage());
         }
@@ -219,24 +242,31 @@ public class WeatherMarkerManager {
     private String buildCallsign(final LocationSnapshot snapshot,
                                  final WeatherModel weather) {
         // For AWC METAR: "EBLG · IFR · WX"
-        // For Open-Meteo: "WX · Liège"
+        // For Open-Meteo: "WX · Liège" or "WX · 50.63N 5.57E"
         if (weather.isMetarSource()) {
             String cat = weather.getFlightCategory();
             String id  = weather.getIcaoId();
             return id + " \u00b7 " + (cat.isEmpty() ? "WX" : cat + " \u00b7 WX");
         }
-        return "WX \u00b7 " + snapshot.getDisplayName();
+        String name = snapshot.getDisplayName();
+        if (name == null || name.isEmpty() || "null".equals(name)) {
+            // Fallback to coordinates when no display name available
+            name = String.format(Locale.US, "%.2f\u00b0N %.2f\u00b0E",
+                    snapshot.getLatitude(), snapshot.getLongitude());
+        }
+        return "WX \u00b7 " + name;
     }
 
     private String buildDetail(final LocationSnapshot snapshot,
                                final WeatherModel weather) {
         // Compact one-liner shown in the map callout bubble on single tap
-        return String.format(Locale.getDefault(),
-                "\u2191%.0f\u00b0 \u2193%.0f\u00b0C  \ud83d\udca7%.0f%%  \ud83d\udca8%.1f m/s  %s",
-                weather.getTemperatureMax(),
-                weather.getTemperatureMin(),
-                weather.getHumidity(),
-                weather.getWindSpeed(),
-                snapshot.getCoordsLabel());
+        // Uses unit-aware formatters so it respects Tool Preferences
+        String cardinal = WeatherUnitConverter.degreesToCardinal(weather.getWindDirection());
+        return WeatherUnitConverter.fmtTempRange(
+                        weather.getTemperatureMin(), weather.getTemperatureMax())
+                + "  \ud83d\udca7" + WeatherUnitConverter.fmtHumidity(weather.getHumidity())
+                + "  \ud83d\udca8" + WeatherUnitConverter.fmtWind(weather.getWindSpeed())
+                + " " + cardinal
+                + "  " + snapshot.getCoordsLabel();
     }
 }

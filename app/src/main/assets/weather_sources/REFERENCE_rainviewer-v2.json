@@ -1,0 +1,116 @@
+{
+  "_schema_version": "2.0",
+  "_doc": "REFERENCE: Complete RainViewer radar integration via executable schema v2. Updated for 2026 API changes.",
+
+  "radarSourceId": "rainviewer",
+  "displayName": "RainViewer (Global Precipitation Radar)",
+  "description": "Global composite radar from 100+ countries. 2h history at 10-min intervals. Free, no API key. Nowcast discontinued Jan 2026.",
+  "type": "radar",
+  "provider": "rainviewer",
+
+  "model": {
+    "name": "RainViewer Composite",
+    "coverage": "Global (100+ countries, 250+ radar stations)",
+    "temporalResolution": "10-minute frames",
+    "historyDepth": "~2 hours (~12 past frames)",
+    "nowcast": "DISCONTINUED since January 1, 2026",
+    "gridResolutionKm": null,
+    "source_url": "https://www.rainviewer.com/api.html",
+    "sources_url": "https://www.rainviewer.com/sources.html",
+    "radar_db_url": "https://github.com/rainviewer/weather-radar-database"
+  },
+
+  "auth": {
+    "type": "none",
+    "value": ""
+  },
+
+  "rateLimit": {
+    "requestsPerMinute": 100,
+    "requestsPerDay": null,
+    "note": "100 req/min per IP (since Jan 2026). Personal/educational use only."
+  },
+
+  "manifestUrl": "https://api.rainviewer.com/public/weather-maps.json",
+  "manifestFormat": "rainviewer",
+
+  "manifestParsing": {
+    "_doc": "RainViewer v5 manifest format. host + path combine to form tile URL base.",
+    "hostField": "host",
+    "versionField": "version",
+    "generatedField": "generated",
+    "pastPath": "radar.past",
+    "futurePath": "radar.future",
+    "timeField": "time",
+    "pathField": "path",
+
+    "_example_manifest": {
+      "version": "5",
+      "generated": 1711036800,
+      "host": "https://tilecache.rainviewer.com",
+      "radar": {
+        "past": [
+          { "time": 1711036200, "path": "/v5/weather-maps/nowcast-1h/2/12/655/1602" }
+        ],
+        "future": []
+      }
+    }
+  },
+
+  "tileUrlTemplate": "{host}{path}/{size}/{z}/{x}/{y}/{color}/{options}.png",
+
+  "tileUrlParts": {
+    "_doc": "How to build the final tile URL from manifest data.",
+    "host": "From manifest root 'host' field",
+    "path": "From each frame's 'path' field",
+    "size": "256 (standard) or 512 (high-DPI). Integer.",
+    "z": "Zoom level 0-7 (max 7 since Jan 2026, was 12 before)",
+    "x": "Web Mercator tile X coordinate",
+    "y": "Web Mercator tile Y coordinate",
+    "color": "Color scheme ID. Only 2 (Universal Blue) available since Jan 2026.",
+    "options": "Rendering flags: {smooth}_{snow}. smooth: 0=raw, 1=smoothed. snow: 0=no, 1=differentiate snow."
+  },
+
+  "tileSize": 256,
+  "maxZoom": 7,
+  "defaultZoom": 5,
+
+  "tileOptions": {
+    "color": 2,
+    "smooth": 1,
+    "snow": 1,
+    "optionsString": "1_1",
+
+    "_color_schemes_deprecated": {
+      "_doc": "These color schemes were discontinued January 1, 2026",
+      "0": "BlackAndWhite (DISCONTINUED)",
+      "1": "Original (DISCONTINUED)",
+      "2": "Universal Blue (ONLY AVAILABLE)",
+      "3": "Titan (DISCONTINUED)",
+      "4": "TheWeatherChannel (DISCONTINUED)",
+      "5": "Meteored (DISCONTINUED)",
+      "6": "NexradLevelIII (DISCONTINUED)",
+      "7": "RainbowSelexIS (DISCONTINUED)",
+      "8": "DarkSky (DISCONTINUED)"
+    }
+  },
+
+  "api_changes_2026": {
+    "_doc": "Critical API changes effective January 1, 2026",
+    "nowcast_removed": "radar.future array is now always empty. Nowcast/forecast radar data discontinued.",
+    "satellite_removed": "Satellite infrared imagery no longer available.",
+    "color_schemes_reduced": "Only Universal Blue (scheme 2) remains. 8 schemes removed.",
+    "max_zoom_reduced": "Max zoom reduced from 12 to 7.",
+    "rate_limit_added": "100 requests/minute per IP address.",
+    "commercial_use": "No longer available for commercial use under free tier."
+  },
+
+  "coverageMap": {
+    "_doc": "Coverage maps show where radar data exists (transparent = data available, opaque = no coverage).",
+    "available": true,
+    "urlPattern": "Same as tile URL with coverage-specific path from manifest"
+  },
+
+  "attribution": "RainViewer (rainviewer.com)",
+  "license": "Free for personal and educational use. Must attribute 'Rain Viewer API' with link to rainviewer.com."
+}

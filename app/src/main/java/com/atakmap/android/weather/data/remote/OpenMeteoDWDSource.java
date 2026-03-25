@@ -51,14 +51,14 @@ public class OpenMeteoDWDSource implements IWeatherRemoteSource {
     // Reuse same pressure-level arrays as ECMWF source
     private static final int[] ALT_M = { 10, 760, 1500, 3000, 5600, 9200 };
     private static final String[] WSPD = {
-            "windspeed_10m",
-            "windspeed_925hPa", "windspeed_850hPa",
-            "windspeed_700hPa", "windspeed_500hPa", "windspeed_300hPa"
+            "wind_speed_10m",
+            "wind_speed_925hPa", "wind_speed_850hPa",
+            "wind_speed_700hPa", "wind_speed_500hPa", "wind_speed_300hPa"
     };
     private static final String[] WDIR = {
-            "winddirection_10m",
-            "winddirection_925hPa", "winddirection_850hPa",
-            "winddirection_700hPa", "winddirection_500hPa", "winddirection_300hPa"
+            "wind_direction_10m",
+            "wind_direction_925hPa", "wind_direction_850hPa",
+            "wind_direction_700hPa", "wind_direction_500hPa", "wind_direction_300hPa"
     };
     private static final String[] TEMP = {
             "temperature_2m",
@@ -67,12 +67,12 @@ public class OpenMeteoDWDSource implements IWeatherRemoteSource {
     };
 
     private static final String WIND_PARAMS =
-            "&hourly=temperature_2m,windspeed_10m,winddirection_10m,windgusts_10m"
-                    + ",windspeed_925hPa,winddirection_925hPa,temperature_925hPa"
-                    + ",windspeed_850hPa,winddirection_850hPa,temperature_850hPa"
-                    + ",windspeed_700hPa,winddirection_700hPa,temperature_700hPa"
-                    + ",windspeed_500hPa,winddirection_500hPa,temperature_500hPa"
-                    + ",windspeed_300hPa,winddirection_300hPa,temperature_300hPa";
+            "&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+                    + ",wind_speed_925hPa,wind_direction_925hPa,temperature_925hPa"
+                    + ",wind_speed_850hPa,wind_direction_850hPa,temperature_850hPa"
+                    + ",wind_speed_700hPa,wind_direction_700hPa,temperature_700hPa"
+                    + ",wind_speed_500hPa,wind_direction_500hPa,temperature_500hPa"
+                    + ",wind_speed_300hPa,wind_direction_300hPa,temperature_300hPa";
 
     private static final String SUFFIX = "&wind_speed_unit=ms&timezone=auto";
 
@@ -132,18 +132,26 @@ public class OpenMeteoDWDSource implements IWeatherRemoteSource {
                         for (int a = 0; a < ALT_M.length; a++) {
                             double gusts = 0;
                             if (a == 0) {
-                                JSONArray g = hourly.optJSONArray("windgusts_10m");
+                                JSONArray g = hourly.optJSONArray("wind_gusts_10m");
                                 if (g != null) gusts = g.optDouble(i, 0);
                             }
                             JSONArray sArr = hourly.optJSONArray(WSPD[a]);
                             JSONArray dArr = hourly.optJSONArray(WDIR[a]);
                             JSONArray tArr = hourly.optJSONArray(TEMP[a]);
+                            // Pressure levels (925/850/700/500/300 hPa) at indices 1-5
+                            Integer pressureHPa = null;
+                            String  source      = WindProfileModel.SOURCE_SURFACE;
+                            if (a > 0) {
+                                source = WindProfileModel.SOURCE_PRESSURE;
+                                int[] hpaLevels = { 0, 925, 850, 700, 500, 300 };
+                                pressureHPa = hpaLevels[a];
+                            }
                             entries.add(new WindProfileModel.AltitudeEntry(
                                     ALT_M[a],
                                     sArr != null ? sArr.optDouble(i, 0) : 0,
                                     dArr != null ? dArr.optDouble(i, 0) : 0,
                                     tArr != null ? tArr.optDouble(i, 0) : 0,
-                                    gusts));
+                                    gusts, source, pressureHPa));
                         }
                         result.add(new WindProfileModel(times.getString(i), entries));
                     }

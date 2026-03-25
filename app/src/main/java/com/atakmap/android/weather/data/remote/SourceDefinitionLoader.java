@@ -12,6 +12,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import com.atakmap.android.weather.data.remote.schema.SourceDefinitionV2Parser;
+import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,9 +45,13 @@ public class SourceDefinitionLoader {
      */
     private static java.util.Map<String, WeatherSourceDefinition> cachedAll = null;
 
+    /** Cached v2 definitions, keyed by sourceId or radarSourceId. */
+    private static java.util.Map<String, WeatherSourceDefinitionV2> cachedV2 = null;
+
     /** Invalidate the in-process cache so the next {@link #loadAll} re-reads from disk. */
     public static synchronized void clearCache() {
         cachedAll = null;
+        cachedV2 = null;
     }
 
     private static final String TAG             = "SourceDefinitionLoader";
@@ -86,6 +93,110 @@ public class SourceDefinitionLoader {
         }
         cachedAll = map;
         return map;
+    }
+
+    // ── v2 Schema Detection and Loading ─────────────────────────────────────────
+
+    /**
+     * Quick check: does a JSON text contain a v2 schema marker?
+     *
+     * @param jsonText raw JSON file content
+     * @return true if the file declares {@code _schema_version: "2.0"}
+     */
+    public static boolean isV2Schema(String jsonText) {
+        return SourceDefinitionV2Parser.isV2Schema(jsonText);
+    }
+
+    /**
+     * Load all v2 weather source definitions (keyed by sourceId or radarSourceId).
+     * Scans bundled assets and external storage, just like {@link #loadAll(Context)},
+     * but only parses files that declare {@code _schema_version: "2.0"}.
+     * External files override bundled files with the same id.
+     *
+     * @param ctx Android context for asset access
+     * @return ordered map of v2 definitions (never null)
+     */
+    public static synchronized Map<String, WeatherSourceDefinitionV2> loadAllV2(Context ctx) {
+        if (cachedV2 != null) return cachedV2;
+        LinkedHashMap<String, WeatherSourceDefinitionV2> map = new LinkedHashMap<>();
+        List<WeatherSourceDefinitionV2> all = new ArrayList<>();
+        all.addAll(loadV2FromAssets(ctx));
+        all.addAll(loadV2FromExternal());
+        for (WeatherSourceDefinitionV2 d : all) {
+            String id = d.isRadarSource() && d.getRadarSourceId() != null
+                    ? d.getRadarSourceId()
+                    : d.getSourceId();
+            if (id != null && !id.isEmpty()) map.put(id, d);
+        }
+        cachedV2 = map;
+        return map;
+    }
+
+    /**
+     * Convenience method: load all v2 definitions as a list.
+     *
+     * @param ctx Android context
+     * @return list of v2 definitions
+     */
+    public static List<WeatherSourceDefinitionV2> loadV2Sources(Context ctx) {
+        return new ArrayList<>(loadAllV2(ctx).values());
+    }
+
+    /**
+     * Load v2 definitions from bundled assets.
+     */
+    private static List<WeatherSourceDefinitionV2> loadV2FromAssets(Context ctx) {
+        List<WeatherSourceDefinitionV2> result = new ArrayList<>();
+        if (ctx == null) return result;
+        try {
+            String[] files = ctx.getAssets().list(ASSET_DIR);
+            if (files == null) return result;
+            for (String file : files) {
+                if (!file.endsWith(".json")) continue;
+                // Skip REFERENCE, EXAMPLE, and TEMPLATE files
+                if (file.startsWith("REFERENCE_") || file.startsWith("EXAMPLE_")
+                        || file.startsWith("TEMPLATE_")) continue;
+                try (InputStream is = ctx.getAssets().open(ASSET_DIR + "/" + file)) {
+                    String json = readString(is);
+                    if (!isV2Schema(json)) continue;
+                    WeatherSourceDefinitionV2 def = SourceDefinitionV2Parser.parse(json);
+                    if (def != null) {
+                        result.add(def);
+                        Log.d(TAG, "Loaded v2 asset: " + file);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "v2 asset parse failed: " + file + " — " + e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "loadV2FromAssets failed: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * Load v2 definitions from external storage.
+     */
+    private static List<WeatherSourceDefinitionV2> loadV2FromExternal() {
+        List<WeatherSourceDefinitionV2> result = new ArrayList<>();
+        File dir = new File(Environment.getExternalStorageDirectory(), EXTERNAL_DIR);
+        if (!dir.exists() || !dir.isDirectory()) return result;
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
+        if (files == null) return result;
+        for (File file : files) {
+            try (FileInputStream fis = new FileInputStream(file)) {
+                String json = readString(fis);
+                if (!isV2Schema(json)) continue;
+                WeatherSourceDefinitionV2 def = SourceDefinitionV2Parser.parse(json);
+                if (def != null) {
+                    result.add(def);
+                    Log.d(TAG, "Loaded v2 external: " + file.getName());
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "v2 external parse failed: " + file.getName() + " — " + e.getMessage());
+            }
+        }
+        return result;
     }
 
     // ── Internal ───────────────────────────────────────────────────────────────
@@ -336,5 +447,51 @@ public class SourceDefinitionLoader {
             sb.append(new String(buf, 0, n, StandardCharsets.UTF_8));
         }
         return sb.toString();
+    }
+
+    // ── File import ──────────────────────────────────────────────────────────
+
+    /**
+     * Import a weather source definition from a JSON file on external storage.
+     * Copies the file to the external weather sources directory so it's loaded
+     * on next plugin startup.
+     */
+    public static void importFromFile(Context ctx, java.io.File srcFile) throws Exception {
+        java.io.File destDir = new java.io.File(
+                android.os.Environment.getExternalStorageDirectory(), EXTERNAL_DIR);
+        if (!destDir.exists() && !destDir.mkdirs()) {
+            throw new java.io.IOException("Cannot create " + destDir.getAbsolutePath());
+        }
+        java.io.File dest = new java.io.File(destDir, srcFile.getName());
+        copyFile(srcFile, dest);
+        clearCache(); // force re-scan on next loadAll()
+        Log.d(TAG, "Imported weather source: " + dest.getAbsolutePath());
+    }
+
+    /**
+     * Import a tile source definition from an XML file.
+     * Copies to the same external directory for discovery by RadarSourceSelector.
+     */
+    public static void importTileSourceFromFile(Context ctx, java.io.File srcFile) throws Exception {
+        java.io.File destDir = new java.io.File(
+                android.os.Environment.getExternalStorageDirectory(), EXTERNAL_DIR);
+        if (!destDir.exists() && !destDir.mkdirs()) {
+            throw new java.io.IOException("Cannot create " + destDir.getAbsolutePath());
+        }
+        java.io.File dest = new java.io.File(destDir, srcFile.getName());
+        copyFile(srcFile, dest);
+        clearCache();
+        Log.d(TAG, "Imported tile source: " + dest.getAbsolutePath());
+    }
+
+    private static void copyFile(java.io.File src, java.io.File dst) throws java.io.IOException {
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(src);
+             java.io.FileOutputStream fos = new java.io.FileOutputStream(dst)) {
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = fis.read(buffer)) > 0) {
+                fos.write(buffer, 0, len);
+            }
+        }
     }
 }

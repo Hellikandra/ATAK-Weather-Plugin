@@ -3,6 +3,10 @@ package com.atakmap.android.weather.data.remote;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import com.atakmap.android.weather.data.remote.schema.GenericApiSource;
+import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
+import com.atakmap.coremap.log.Log;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -32,6 +36,7 @@ import java.util.Map;
  */
 public class WeatherSourceManager {
 
+    private static final String TAG             = "WeatherSourceManager";
     private static final String PREFS_NAME      = "WeatherToolPrefs";
     private static final String KEY_SOURCE_ID   = "wx_source_id";
 
@@ -84,6 +89,34 @@ public class WeatherSourceManager {
      */
     public void register(IWeatherRemoteSource source) {
         sources.put(source.getSourceId(), source);
+    }
+
+    /**
+     * Scan v2 JSON definitions from assets and external storage and register
+     * any weather sources that are not already registered (hardcoded Java
+     * sources take priority). Call this AFTER registering built-in Java sources.
+     *
+     * @param context Android context for asset/file access
+     */
+    public void registerV2Sources(Context context) {
+        List<WeatherSourceDefinitionV2> v2Defs = SourceDefinitionLoader.loadV2Sources(context);
+        int registered = 0;
+        for (WeatherSourceDefinitionV2 def : v2Defs) {
+            if (def.isWeatherSource()) {
+                String id = def.getSourceId();
+                if (id == null || id.isEmpty()) continue;
+                // Only register if not already registered — v1 Java source takes priority
+                if (getSourceById(id) == null) {
+                    register(new GenericApiSource(def, context));
+                    registered++;
+                    Log.d(TAG, "Registered v2 source: " + id + " (" + def.getDisplayName() + ")");
+                } else {
+                    Log.d(TAG, "Skipped v2 source (already registered): " + id);
+                }
+            }
+        }
+        Log.d(TAG, "registerV2Sources complete: " + registered + " new sources from "
+                + v2Defs.size() + " v2 definitions");
     }
 
     // ── Active source ─────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
 import com.atakmap.android.weather.data.cache.CacheStatusProvider;
+import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
 import com.atakmap.android.weather.domain.model.ComparisonModel;
 import com.atakmap.android.weather.domain.model.DailyForecastModel;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
@@ -105,10 +106,39 @@ public class WeatherViewModel extends ViewModel {
      * Used by the refresh button (short = MAP_CENTRE, long-press = SELF_MARKER).
      */
     public void loadWeather(double latitude, double longitude, LocationSource source) {
+        // Tell the caching layer which source we are loading for, so cache keys
+        // are keyed correctly (MAP_CENTRE vs SELF_MARKER).
+        if (weatherRepository instanceof CachingWeatherRepository) {
+            ((CachingWeatherRepository) weatherRepository).setCurrentSource(source);
+        }
         fetchCurrentWeather(latitude, longitude);
         fetchDailyForecast(latitude, longitude);
         fetchHourlyForecast(latitude, longitude);
         reverseGeocode(latitude, longitude, source, activeLocation);
+    }
+
+    /**
+     * Callback for single-point weather fetch (used by route weather).
+     */
+    public interface PointWeatherCallback {
+        void onResult(WeatherModel weather);
+    }
+
+    /**
+     * Fetch current weather for a single point with a direct callback.
+     * Does NOT update LiveData — used for route weather batch fetches.
+     */
+    public void loadWeatherForPoint(double lat, double lon,
+                                     PointWeatherCallback callback) {
+        weatherRepository.getCurrentWeather(lat, lon,
+                new IWeatherRepository.Callback<WeatherModel>() {
+                    @Override public void onSuccess(WeatherModel r) {
+                        callback.onResult(r);
+                    }
+                    @Override public void onError(String msg) {
+                        callback.onResult(null);
+                    }
+                });
     }
 
     /**

@@ -1,0 +1,248 @@
+{
+  "_schema_version": "2.0",
+
+  "sourceId": "open-meteo-dwd",
+  "displayName": "Open-Meteo (DWD ICON EU)",
+  "description": "DWD ICON model via Open-Meteo. ~7km grid (EU: 2.2km), ~5km accuracy (EU). 7 days, 3h updates. Europe + Global coverage.",
+  "type": "weather",
+  "provider": "open-meteo",
+
+  "model": {
+    "name": "DWD ICON",
+    "gridResolutionKm": 7,
+    "accuracyRadiusKm": 5,
+    "forecastDaysMax": 7,
+    "updateFrequencyHours": 3,
+    "coverage": "Europe + Global",
+    "temporalResolution": "1h (EU), 3h (Global)",
+    "pressureLevels": [1000, 925, 850, 700, 600, 500, 400, 300, 250],
+    "source_url": "https://open-meteo.com/en/docs/dwd-api"
+  },
+
+  "auth": {
+    "type": "none",
+    "headerName": null,
+    "queryParam": null,
+    "value": ""
+  },
+
+  "rateLimit": {
+    "requestsPerMinute": 600,
+    "requestsPerHour": 5000,
+    "requestsPerDay": 10000,
+    "requestsPerMonth": 300000,
+    "note": "Free non-commercial. Commercial use requires API key and paid plan."
+  },
+
+  "endpoints": {
+    "current": {
+      "url": "https://api.open-meteo.com/v1/dwd-icon",
+      "method": "GET",
+      "queryParams": {
+        "latitude": "{lat}",
+        "longitude": "{lon}",
+        "current": "{current_fields}",
+        "wind_speed_unit": "{unit_wind}",
+        "temperature_unit": "{unit_temp}",
+        "precipitation_unit": "{unit_precip}",
+        "timezone": "auto"
+      },
+      "responsePath": "current",
+      "fieldMapping": {
+        "temperature": "temperature_2m",
+        "humidity": "relative_humidity_2m",
+        "apparentTemp": "apparent_temperature",
+        "windSpeed": "wind_speed_10m",
+        "windDirection": "wind_direction_10m",
+        "windGusts": "wind_gusts_10m",
+        "visibility": "visibility",
+        "pressure": "surface_pressure",
+        "weatherCode": "weather_code",
+        "precipitation": "precipitation",
+        "cloudCover": "cloud_cover",
+        "isDay": "is_day"
+      }
+    },
+    "hourly": {
+      "url": "https://api.open-meteo.com/v1/dwd-icon",
+      "method": "GET",
+      "queryParams": {
+        "latitude": "{lat}",
+        "longitude": "{lon}",
+        "hourly": "{hourly_fields}",
+        "forecast_hours": "{hours}",
+        "wind_speed_unit": "{unit_wind}",
+        "temperature_unit": "{unit_temp}",
+        "precipitation_unit": "{unit_precip}",
+        "timezone": "auto"
+      },
+      "responsePath": "hourly",
+      "timeField": "time",
+      "fieldMapping": {
+        "temperature": "temperature_2m",
+        "humidity": "relative_humidity_2m",
+        "apparentTemp": "apparent_temperature",
+        "windSpeed": "wind_speed_10m",
+        "windDirection": "wind_direction_10m",
+        "visibility": "visibility",
+        "pressure": "surface_pressure",
+        "weatherCode": "weather_code",
+        "precipProb": "precipitation_probability",
+        "precipitation": "precipitation"
+      }
+    },
+    "daily": {
+      "url": "https://api.open-meteo.com/v1/dwd-icon",
+      "method": "GET",
+      "queryParams": {
+        "latitude": "{lat}",
+        "longitude": "{lon}",
+        "daily": "{daily_fields}",
+        "forecast_days": "{days}",
+        "wind_speed_unit": "{unit_wind}",
+        "temperature_unit": "{unit_temp}",
+        "precipitation_unit": "{unit_precip}",
+        "timezone": "auto"
+      },
+      "responsePath": "daily",
+      "timeField": "time",
+      "fieldMapping": {
+        "temperatureMax": "temperature_2m_max",
+        "temperatureMin": "temperature_2m_min",
+        "weatherCode": "weather_code",
+        "precipitationSum": "precipitation_sum",
+        "precipHours": "precipitation_hours",
+        "precipProbMax": "precipitation_probability_max",
+        "windSpeedMax": "wind_speed_10m_max",
+        "windDirDominant": "wind_direction_10m_dominant",
+        "sunrise":         "sunrise",
+        "sunset":          "sunset",
+        "daylightDuration":"daylight_duration"
+      }
+    },
+    "windProfile": {
+      "url": "https://api.open-meteo.com/v1/dwd-icon",
+      "method": "GET",
+      "queryParams": {
+        "latitude": "{lat}",
+        "longitude": "{lon}",
+        "hourly": "wind_speed_10m,wind_direction_10m,temperature_2m,wind_speed_80m,wind_direction_80m,wind_speed_120m,wind_direction_120m,wind_speed_180m,wind_direction_180m",
+        "wind_speed_unit": "{unit_wind}",
+        "timezone": "auto"
+      },
+      "responsePath": "hourly",
+      "windAltitudesM": [10, 80, 120, 180],
+      "altitudeFieldPattern": {
+        "windSpeed": "wind_speed_{alt}m",
+        "windDirection": "wind_direction_{alt}m"
+      }
+    },
+    "windProfilePressure": {
+      "url": "https://api.open-meteo.com/v1/dwd-icon",
+      "method": "GET",
+      "queryParams": {
+        "latitude": "{lat}",
+        "longitude": "{lon}",
+        "hourly": "wind_speed_1000hPa,wind_direction_1000hPa,temperature_1000hPa,wind_speed_925hPa,wind_direction_925hPa,temperature_925hPa,wind_speed_850hPa,wind_direction_850hPa,temperature_850hPa,wind_speed_700hPa,wind_direction_700hPa,temperature_700hPa,wind_speed_500hPa,wind_direction_500hPa,temperature_500hPa,wind_speed_300hPa,wind_direction_300hPa,temperature_300hPa",
+        "wind_speed_unit": "{unit_wind}",
+        "timezone": "auto"
+      },
+      "responsePath": "hourly",
+      "windPressureLevelsHPa": [1000, 925, 850, 700, 500, 300],
+      "windAltitudesM": [110, 760, 1500, 3000, 5500, 9200],
+      "altitudeFieldPattern": {
+        "windSpeed": "wind_speed_{pressure}hPa",
+        "windDirection": "wind_direction_{pressure}hPa",
+        "temperature": "temperature_{pressure}hPa"
+      }
+    }
+  },
+
+  "unitConversions": {
+    "visibility": { "from": "m", "to": "m", "factor": 1.0, "offset": 0.0 },
+    "pressure": { "from": "hPa", "to": "hPa", "factor": 1.0, "offset": 0.0 }
+  },
+
+  "serverSideUnits": {
+    "temperature_unit": { "metric": "celsius", "imperial": "fahrenheit", "aviation": "celsius" },
+    "wind_speed_unit": { "metric": "ms", "imperial": "mph", "aviation": "kn" },
+    "precipitation_unit": { "metric": "mm", "imperial": "inch", "aviation": "mm" }
+  },
+
+  "weatherCodeMapping": null,
+
+  "batch": {
+    "supported": true,
+    "maxLocations": 1000,
+    "latParam": "latitude",
+    "lonParam": "longitude",
+    "separator": ","
+  },
+
+  "parameters": {
+    "hourly": [
+      { "key": "temperature_2m", "label": "Temperature 2m", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "relative_humidity_2m", "label": "Relative Humidity 2m", "unit": "%", "defaultOn": true },
+      { "key": "dew_point_2m", "label": "Dew Point 2m", "unit": "\u00b0C", "defaultOn": false },
+      { "key": "apparent_temperature", "label": "Apparent Temperature", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "precipitation_probability", "label": "Precip. Probability", "unit": "%", "defaultOn": true },
+      { "key": "precipitation", "label": "Precipitation", "unit": "mm", "defaultOn": false },
+      { "key": "rain", "label": "Rain", "unit": "mm", "defaultOn": false },
+      { "key": "snowfall", "label": "Snowfall", "unit": "cm", "defaultOn": false },
+      { "key": "snow_depth", "label": "Snow Depth", "unit": "m", "defaultOn": false },
+      { "key": "weather_code", "label": "WMO Weather Code", "unit": "", "defaultOn": true },
+      { "key": "pressure_msl", "label": "Sea-Level Pressure", "unit": "hPa", "defaultOn": false },
+      { "key": "surface_pressure", "label": "Surface Pressure", "unit": "hPa", "defaultOn": true },
+      { "key": "cloud_cover", "label": "Cloud Cover Total", "unit": "%", "defaultOn": false },
+      { "key": "cloud_cover_low", "label": "Cloud Cover Low", "unit": "%", "defaultOn": false },
+      { "key": "cloud_cover_mid", "label": "Cloud Cover Mid", "unit": "%", "defaultOn": false },
+      { "key": "cloud_cover_high", "label": "Cloud Cover High", "unit": "%", "defaultOn": false },
+      { "key": "visibility", "label": "Visibility", "unit": "m", "defaultOn": true },
+      { "key": "wind_speed_10m", "label": "Wind Speed 10m", "unit": "m/s", "defaultOn": true },
+      { "key": "wind_speed_80m", "label": "Wind Speed 80m", "unit": "m/s", "defaultOn": false },
+      { "key": "wind_speed_120m", "label": "Wind Speed 120m", "unit": "m/s", "defaultOn": false },
+      { "key": "wind_speed_180m", "label": "Wind Speed 180m", "unit": "m/s", "defaultOn": false },
+      { "key": "wind_direction_10m", "label": "Wind Direction 10m", "unit": "\u00b0", "defaultOn": true },
+      { "key": "wind_direction_80m", "label": "Wind Direction 80m", "unit": "\u00b0", "defaultOn": false },
+      { "key": "wind_direction_120m", "label": "Wind Direction 120m", "unit": "\u00b0", "defaultOn": false },
+      { "key": "wind_direction_180m", "label": "Wind Direction 180m", "unit": "\u00b0", "defaultOn": false },
+      { "key": "wind_gusts_10m", "label": "Wind Gusts 10m", "unit": "m/s", "defaultOn": false },
+      { "key": "cape", "label": "CAPE", "unit": "J/kg", "defaultOn": false },
+      { "key": "freezing_level_height", "label": "Freezing Level Height", "unit": "m", "defaultOn": false },
+      { "key": "uv_index", "label": "UV Index", "unit": "", "defaultOn": false },
+      { "key": "is_day", "label": "Is Day (1/0)", "unit": "", "defaultOn": false }
+    ],
+    "daily": [
+      { "key": "weather_code", "label": "WMO Weather Code", "unit": "", "defaultOn": true },
+      { "key": "temperature_2m_max", "label": "Max Temperature 2m", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "temperature_2m_min", "label": "Min Temperature 2m", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "apparent_temperature_max", "label": "Max Apparent Temp", "unit": "\u00b0C", "defaultOn": false },
+      { "key": "apparent_temperature_min", "label": "Min Apparent Temp", "unit": "\u00b0C", "defaultOn": false },
+      { "key": "precipitation_sum", "label": "Precipitation Sum", "unit": "mm", "defaultOn": true },
+      { "key": "rain_sum", "label": "Rain Sum", "unit": "mm", "defaultOn": false },
+      { "key": "snowfall_sum", "label": "Snowfall Sum", "unit": "cm", "defaultOn": false },
+      { "key": "precipitation_hours", "label": "Precipitation Hours", "unit": "h", "defaultOn": true },
+      { "key": "precipitation_probability_max", "label": "Max Precip. Probability", "unit": "%", "defaultOn": true },
+      { "key": "wind_speed_10m_max", "label": "Max Wind Speed 10m", "unit": "m/s", "defaultOn": true },
+      { "key": "wind_gusts_10m_max", "label": "Max Wind Gusts 10m", "unit": "m/s", "defaultOn": false },
+      { "key": "wind_direction_10m_dominant", "label": "Dominant Wind Direction", "unit": "\u00b0", "defaultOn": true },
+      { "key": "uv_index_max", "label": "UV Index Max", "unit": "", "defaultOn": false },
+      { "key": "sunrise", "label": "Sunrise (ISO8601)", "unit": "", "defaultOn": true },
+      { "key": "sunset", "label": "Sunset (ISO8601)", "unit": "", "defaultOn": true }
+    ],
+    "current": [
+      { "key": "temperature_2m", "label": "Temperature 2m", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "relative_humidity_2m", "label": "Relative Humidity", "unit": "%", "defaultOn": true },
+      { "key": "apparent_temperature", "label": "Apparent Temperature", "unit": "\u00b0C", "defaultOn": true },
+      { "key": "weather_code", "label": "Weather Code (WMO)", "unit": "", "defaultOn": true },
+      { "key": "surface_pressure", "label": "Surface Pressure", "unit": "hPa", "defaultOn": true },
+      { "key": "wind_speed_10m", "label": "Wind Speed 10m", "unit": "m/s", "defaultOn": true },
+      { "key": "wind_direction_10m", "label": "Wind Direction 10m", "unit": "\u00b0", "defaultOn": true },
+      { "key": "wind_gusts_10m", "label": "Wind Gusts 10m", "unit": "m/s", "defaultOn": false },
+      { "key": "precipitation", "label": "Precipitation", "unit": "mm", "defaultOn": false },
+      { "key": "cloud_cover", "label": "Cloud Cover", "unit": "%", "defaultOn": false },
+      { "key": "visibility", "label": "Visibility", "unit": "m", "defaultOn": true },
+      { "key": "is_day", "label": "Is Day (1/0)", "unit": "", "defaultOn": false }
+    ]
+  }
+}

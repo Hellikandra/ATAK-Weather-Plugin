@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    topbar_navigation.xml — Sprint 15 (S15.1)
+
+    Horizontal topbar with overflow menu, back button, title, and 5 nav icons.
+    Replaces the bottom navigation buttons from Sprint 7.
+-->
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="44dp"
+  android:orientation="horizontal"
+  android:background="#1c2333"
+  android:gravity="center_vertical"
+  android:paddingStart="4dp"
+  android:paddingEnd="4dp">
+
+    <!-- Overflow menu button -->
+    <ImageView
+      android:id="@+id/btn_overflow"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:src="@android:drawable/ic_menu_more"
+      android:padding="6dp"
+      android:background="?android:attr/selectableItemBackground"
+      android:contentDescription="Menu"/>
+
+    <!-- Back button (hidden on dashboard) -->
+    <ImageView
+      android:id="@+id/btn_back"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:src="@android:drawable/ic_menu_revert"
+      android:padding="6dp"
+      android:background="?android:attr/selectableItemBackground"
+      android:visibility="gone"
+      android:contentDescription="Back"/>
+
+    <!-- Title -->
+    <TextView
+      android:id="@+id/topbar_title"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="WeatherTool"
+      android:textColor="@android:color/white"
+      android:textSize="13sp"
+      android:textStyle="bold"
+      android:paddingStart="6dp"
+      android:paddingEnd="4dp"/>
+
+    <!-- Navigation icons -->
+    <ImageView
+      android:id="@+id/nav_weather"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:src="@android:drawable/ic_menu_compass"
+      android:padding="6dp"
+      android:alpha="0.5"
+      android:background="?android:attr/selectableItemBackground"
+      android:contentDescription="Weather"
+      android:tooltipText="Weather"/>
+
+    <ImageView
+      android:id="@+id/nav_wind"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:src="@android:drawable/ic_menu_directions"
+      android:padding="6dp"
+      android:alpha="0.5"
+      android:background="?android:attr/selectableItemBackground"
+      android:contentDescription="Wind"
+      android:tooltipText="Wind"/>
+
+    <ImageView
+      android:id="@+id/nav_overlays"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:src="@android:drawable/ic_menu_mapmode"
+      android:padding="6dp"
+      android:alpha="0.5"
+      android:background="?android:attr/selectableItemBackground"
+      android:contentDescription="Overlays"
+      android:tooltipText="Overlays"/>
+
+    <ImageView
+      android:id="@+id/nav_markers"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:src="@android:drawable/ic_menu_myplaces"
+      android:padding="6dp"
+      android:alpha="0.5"
+      android:background="?android:attr/selectableItemBackground"
+      android:contentDescription="Markers"
+      android:tooltipText="Markers"/>
+
+    <ImageView
+      android:id="@+id/nav_settings"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:src="@android:drawable/ic_menu_preferences"
+      android:padding="6dp"
+      android:alpha="0.5"
+      android:background="?android:attr/selectableItemBackground"
+      android:contentDescription="Settings"
+      android:tooltipText="Settings"/>
+
+    <!-- Minimize / Hide panel -->
+    <ImageView
+      android:id="@+id/btn_minimize"
+      android:layout_width="36dp"
+      android:layout_height="36dp"
+      android:padding="6dp"
+      android:src="@android:drawable/ic_menu_close_clear_cancel"
+      android:background="?android:attr/selectableItemBackground"
+      android:contentDescription="Minimize"
+      android:layout_marginStart="4dp"/>
+
+</LinearLayout>

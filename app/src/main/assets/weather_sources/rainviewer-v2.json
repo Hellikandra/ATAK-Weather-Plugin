@@ -1,0 +1,56 @@
+{
+  "_schema_version": "2.0",
+
+  "radarSourceId": "rainviewer",
+  "displayName": "RainViewer (Global Precipitation Radar)",
+  "description": "Global composite radar from 100+ countries. 2h history at 10-min intervals. Free, no API key. Nowcast discontinued Jan 2026.",
+  "type": "radar",
+  "provider": "rainviewer",
+
+  "model": {
+    "name": "RainViewer Composite",
+    "coverage": "Global (100+ countries, 250+ radar stations)",
+    "temporalResolution": "10-minute frames",
+    "source_url": "https://www.rainviewer.com/api.html"
+  },
+
+  "auth": {
+    "type": "none",
+    "value": ""
+  },
+
+  "rateLimit": {
+    "requestsPerMinute": 100,
+    "requestsPerDay": null,
+    "note": "100 req/min per IP (since Jan 2026). Personal/educational use only."
+  },
+
+  "manifestUrl": "https://api.rainviewer.com/public/weather-maps.json",
+  "manifestFormat": "rainviewer",
+
+  "manifestParsing": {
+    "hostField": "host",
+    "versionField": "version",
+    "generatedField": "generated",
+    "pastPath": "radar.past",
+    "futurePath": "radar.future",
+    "timeField": "time",
+    "pathField": "path"
+  },
+
+  "tileUrlTemplate": "{host}{path}/{size}/{z}/{x}/{y}/{color}/{options}.png",
+
+  "tileSize": 256,
+  "maxZoom": 7,
+  "defaultZoom": 5,
+
+  "tileOptions": {
+    "color": 2,
+    "smooth": 1,
+    "snow": 1,
+    "optionsString": "1_1"
+  },
+
+  "attribution": "RainViewer (rainviewer.com)",
+  "license": "Free for personal and educational use. Must attribute 'Rain Viewer API' with link to rainviewer.com."
+}

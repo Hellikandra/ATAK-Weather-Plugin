@@ -81,10 +81,9 @@ public class AviationWeatherSource implements IWeatherRemoteSource {
     // Bounding-box radius around the requested point (degrees ≈ 111 km/deg)
     private static final double BBOX_DEG = 1.5;   // ~165 km radius
 
-    // kt → m/s
-    private static final double KT_TO_MS = 0.514444;
-    // statute miles → metres
-    private static final double SM_TO_M  = 1609.34;
+    // Conversion factors — delegated to WeatherUnitConverter (S2.2)
+    private static final double KT_TO_MS = com.atakmap.android.weather.util.WeatherUnitConverter.KT_TO_MS;
+    private static final double SM_TO_M  = com.atakmap.android.weather.util.WeatherUnitConverter.SM_TO_M;
 
     // Wind-aloft pressure levels and approximate altitudes (metres MSL)
     private static final int[]    ALOFT_ALT_M  = {  760, 1500, 3000, 4200 };

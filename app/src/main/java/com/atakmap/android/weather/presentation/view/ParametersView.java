@@ -47,48 +47,29 @@ public class ParametersView {
 
     // ── Public API ─────────────────────────────────────────────────────────────
 
+    /**
+     * Bind enum-based parameter sections.
+     * NOTE: The Parameters UI section was removed from tab_parameters.xml in the
+     * layout redesign. These bindings now gracefully no-op because the container
+     * IDs no longer exist in the layout — bindEnumSection returns early on null.
+     * Kept for potential future re-introduction of per-source parameter selection.
+     */
     public void setAvailableParameters(List<WeatherParameter> supported) {
-        List<WeatherParameter> hourly  = filterBy(supported, WeatherParameter.Category.HOURLY);
-        List<WeatherParameter> daily   = filterBy(supported, WeatherParameter.Category.DAILY);
-        List<WeatherParameter> current = filterBy(supported, WeatherParameter.Category.CURRENT);
-
-        bindEnumSection(R.id.params_list_hourly,
-                R.id.params_all_hourly, R.id.params_none_hourly,
-                hourly, WeatherParameter.MINIMUM_REQUIRED_HOURLY);
-        bindEnumSection(R.id.params_list_daily,
-                R.id.params_all_daily, R.id.params_none_daily,
-                daily, WeatherParameter.MINIMUM_REQUIRED_DAILY);
-        bindEnumSection(R.id.params_list_current,
-                R.id.params_all_current, R.id.params_none_current,
-                current, WeatherParameter.MINIMUM_REQUIRED_CURRENT);
-
-        setSectionVisible(R.id.section_hourly,  !hourly.isEmpty());
-        setSectionVisible(R.id.section_daily,   !daily.isEmpty());
-        setSectionVisible(R.id.section_current, !current.isEmpty());
+        // Parameters UI removed — selections are now managed internally.
+        // All parameters remain selected by default via WeatherParameterPreferences.
     }
 
+    /**
+     * Bind JSON-definition-based parameter sections.
+     * NOTE: The Parameters UI section was removed from tab_parameters.xml.
+     * All definition params default to their source-defined defaultOn value.
+     */
     public void setDefinitionParams(
             String sourceId,
             List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry> hourly,
             List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry> daily,
             List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry> current) {
-
-        android.content.SharedPreferences jsonPrefs = context.getSharedPreferences(
-                "weather_json_params_" + sourceId, android.content.Context.MODE_PRIVATE);
-
-        bindDefinitionSection(R.id.params_list_hourly,
-                R.id.params_all_hourly, R.id.params_none_hourly,
-                hourly, jsonPrefs, "hourly");
-        bindDefinitionSection(R.id.params_list_daily,
-                R.id.params_all_daily, R.id.params_none_daily,
-                daily, jsonPrefs, "daily");
-        bindDefinitionSection(R.id.params_list_current,
-                R.id.params_all_current, R.id.params_none_current,
-                current, jsonPrefs, "current");
-
-        setSectionVisible(R.id.section_hourly,  !hourly.isEmpty());
-        setSectionVisible(R.id.section_daily,   !daily.isEmpty());
-        setSectionVisible(R.id.section_current, !current.isEmpty());
+        // Parameters UI removed — all params enabled by default per source definition.
     }
 
     public void setSourceDescription(String desc) {

@@ -211,20 +211,24 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
         <Button android:id="@+id/chart_toggle_temp"
-          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="28dp"
-          android:text="@string/chart_legend_temp" android:textSize="10sp"
+          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="34dp"
+          android:text="@string/chart_legend_temp" android:textSize="11sp"
+          android:paddingStart="10dp" android:paddingEnd="10dp"
           android:backgroundTint="#FF5C8A" android:layout_marginEnd="5dp"/>
         <Button android:id="@+id/chart_toggle_humidity"
-          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="28dp"
-          android:text="@string/chart_legend_humidity" android:textSize="10sp"
+          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="34dp"
+          android:text="@string/chart_legend_humidity" android:textSize="11sp"
+          android:paddingStart="10dp" android:paddingEnd="10dp"
           android:backgroundTint="#4FC3F7" android:layout_marginEnd="5dp"/>
         <Button android:id="@+id/chart_toggle_wind"
-          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="28dp"
-          android:text="@string/chart_legend_wind" android:textSize="10sp"
+          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="34dp"
+          android:text="@string/chart_legend_wind" android:textSize="11sp"
+          android:paddingStart="10dp" android:paddingEnd="10dp"
           android:backgroundTint="#FFB74D" android:layout_marginEnd="5dp"/>
         <Button android:id="@+id/chart_toggle_pressure"
-          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="28dp"
-          android:text="@string/chart_legend_pressure" android:textSize="10sp"
+          style="@style/darkButton" android:layout_width="wrap_content" android:layout_height="34dp"
+          android:text="@string/chart_legend_pressure" android:textSize="11sp"
+          android:paddingStart="10dp" android:paddingEnd="10dp"
           android:backgroundTint="#81C784"/>
       </LinearLayout>
     </HorizontalScrollView>
@@ -289,6 +293,60 @@
           The chart canvas is drawn below this transparent layer.
       -->
     </FrameLayout>
+
+    <!-- Chart zoom + time range controls -->
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="horizontal"
+      android:gravity="center_vertical"
+      android:layout_marginBottom="3dp">
+
+      <Button android:id="@+id/btn_chart_zoom_out"
+        style="@style/darkButton"
+        android:layout_width="36dp" android:layout_height="30dp"
+        android:text="−" android:textSize="16sp"
+        android:paddingStart="0dp" android:paddingEnd="0dp"
+        android:layout_marginEnd="4dp"/>
+      <Button android:id="@+id/btn_chart_zoom_in"
+        style="@style/darkButton"
+        android:layout_width="36dp" android:layout_height="30dp"
+        android:text="+" android:textSize="16sp"
+        android:paddingStart="0dp" android:paddingEnd="0dp"
+        android:layout_marginEnd="8dp"/>
+
+      <TextView android:id="@+id/chart_zoom_label"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:text="7d" android:textSize="10sp"
+        android:textStyle="italic" android:alpha="0.7"
+        android:layout_marginEnd="8dp"/>
+
+      <View android:layout_width="0dp" android:layout_height="0dp" android:layout_weight="1"/>
+
+      <Button android:id="@+id/btn_chart_range_24"
+        style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="28dp"
+        android:text="24h" android:textSize="10sp"
+        android:paddingStart="8dp" android:paddingEnd="8dp"
+        android:layout_marginEnd="3dp"/>
+      <Button android:id="@+id/btn_chart_range_48"
+        style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="28dp"
+        android:text="48h" android:textSize="10sp"
+        android:paddingStart="8dp" android:paddingEnd="8dp"
+        android:layout_marginEnd="3dp"/>
+      <Button android:id="@+id/btn_chart_range_72"
+        style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="28dp"
+        android:text="3d" android:textSize="10sp"
+        android:paddingStart="8dp" android:paddingEnd="8dp"
+        android:layout_marginEnd="3dp"/>
+      <Button android:id="@+id/btn_chart_range_all"
+        style="@style/darkButton"
+        android:layout_width="wrap_content" android:layout_height="28dp"
+        android:text="7d" android:textSize="10sp"
+        android:paddingStart="8dp" android:paddingEnd="8dp"/>
+    </LinearLayout>
 
     <TextView
       android:id="@+id/chart_status_text"

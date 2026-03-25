@@ -1,12 +1,101 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
-    <PreferenceCategory
-        android:key="key_for_category"
-        android:title="Test pref category (in plugin they cannot have any members" />
 
-    <com.atakmap.android.gui.PanEditTextPreference
-        android:key="pan_edit_text_test"
-        android:defaultValue="0"
-        android:title="Some text of PanEditTextPref" />
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 1: Quick Preset
+         ══════════════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="unit_preset_category"
+        android:title="Unit Preset">
+
+        <com.atakmap.android.gui.PanListPreference
+            android:key="weather_unit_system"
+            android:title="@string/unit_system_title"
+            android:summary="Quick preset — overrides all individual units below"
+            android:entries="@array/unit_system_labels"
+            android:entryValues="@array/unit_system_values"
+            android:defaultValue="METRIC" />
+
+    </PreferenceCategory>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 2: Individual Unit Selection
+         ══════════════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="unit_individual_category"
+        android:title="Individual Units">
+
+        <com.atakmap.android.gui.PanListPreference
+            android:key="weather_unit_temp"
+            android:title="@string/pref_temp_unit_title"
+            android:entries="@array/temp_unit_labels"
+            android:entryValues="@array/temp_unit_values"
+            android:defaultValue="C" />
+
+        <com.atakmap.android.gui.PanListPreference
+            android:key="weather_unit_wind"
+            android:title="@string/pref_wind_unit_title"
+            android:entries="@array/wind_unit_labels"
+            android:entryValues="@array/wind_unit_values"
+            android:defaultValue="MS" />
+
+        <com.atakmap.android.gui.PanListPreference
+            android:key="weather_unit_pressure"
+            android:title="@string/pref_pressure_unit_title"
+            android:entries="@array/pressure_unit_labels"
+            android:entryValues="@array/pressure_unit_values"
+            android:defaultValue="HPA" />
+
+        <com.atakmap.android.gui.PanListPreference
+            android:key="weather_unit_visibility"
+            android:title="@string/pref_visibility_unit_title"
+            android:entries="@array/visibility_unit_labels"
+            android:entryValues="@array/visibility_unit_values"
+            android:defaultValue="M" />
+
+        <com.atakmap.android.gui.PanListPreference
+            android:key="weather_unit_altitude"
+            android:title="@string/pref_altitude_unit_title"
+            android:entries="@array/altitude_unit_labels"
+            android:entryValues="@array/altitude_unit_values"
+            android:defaultValue="M" />
+
+        <com.atakmap.android.gui.PanListPreference
+            android:key="weather_unit_precip"
+            android:title="@string/pref_precip_unit_title"
+            android:entries="@array/precip_unit_labels"
+            android:entryValues="@array/precip_unit_values"
+            android:defaultValue="MM" />
+
+    </PreferenceCategory>
+
+    <!-- ══════════════════════════════════════════════════════════════════
+         SECTION 3: Data Management
+         ══════════════════════════════════════════════════════════════════ -->
+    <PreferenceCategory
+        android:key="data_management_category"
+        android:title="@string/pref_cache_category">
+
+        <Preference
+            android:key="clear_radar_cache"
+            android:title="@string/pref_clear_radar_cache"
+            android:summary="Remove downloaded radar tiles" />
+
+        <Preference
+            android:key="clear_heatmap_cache"
+            android:title="@string/pref_clear_heatmap_cache"
+            android:summary="Remove cached heatmap grid data" />
+
+        <Preference
+            android:key="clear_forecast_db"
+            android:title="@string/pref_clear_forecast_db"
+            android:summary="Delete recorded forecast history (SQLite)" />
+
+        <Preference
+            android:key="clear_all_caches"
+            android:title="@string/pref_clear_all"
+            android:summary="Clear all caches and databases at once" />
+
+    </PreferenceCategory>
 
 </PreferenceScreen>

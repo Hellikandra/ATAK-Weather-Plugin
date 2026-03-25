@@ -1,7 +1,14 @@
 package com.atakmap.android.weather.util;
 
 import android.content.Context;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.text.TextUtils;
+import android.util.TypedValue;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.TextView;
 
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.LocationSource;
@@ -27,46 +34,90 @@ public final class WeatherUiUtils {
 
     private WeatherUiUtils() { /* utility class */ }
 
+    /** Light text color for spinner items (high contrast on dark bg) */
+    private static final int TEXT_COLOR = Color.parseColor("#E8EAED");
+    /** Dark background for collapsed spinner */
+    private static final int BG_COLOR = Color.parseColor("#1E2430");
+    /** Dark background for dropdown popup */
+    private static final int DROPDOWN_BG = Color.parseColor("#21262d");
+    /** Spinner border/outline colour */
+    private static final int SPINNER_BORDER = Color.parseColor("#3A4050");
+
     /**
      * Create an {@link ArrayAdapter} suitable for ATAK plugin spinners.
      *
-     * <p>ATAK's dark theme means the collapsed spinner sits on a dark background
-     * (needs white text) while the expanded dropdown popup has a light background
-     * (needs dark text). This adapter overrides {@code getDropDownView()} to
-     * force dark text in the popup only.</p>
+     * <p><b>IMPORTANT:</b> ATAK plugins MUST NOT use custom {@code R.layout.*}
+     * resources in ArrayAdapter — the host app resolves plugin R.layout IDs
+     * to wrong resources, causing InflateException crashes. Instead we use
+     * {@code android.R.layout.simple_spinner_item} and override colors
+     * programmatically.</p>
      *
-     * @param context the application context (not the plugin context — avoids
-     *                BadTokenException)
+     * @param context any context (app or plugin — layout is android.R)
      * @param items   the list of items to display
      * @param <T>     item type
      * @return a correctly themed ArrayAdapter
      */
     public static <T> ArrayAdapter<T> makeDarkSpinnerAdapter(Context context,
                                                              List<T> items) {
-        return new ArrayAdapter<T>(context,
+        ArrayAdapter<T> adapter = new ArrayAdapter<T>(context,
                 android.R.layout.simple_spinner_item, items) {
             @Override
-            public android.view.View getView(int pos, android.view.View conv,
-                                             android.view.ViewGroup parent) {
-                android.view.View v = super.getView(pos, conv, parent);
-                if (v instanceof android.widget.TextView) {
-                    ((android.widget.TextView) v)
-                            .setTextColor(android.graphics.Color.WHITE);
-                }
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View v = super.getView(position, convertView, parent);
+                styleDark(v);
                 return v;
             }
-
             @Override
-            public android.view.View getDropDownView(int pos, android.view.View conv,
-                                                     android.view.ViewGroup parent) {
-                android.view.View v = super.getDropDownView(pos, conv, parent);
-                if (v instanceof android.widget.TextView) {
-                    ((android.widget.TextView) v)
-                            .setTextColor(android.graphics.Color.parseColor("#111111"));
-                }
+            public View getDropDownView(int position, View convertView, ViewGroup parent) {
+                View v = super.getDropDownView(position, convertView, parent);
+                styleDarkDropdown(v);
                 return v;
             }
         };
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        return adapter;
+    }
+
+    /**
+     * Apply dark theme to the Spinner widget itself (collapsed view background + arrow tint).
+     * Call this right after setAdapter().
+     */
+    public static void styleSpinnerDark(android.widget.Spinner spinner) {
+        if (spinner == null) return;
+        // Rounded rect background with border for clear visibility
+        android.graphics.drawable.GradientDrawable bg =
+                new android.graphics.drawable.GradientDrawable();
+        bg.setColor(BG_COLOR);
+        bg.setStroke(1, SPINNER_BORDER);
+        bg.setCornerRadius(4 * spinner.getContext()
+                .getResources().getDisplayMetrics().density);
+        spinner.setBackground(bg);
+        spinner.setPopupBackgroundDrawable(new ColorDrawable(DROPDOWN_BG));
+        float dp = spinner.getContext().getResources().getDisplayMetrics().density;
+        spinner.setPadding((int)(6*dp), (int)(2*dp), (int)(6*dp), (int)(2*dp));
+        spinner.setMinimumHeight((int) (44 * dp));
+    }
+
+    private static void styleDark(View v) {
+        if (v instanceof TextView) {
+            ((TextView) v).setTextColor(TEXT_COLOR);
+            ((TextView) v).setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+            ((TextView) v).setSingleLine(true);
+            ((TextView) v).setEllipsize(android.text.TextUtils.TruncateAt.END);
+            v.setBackgroundColor(BG_COLOR);
+            float dp = v.getContext().getResources().getDisplayMetrics().density;
+            v.setPadding((int)(10*dp), (int)(6*dp), (int)(8*dp), (int)(6*dp));
+        }
+    }
+
+    private static void styleDarkDropdown(View v) {
+        if (v instanceof TextView) {
+            ((TextView) v).setTextColor(TEXT_COLOR);
+            ((TextView) v).setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            v.setBackgroundColor(DROPDOWN_BG);
+            float dp = v.getContext().getResources().getDisplayMetrics().density;
+            v.setPadding((int)(12*dp), (int)(10*dp), (int)(12*dp), (int)(10*dp));
+        }
     }
 
     /**

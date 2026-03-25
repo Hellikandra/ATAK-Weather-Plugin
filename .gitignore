@@ -88,8 +88,9 @@ lint/tmp/
 .takdev
 
 # Claude conversation exports & references (large reference materials)
+.claude/
 claude/
 references/
-
+docs/
 # Generated reports (can be regenerated)
 reports/

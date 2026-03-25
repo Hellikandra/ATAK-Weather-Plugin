@@ -60,8 +60,14 @@ public final class HttpClient {
                 connection.connect();
 
                 int status = connection.getResponseCode();
-                if (status != HttpsURLConnection.HTTP_OK) {
+                // Accept 200 OK and 204 No Content (e.g., AWC SIGMET returns 204 when none active)
+                if (status != HttpsURLConnection.HTTP_OK
+                        && status != HttpsURLConnection.HTTP_NO_CONTENT) {
                     deliverFailure(callback, "HTTP " + status);
+                    return;
+                }
+                if (status == HttpsURLConnection.HTTP_NO_CONTENT) {
+                    MAIN_HANDLER.post(() -> callback.onSuccess("[]"));
                     return;
                 }
 

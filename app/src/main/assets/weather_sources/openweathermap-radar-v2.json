@@ -1,0 +1,38 @@
+{
+  "_schema_version": "2.0",
+
+  "radarSourceId": "openweathermap-radar",
+  "displayName": "OpenWeatherMap Radar",
+  "description": "Global precipitation overlay tiles. Requires free API key from openweathermap.org.",
+  "type": "radar",
+  "provider": "openweathermap",
+
+  "model": {
+    "name": "OWM Precipitation",
+    "coverage": "Global",
+    "temporalResolution": "Current snapshot only",
+    "source_url": "https://openweathermap.org/api/weathermaps"
+  },
+
+  "auth": {
+    "type": "apiKey",
+    "queryParam": "appid"
+  },
+
+  "rateLimit": {
+    "requestsPerMinute": 60,
+    "requestsPerDay": null,
+    "note": "60 req/min on free tier. See openweathermap.org/price for limits."
+  },
+
+  "manifestUrl": null,
+  "manifestFormat": "static",
+
+  "tileUrlTemplate": "https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid={apikey}",
+
+  "tileSize": 256,
+  "maxZoom": 18,
+  "defaultZoom": 5,
+
+  "attribution": "OpenWeatherMap (openweathermap.org)"
+}

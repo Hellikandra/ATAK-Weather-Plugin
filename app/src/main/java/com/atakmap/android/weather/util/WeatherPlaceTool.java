@@ -81,7 +81,7 @@ public class WeatherPlaceTool extends Tool
 
     // ── Mode ──────────────────────────────────────────────────────────────────
 
-    public enum Mode { WEATHER, WIND }
+    public enum Mode { WEATHER, WIND, CBRN }
 
     // ── Callback ──────────────────────────────────────────────────────────────
 
@@ -183,9 +183,14 @@ public class WeatherPlaceTool extends Tool
         _mapView.getMapTouchController().setToolActive(true);
 
         // Show persistent banner with mode-specific instruction
-        String prompt = activeMode == Mode.WIND
-                ? pluginContext.getString(com.atakmap.android.weather.plugin.R.string.tool_prompt_wind)
-                : pluginContext.getString(com.atakmap.android.weather.plugin.R.string.tool_prompt_weather);
+        String prompt;
+        if (activeMode == Mode.WIND) {
+            prompt = pluginContext.getString(com.atakmap.android.weather.plugin.R.string.tool_prompt_wind);
+        } else if (activeMode == Mode.CBRN) {
+            prompt = "Tap the map to place CBRN release point";
+        } else {
+            prompt = pluginContext.getString(com.atakmap.android.weather.plugin.R.string.tool_prompt_weather);
+        }
         TextContainer.getInstance().displayPrompt(prompt);
 
         Log.d(TAG, "tool begun — mode=" + activeMode);
