@@ -77,17 +77,73 @@ public class HeatmapLegendView extends View {
             case "relative_humidity_2m":
                 minVal = 0; maxVal = 100; paramUnit = "%";
                 colors = new int[]{
-                    Color.parseColor("#FFEB3B"),  // yellow (dry)
-                    Color.parseColor("#4CAF50"),  // green (moderate)
-                    Color.parseColor("#2196F3"),  // blue (humid)
+                    Color.parseColor("#C08040"),  // brown (very dry)
+                    Color.parseColor("#E0D000"),  // yellow (dry)
+                    Color.parseColor("#80C040"),  // green (comfortable)
+                    Color.parseColor("#209080"),  // teal (humid)
+                    Color.parseColor("#2050D0"),  // blue (saturated)
                 };
                 break;
             case "surface_pressure":
                 minVal = 970; maxVal = 1040; paramUnit = "hPa";
                 colors = new int[]{
-                    Color.parseColor("#CE93D8"),  // purple (low)
-                    Color.parseColor("#4CAF50"),  // green (normal)
-                    Color.parseColor("#FF9800"),  // orange (high)
+                    Color.parseColor("#A020C0"),  // purple (very low)
+                    Color.parseColor("#4080E0"),  // blue (low)
+                    Color.parseColor("#60C060"),  // green (normal ~1013)
+                    Color.parseColor("#E0C000"),  // yellow (high)
+                    Color.parseColor("#E08000"),  // orange (very high)
+                };
+                break;
+            // Marine parameters
+            case "wave_height":
+            case "wind_wave_height":
+            case "swell_wave_height":
+                minVal = 0; maxVal = 8; paramUnit = "m";
+                colors = new int[]{
+                    Color.parseColor("#40E0D0"),  // teal
+                    Color.parseColor("#2080C0"),  // blue
+                    Color.parseColor("#6040C0"),  // purple
+                    Color.parseColor("#C02060"),  // red
+                };
+                break;
+            case "ocean_current_velocity":
+                minVal = 0; maxVal = 3; paramUnit = "m/s";
+                colors = new int[]{
+                    Color.parseColor("#103060"),  // dark navy
+                    Color.parseColor("#3070C0"),  // blue
+                    Color.parseColor("#60D0E0"),  // cyan
+                    Color.parseColor("#D0F0F0"),  // near-white
+                };
+                break;
+            case "sea_surface_temperature":
+                minVal = 0; maxVal = 30; paramUnit = "\u00B0C";
+                colors = new int[]{
+                    Color.parseColor("#2020C0"),  // deep blue
+                    Color.parseColor("#40C0C0"),  // cyan
+                    Color.parseColor("#40C040"),  // green
+                    Color.parseColor("#E0E000"),  // yellow
+                    Color.parseColor("#E02020"),  // red
+                };
+                break;
+            case "sea_level_height_msl":
+                minVal = -1.5; maxVal = 1.5; paramUnit = "m";
+                colors = new int[]{
+                    Color.parseColor("#806030"),  // brown (low tide)
+                    Color.parseColor("#E0D0A0"),  // tan
+                    Color.parseColor("#FFFFFF"),  // white (MSL)
+                    Color.parseColor("#4080C0"),  // blue
+                    Color.parseColor("#2050A0"),  // deep blue (high tide)
+                };
+                break;
+            case "wave_period":
+            case "wind_wave_period":
+            case "swell_wave_period":
+                minVal = 2; maxVal = 18; paramUnit = "s";
+                colors = new int[]{
+                    Color.parseColor("#E02020"),  // red (short/steep)
+                    Color.parseColor("#E0E000"),  // yellow
+                    Color.parseColor("#40B0B0"),  // teal
+                    Color.parseColor("#6060C0"),  // purple (long swell)
                 };
                 break;
             default:

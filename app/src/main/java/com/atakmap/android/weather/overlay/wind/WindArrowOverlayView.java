@@ -38,18 +38,18 @@ public class WindArrowOverlayView extends View {
     private final Paint outlinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path arrowPath = new Path();
 
-    // Data — single-point fallback
-    private List<HourlyEntryModel> hourlyData;
-    private int hourIndex = 0;
-    private float opacity = 0.85f;
-    private boolean visible = false;
+    // Thread-safe: data set from background callbacks, drawn on UI thread.
+    private volatile List<HourlyEntryModel> hourlyData;
+    private volatile int hourIndex = 0;
+    private volatile float opacity = 0.85f;
+    private volatile boolean visible = false;
 
-    // Grid data — per-cell wind from heatmap dataset
-    private double[][] gridWindSpeed;    // [row][col]
-    private double[][] gridWindDir;      // [row][col]
-    private double gridNorth, gridSouth, gridWest, gridEast;
-    private int gridRows, gridCols;
-    private boolean hasGridData = false;
+    // Grid data — per-cell wind from heatmap dataset (volatile for thread safety)
+    private volatile double[][] gridWindSpeed;    // [row][col]
+    private volatile double[][] gridWindDir;      // [row][col]
+    private volatile double gridNorth, gridSouth, gridWest, gridEast;
+    private volatile int gridRows, gridCols;
+    private volatile boolean hasGridData = false;
 
     /** Arrow drawing styles. */
     public enum ArrowStyle { ARROW, BARB, CHEVRON, DOT }
@@ -62,8 +62,23 @@ public class WindArrowOverlayView extends View {
 
     private final ColourScale windScale;
 
+    // City labels (wind + other parameter values)
+    private CityWindDatabase cityDb;
+    private boolean showCityLabels = true;
+    private final Paint cityLabelPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint cityBgPaint    = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    // Extra parameter grid for city value labels (temp, humidity, pressure)
+    private double[][] cityParamGrid;
+    private double cityParamNorth, cityParamSouth, cityParamWest, cityParamEast;
+    private int cityParamRows, cityParamCols;
+    private String cityParamKey = "";   // e.g. "temperature_2m"
+    private String cityParamUnit = "";  // e.g. "°C"
+    private boolean hasCityParamData = false;
+
+    // Fix #22 audit — VSYNC-aligned redraw eliminates 1-frame drift.
     private final MapView.OnMapMovedListener mapMovedListener =
-            (view, animate) -> post(WindArrowOverlayView.this::invalidate);
+            (view, animate) -> postInvalidateOnAnimation();
 
     public WindArrowOverlayView(Context context, MapView mapView) {
         super(context);
@@ -79,6 +94,21 @@ public class WindArrowOverlayView extends View {
         outlinePaint.setStrokeWidth(1.5f);
 
         windScale = ColourScale.forParameter("wind_speed_10m");
+
+        // City label styling
+        float dp = context.getResources().getDisplayMetrics().density;
+        cityLabelPaint.setColor(Color.WHITE);
+        cityLabelPaint.setTextSize(10f * dp);
+        cityLabelPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        cityLabelPaint.setTextAlign(Paint.Align.CENTER);
+        cityLabelPaint.setShadowLayer(2f * dp, 0, 0, Color.BLACK);
+
+        cityBgPaint.setColor(Color.argb(140, 0, 0, 0));
+        cityBgPaint.setStyle(Paint.Style.FILL);
+
+        // Load city database
+        cityDb = new CityWindDatabase();
+        cityDb.load(context);
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -112,7 +142,8 @@ public class WindArrowOverlayView extends View {
 
     public void setArrowsVisible(boolean v) {
         this.visible = v;
-        setVisibility(v ? VISIBLE : GONE);
+        // View stays VISIBLE if either arrows or city labels are active
+        setVisibility((v || showCityLabels) ? VISIBLE : GONE);
         postInvalidate();
     }
 
@@ -184,12 +215,49 @@ public class WindArrowOverlayView extends View {
     public float getArrowSizeDp() { return arrowSizeDp; }
     public boolean isFillArrow() { return fillArrow; }
 
+    /** Show/hide city-anchored wind labels. */
+    public void setShowCityLabels(boolean show) {
+        this.showCityLabels = show;
+        setVisibility((visible || show) ? VISIBLE : GONE);
+        postInvalidate();
+    }
+    public boolean isShowCityLabels() { return showCityLabels; }
+
+    /**
+     * Set parameter grid for city value labels (temperature, humidity, pressure).
+     * Values are interpolated at city positions and shown as labels.
+     */
+    public void setCityParameterGrid(double[][] grid, String paramKey, String unit,
+                                      double north, double south,
+                                      double west, double east) {
+        this.cityParamGrid = grid;
+        this.cityParamKey = paramKey != null ? paramKey : "";
+        this.cityParamUnit = unit != null ? unit : "";
+        this.cityParamNorth = north;
+        this.cityParamSouth = south;
+        this.cityParamWest = west;
+        this.cityParamEast = east;
+        if (grid != null) {
+            this.cityParamRows = grid.length;
+            this.cityParamCols = cityParamRows > 0 ? grid[0].length : 0;
+        }
+        this.hasCityParamData = (grid != null && cityParamRows > 0 && cityParamCols > 0);
+        postInvalidate();
+    }
+
+    public void clearCityParameterGrid() {
+        this.hasCityParamData = false;
+        this.cityParamGrid = null;
+        postInvalidate();
+    }
+
     // ── Drawing (geo-projected) ────────────────────────────────────────────────
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (!visible) return;
+        // Need at least one feature enabled
+        if (!visible && !showCityLabels) return;
 
         float dp = getContext().getResources().getDisplayMetrics().density;
         float arrowSize = arrowSizeDp * dp;
@@ -201,12 +269,18 @@ public class WindArrowOverlayView extends View {
         int screenH = getHeight();
         if (screenW <= 0 || screenH <= 0) return;
 
-        if (hasGridData) {
-            // ── Per-cell wind from heatmap grid data ──────────────────────
-            drawGridArrows(canvas, arrowSize, mapRotation, alphaVal, screenW, screenH);
-        } else {
-            // ── Uniform single-point fallback ─────────────────────────────
-            drawUniformArrows(canvas, arrowSize, mapRotation, alphaVal, screenW, screenH);
+        // ── Grid/uniform arrows (only when arrows are visible) ──────────
+        if (visible) {
+            if (hasGridData) {
+                drawGridArrows(canvas, arrowSize, mapRotation, alphaVal, screenW, screenH);
+            } else {
+                drawUniformArrows(canvas, arrowSize, mapRotation, alphaVal, screenW, screenH);
+            }
+        }
+
+        // ── City labels (independent of arrow visibility) ──────────────
+        if (showCityLabels && cityDb != null && cityDb.isLoaded()) {
+            drawCityWindLabels(canvas, arrowSize * 1.2f, mapRotation, alphaVal, screenW, screenH);
         }
     }
 
@@ -366,12 +440,185 @@ public class WindArrowOverlayView extends View {
         float dotR = s * 0.12f;
         canvas.drawCircle(0, 0, dotR, arrowPaint);
         canvas.drawCircle(0, 0, dotR, outlinePaint);
-        // Line from center toward wind-from
         canvas.drawLine(0, 0, 0, -s * 0.45f, outlinePaint);
         canvas.drawLine(0, 0, 0, -s * 0.45f, arrowPaint);
-        // Small arrowhead at tip
         float tipY = -s * 0.45f;
         canvas.drawLine(0, tipY, -s * 0.08f, tipY + s * 0.1f, outlinePaint);
         canvas.drawLine(0, tipY, s * 0.08f, tipY + s * 0.1f, outlinePaint);
+    }
+
+    // ── City-anchored wind labels ─────────────────────────────────────────
+
+    /**
+     * Draw wind arrows + speed labels anchored to city locations.
+     * Cities are filtered by zoom level (rank-based).
+     * Wind is interpolated from the heatmap grid at each city's position.
+     */
+    private void drawCityWindLabels(Canvas canvas, float arrowSize, float mapRotation,
+                                     int alphaVal, int screenW, int screenH) {
+        GeoBounds bounds = mapView.getBounds();
+        if (bounds == null) return;
+        double mapRes = mapView.getMapResolution();
+
+        java.util.List<CityWindDatabase.City> cities = cityDb.queryVisible(
+                bounds.getNorth(), bounds.getSouth(),
+                bounds.getWest(), bounds.getEast(),
+                mapRes);
+
+        if (cities.isEmpty()) return;
+
+        float dp = getContext().getResources().getDisplayMetrics().density;
+
+        // Zoom-adaptive sizing: larger labels when zoomed in, smaller when zoomed out
+        // mapRes ~100 = city zoom (large labels), ~5000 = continental (small labels)
+        float zoomFactor = (float) Math.max(0.6, Math.min(1.4, 1000.0 / Math.max(mapRes, 100)));
+        arrowSize *= zoomFactor;
+
+        for (CityWindDatabase.City city : cities) {
+            // Get wind at city location
+            double ws, wd;
+            if (hasGridData && gridWindSpeed != null && gridWindDir != null) {
+                // Interpolate from grid
+                double fracRow = (city.lat - gridSouth) / (gridNorth - gridSouth) * (gridRows - 1);
+                double fracCol = (city.lon - gridWest) / (gridEast - gridWest) * (gridCols - 1);
+                if (fracRow < 0 || fracRow >= gridRows - 1 || fracCol < 0 || fracCol >= gridCols - 1) continue;
+                int r0 = Math.max(0, Math.min(gridRows - 2, (int) fracRow));
+                int c0 = Math.max(0, Math.min(gridCols - 2, (int) fracCol));
+                double fr = fracRow - r0, fc = fracCol - c0;
+                ws = gridWindSpeed[r0][c0]*(1-fr)*(1-fc) + gridWindSpeed[r0][c0+1]*(1-fr)*fc
+                   + gridWindSpeed[r0+1][c0]*fr*(1-fc) + gridWindSpeed[r0+1][c0+1]*fr*fc;
+                double d00 = Math.toRadians(gridWindDir[r0][c0]);
+                double d01 = Math.toRadians(gridWindDir[r0][c0+1]);
+                double d10 = Math.toRadians(gridWindDir[r0+1][c0]);
+                double d11 = Math.toRadians(gridWindDir[r0+1][c0+1]);
+                double sinS = Math.sin(d00)*(1-fr)*(1-fc) + Math.sin(d01)*(1-fr)*fc
+                            + Math.sin(d10)*fr*(1-fc) + Math.sin(d11)*fr*fc;
+                double cosS = Math.cos(d00)*(1-fr)*(1-fc) + Math.cos(d01)*(1-fr)*fc
+                            + Math.cos(d10)*fr*(1-fc) + Math.cos(d11)*fr*fc;
+                wd = Math.toDegrees(Math.atan2(sinS, cosS));
+                if (wd < 0) wd += 360;
+            } else if (hourlyData != null && !hourlyData.isEmpty()
+                    && hourIndex >= 0 && hourIndex < hourlyData.size()) {
+                // Uniform fallback
+                HourlyEntryModel entry = hourlyData.get(hourIndex);
+                ws = entry.getWindSpeed();
+                wd = entry.getWindDirection();
+            } else {
+                continue;
+            }
+
+            if (ws < 0.1) continue;
+
+            // Project city to screen
+            PointF screen = mapView.forward(new GeoPoint(city.lat, city.lon));
+            if (screen == null) continue;
+            if (screen.x < -50 || screen.x > screenW + 50
+                    || screen.y < -50 || screen.y > screenH + 50) continue;
+
+            float cx = screen.x;
+            float cy = screen.y;
+
+            // Draw arrow at city position
+            int color = windScale.getColor(ws);
+            arrowPaint.setColor(Color.argb(alphaVal, Color.red(color),
+                    Color.green(color), Color.blue(color)));
+            float screenDir = (float) wd - mapRotation;
+            drawArrow(canvas, cx, cy, screenDir, ws, arrowSize);
+
+            // ── Wind label: "5 m/s NW" ──
+            String compass = degreesToCompass(wd);
+            String speedText = String.format(java.util.Locale.US, "%.0f", ws);
+            String windLabel = speedText + " m/s " + compass;
+
+            // ── Parameter value label (temp/humidity/pressure if available) ──
+            String paramLabel = null;
+            if (hasCityParamData && cityParamGrid != null) {
+                double val = interpolateGrid(city.lat, city.lon,
+                        cityParamGrid, cityParamNorth, cityParamSouth,
+                        cityParamWest, cityParamEast, cityParamRows, cityParamCols);
+                if (!Double.isNaN(val)) {
+                    if ("temperature_2m".equals(cityParamKey)) {
+                        paramLabel = String.format(java.util.Locale.US, "%.0f%s", val, cityParamUnit);
+                    } else if ("relative_humidity_2m".equals(cityParamKey)) {
+                        paramLabel = String.format(java.util.Locale.US, "%.0f%s", val, cityParamUnit);
+                    } else if ("surface_pressure".equals(cityParamKey)) {
+                        paramLabel = String.format(java.util.Locale.US, "%.0f %s", val, cityParamUnit);
+                    } else {
+                        paramLabel = String.format(java.util.Locale.US, "%.1f %s", val, cityParamUnit);
+                    }
+                }
+            }
+
+            float pad = 4f * dp * zoomFactor;
+            float baseFontSize = 10f * dp * zoomFactor;
+            float smallFontSize = 9f * dp * zoomFactor;
+            cityLabelPaint.setTextSize(baseFontSize);
+            float textH = cityLabelPaint.getTextSize();
+
+            // ── City name (top) ──
+            float nameY = cy - arrowSize * 0.7f - 3f * dp;
+            cityLabelPaint.setColor(Color.argb((int)(alphaVal * 0.85f), 255, 255, 255));
+            cityLabelPaint.setTextSize(smallFontSize);
+            float nameW = cityLabelPaint.measureText(city.name);
+            canvas.drawRoundRect(
+                    cx - nameW / 2f - pad, nameY - textH + 2f * dp,
+                    cx + nameW / 2f + pad, nameY + 3f * dp,
+                    3f * dp, 3f * dp, cityBgPaint);
+            canvas.drawText(city.name, cx, nameY, cityLabelPaint);
+
+            // ── Wind speed + direction (below arrow) ──
+            cityLabelPaint.setTextSize(baseFontSize);
+            float labelY = cy + arrowSize * 0.7f + 6f * dp;
+            float windW = cityLabelPaint.measureText(windLabel);
+            canvas.drawRoundRect(
+                    cx - windW / 2f - pad, labelY - textH,
+                    cx + windW / 2f + pad, labelY + pad,
+                    4f * dp, 4f * dp, cityBgPaint);
+            cityLabelPaint.setColor(Color.argb(alphaVal, Color.red(color),
+                    Color.green(color), Color.blue(color)));
+            canvas.drawText(windLabel, cx, labelY, cityLabelPaint);
+
+            // ── Parameter value (below wind label, if available) ──
+            if (paramLabel != null) {
+                float paramY = labelY + textH + 2f * dp;
+                cityLabelPaint.setTextSize(smallFontSize);
+                cityLabelPaint.setColor(Color.argb((int)(alphaVal * 0.9f), 200, 220, 255));
+                float paramW = cityLabelPaint.measureText(paramLabel);
+                canvas.drawRoundRect(
+                        cx - paramW / 2f - pad, paramY - textH + 2f * dp,
+                        cx + paramW / 2f + pad, paramY + 3f * dp,
+                        3f * dp, 3f * dp, cityBgPaint);
+                canvas.drawText(paramLabel, cx, paramY, cityLabelPaint);
+            }
+
+            cityLabelPaint.setTextSize(baseFontSize); // restore
+        }
+    }
+
+    /** Convert wind direction degrees to 16-point compass bearing. */
+    private static String degreesToCompass(double deg) {
+        String[] dirs = {"N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"};
+        int idx = (int) Math.round(((deg % 360) + 360) % 360 / 22.5) % 16;
+        return dirs[idx];
+    }
+
+    /** Bilinear interpolation of a scalar grid value at (lat, lon). */
+    private static double interpolateGrid(double lat, double lon,
+                                           double[][] grid,
+                                           double north, double south,
+                                           double west, double east,
+                                           int rows, int cols) {
+        if (grid == null || rows < 2 || cols < 2) return Double.NaN;
+        if (lat < south || lat > north || lon < west || lon > east) return Double.NaN;
+
+        double fracRow = (lat - south) / (north - south) * (rows - 1);
+        double fracCol = (lon - west) / (east - west) * (cols - 1);
+        int r0 = Math.max(0, Math.min(rows - 2, (int) fracRow));
+        int c0 = Math.max(0, Math.min(cols - 2, (int) fracCol));
+        double fr = fracRow - r0, fc = fracCol - c0;
+
+        return grid[r0][c0] * (1-fr)*(1-fc) + grid[r0][c0+1] * (1-fr)*fc
+             + grid[r0+1][c0] * fr*(1-fc) + grid[r0+1][c0+1] * fr*fc;
     }
 }

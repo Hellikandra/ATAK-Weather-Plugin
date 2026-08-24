@@ -26,7 +26,11 @@ import com.atakmap.coremap.log.Log;
  */
 public class WeatherPreferenceFragment extends PluginPreferenceFragment {
 
-    private static Context staticPluginContext;
+    // Sprint 24 (S24.3): Use WeakReference to prevent Activity/Context leak.
+    // The static field was previously a strong reference — if the plugin context
+    // outlived the Activity, the entire Activity view hierarchy would be leaked.
+    private static java.lang.ref.WeakReference<Context> staticPluginContextRef =
+            new java.lang.ref.WeakReference<>(null);
     private static final String TAG = "WeatherPreferenceFragment";
 
     // ── SharedPreferences keys ──────────────────────────────────────────────
@@ -44,13 +48,13 @@ public class WeatherPreferenceFragment extends PluginPreferenceFragment {
     private static final String DB_FORECAST_HIST  = "forecast_history.db";
 
     public WeatherPreferenceFragment() {
-        super(staticPluginContext, R.xml.preferences);
+        super(staticPluginContextRef.get(), R.xml.preferences);
     }
 
     @SuppressLint("ValidFragment")
     public WeatherPreferenceFragment(final Context pluginContext) {
         super(pluginContext, R.xml.preferences);
-        staticPluginContext = pluginContext;
+        staticPluginContextRef = new java.lang.ref.WeakReference<>(pluginContext);
     }
 
     @Override

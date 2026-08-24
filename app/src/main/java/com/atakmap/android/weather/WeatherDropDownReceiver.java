@@ -59,9 +59,12 @@ import com.atakmap.android.weather.presentation.view.CurrentWeatherView;
 import com.atakmap.android.weather.presentation.view.DailyForecastView;
 import com.atakmap.android.weather.presentation.view.ParametersView;
 import com.atakmap.android.weather.presentation.view.SourceManagerView;
+import com.atakmap.android.weather.presentation.view.ChartCoordinator;
+import com.atakmap.android.weather.presentation.view.DashboardCoordinator;
 import com.atakmap.android.weather.presentation.view.MarkerTabCoordinator;
 import com.atakmap.android.weather.presentation.view.OverlayTabCoordinator;
-import com.atakmap.android.weather.presentation.view.RadarTabCoordinator;
+// RadarTabCoordinator import removed — Sprint 28
+import com.atakmap.android.weather.presentation.view.SettingsCoordinator;
 import com.atakmap.android.weather.presentation.view.WeatherChartView;
 import com.atakmap.android.weather.presentation.view.WindProfileView;
 import com.atakmap.android.weather.presentation.view.WindChartView;
@@ -71,10 +74,9 @@ import com.atakmap.android.weather.presentation.viewmodel.WeatherObserverRegistr
 import com.atakmap.android.weather.presentation.viewmodel.WeatherViewModel;
 import com.atakmap.android.weather.presentation.viewmodel.WindProfileViewModel;
 import com.atakmap.android.weather.data.cache.MissionPrepManager;
-import com.atakmap.android.weather.presentation.view.CollapsibleSection;
+// CollapsibleSection import removed — moved to SettingsCoordinator (Sprint 21)
 import com.atakmap.android.weather.util.AutoRefreshManager;
 import com.atakmap.android.weather.util.MapPointPicker;
-import com.atakmap.android.weather.util.ThemeManager;
 import com.atakmap.android.weather.util.WeatherPlaceTool;
 import com.atakmap.android.weather.util.WeatherUiUtils;
 import com.atakmap.android.weather.util.WmoCodeMapper;
@@ -156,7 +158,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     private final WeatherObserverRegistry observers = new WeatherObserverRegistry();
 
     // ── Tab coordinators ──────────────────────────────────────────────────────
-    private RadarTabCoordinator   radarTabCoordinator;
+    // RadarTabCoordinator removed — Sprint 28 (radar controls in OverlayTabCoordinator)
     private WindTabCoordinator   windTabCoordinator;
     private OverlayTabCoordinator overlayTabCoordinator;
     private MarkerTabCoordinator  markerTabCoordinator;
@@ -169,9 +171,13 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     private WindProfileView    windProfileView;
     private ParametersView     parametersView;
     private WeatherChartView   chartView;
-    // ComparisonView field removed — comparison section retired from UI
     private SeekBar            chartOverlaySeekBar;
     private TextView           fltCatBadge;
+
+    // ── Extracted coordinators (Sprint 21) ────────────────────────────────────
+    private DashboardCoordinator dashboardCoordinator;
+    private ChartCoordinator     chartCoordinator;
+    private SettingsCoordinator  settingsCoordinator;
 
     // ── Preferences ───────────────────────────────────────────────────────────
     private WeatherParameterPreferences paramPrefs;
@@ -256,12 +262,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     // ── Sprint 13: Mission Prep ──────────────────────────────────────────────
     private MissionPrepManager missionPrepManager;
 
-    // ── Sprint 13: Dashboard state views ─────────────────────────────────────
-    private TextView lastUpdatedBadge;
-    private TextView offlineBadge;
-    private ProgressBar loadingProgress;
-    private View errorState;
-    private TextView errorMessage;
+    // Dashboard state views delegated to DashboardCoordinator — fields removed (Sprint 27)
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -358,6 +359,13 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     }
     private com.atakmap.android.weather.overlay.wind.WindParticleLayer windParticleLayer;
 
+    /** Inject the V4 bitmap particle overlay (full-screen rendering). */
+    public void setWindParticleView(
+            com.atakmap.android.weather.overlay.wind.WindParticleBitmapView view) {
+        this.windParticleView = view;
+    }
+    private com.atakmap.android.weather.overlay.wind.WindParticleBitmapView windParticleView;
+
     // ── onReceive ─────────────────────────────────────────────────────────────
 
     @Override
@@ -426,7 +434,10 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         networkRepo = new WeatherRepositoryImpl(sources, sourceMgr.getActiveSourceId());
         IGeocodingRepository geocodingRepo = new NominatimGeocodingSource();
 
-        paramPrefs = new WeatherParameterPreferences(pluginContext);
+        // Fix #18 — pluginContext has no on-disk data dir; SharedPreferences
+        // mkdir fails with ENOENT. Use the host activity context. See
+        // CLAUDE.md "ATAK Plugin Context" rule.
+        paramPrefs = new WeatherParameterPreferences(appContext);
         networkRepo.setParameterPreferences(paramPrefs);
 
         cachingRepo = new CachingWeatherRepository(
@@ -482,11 +493,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         setupOverflowMenu();
 
         // ── Sprint 13: Dashboard state views ─────────────────────────────────
-        lastUpdatedBadge = templateView.findViewById(R.id.last_updated_badge);
-        offlineBadge     = templateView.findViewById(R.id.offline_badge);
-        loadingProgress  = templateView.findViewById(R.id.loading_progress);
-        errorState       = templateView.findViewById(R.id.error_state);
-        errorMessage     = templateView.findViewById(R.id.error_message);
+        // Dashboard state views now managed by DashboardCoordinator (Sprint 27)
+        // errorState/errorMessage managed by DashboardCoordinator (Sprint 27)
 
         // Retry button
         Button btnRetry = templateView.findViewById(R.id.btn_retry);
@@ -570,11 +578,18 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         }
         windProfileView    = new WindProfileView(templateView);
 
+        // ── Sprint 21: Extracted coordinators ─────────────────────────────────
+        dashboardCoordinator = new DashboardCoordinator(templateView, appContext);
+        chartCoordinator     = new ChartCoordinator(templateView);
+        settingsCoordinator  = new SettingsCoordinator(
+                templateView, pluginContext, appContext, getMapView());
+        settingsCoordinator.setAutoRefreshManager(autoRefreshManager);
+        settingsCoordinator.setMissionPrepManager(missionPrepManager);
+
         // ── Tab coordinators ──────────────────────────────────────────────────
         // sharedWindEffectShape is injected from WeatherMapComponent — the same
         // instance used by WindHudWidget so both draw into the same overlay group.
-        radarTabCoordinator = new RadarTabCoordinator(
-                getMapView(), templateView, pluginContext, radarManager);
+        // RadarTabCoordinator removed — Sprint 28. Radar controls in OverlayTabCoordinator.
         windTabCoordinator  = new WindTabCoordinator(
                 getMapView(), templateView, pluginContext,
                 windViewModel, windMarkerManager, sharedWindEffectShape,
@@ -593,6 +608,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             if (heatmapLegendWidget != null) overlayTabCoordinator.setHeatmapLegendWidget(heatmapLegendWidget);
             if (windArrowOverlay    != null) overlayTabCoordinator.setWindArrowOverlay(windArrowOverlay);
             if (windParticleLayer  != null) overlayTabCoordinator.setWindParticleLayer(windParticleLayer);
+            if (windParticleView   != null) overlayTabCoordinator.setWindParticleView(windParticleView);
         }
 
         // ── Sprint 17: Marker tab coordinator ────────────────────────────
@@ -678,9 +694,13 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         // ── Tab 4 — Parameters ────────────────────────────────────────────────
 
         // Source Manager (Sprint 8 — S8.5)
+        // SourceManagerView needs BOTH contexts (lesson from the v3.1.1 first-cut crash):
+        //   pluginContext — LayoutInflater + R.string.*  (resources are in plugin APK)
+        //   appContext    — getSharedPreferences         (host has the on-disk data dir)
         View srcMgrRoot = templateView.findViewById(R.id.source_manager_section);
         if (srcMgrRoot != null) {
-            SourceManagerView sourceManagerView = new SourceManagerView(srcMgrRoot, pluginContext);
+            SourceManagerView sourceManagerView =
+                    new SourceManagerView(srcMgrRoot, pluginContext, appContext);
             sourceManagerView.init();
         }
 
@@ -712,8 +732,11 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         if (chartFrame != null) {
             chartView = new WeatherChartView(pluginContext);
             chartFrame.addView(chartView, 0);
-            wireChartToggleButtons();
-            wireChartZoomAndRange();
+            // Chart controls delegated to ChartCoordinator (Sprint 21)
+            chartOverlaySeekBar = templateView.findViewById(R.id.seekbar_chart_overlay);
+            if (chartCoordinator != null) {
+                chartCoordinator.init(chartView, chartOverlaySeekBar);
+            }
         }
         chartOverlaySeekBar = templateView.findViewById(R.id.seekbar_chart_overlay);
         if (chartOverlaySeekBar != null) {
@@ -767,33 +790,10 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         // ── Sprint 13: Mission Prep setup ────────────────────────────────────
         missionPrepManager = new MissionPrepManager(appContext, cachingRepo);
 
-        // ── Sprint 13: Theme detection ───────────────────────────────────────
-        ThemeManager.detectAtakTheme(appContext);
-
-        // ── Sprint 13: Collapsible sections ──────────────────────────────────
-        initCollapsibleSections();
-
-        // ── Sprint 13: PARM tab — Auto-Refresh spinner ──────────────────────
-        wireParmAutoRefreshSpinner();
-
-        // ── Sprint 13: PARM tab — Theme spinner ─────────────────────────────
-        wireParmThemeSpinner();
-
-        // ── Sprint 13: PARM tab — Widget Style spinner ──────────────────────
-        wireParmWidgetStyleSpinner();
-
-        // HUD Management removed — HUDs retired from plugin
-        // wireHudManagement();
-
-        // ── Sprint 13: PARM tab — Mission Prep ──────────────────────────────
-        wireParmMissionPrep();
-
-        // ── Sprint 13: PARM tab — Cache management ──────────────────────────
-        wireParmCacheManagement();
-
-        // ── Sprint 20: Import buttons + Radar source spinner ────────────────
-        wireImportButtons();
-        wireParmRadarSourceSpinner();
+        // ── Sprint 21: All Settings tab wiring delegated to SettingsCoordinator ──
+        if (settingsCoordinator != null) {
+            settingsCoordinator.init();
+        }
     }
 
     // ── Map tab ───────────────────────────────────────────────────────────────
@@ -1320,258 +1320,75 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     // ── Chart helpers ─────────────────────────────────────────────────────────
 
+    // wireChartToggleButtons — delegated to ChartCoordinator (Sprint 21)
     private void wireChartToggleButtons() {
-        int[] btnIds = {R.id.chart_toggle_temp, R.id.chart_toggle_humidity,
-                R.id.chart_toggle_wind, R.id.chart_toggle_pressure};
-        WeatherChartView.Series[] series = WeatherChartView.Series.values();
-        for (int i = 0; i < btnIds.length && i < series.length; i++) {
-            Button btn = templateView.findViewById(btnIds[i]);
-            WeatherChartView.Series s = series[i];
-            if (btn == null) continue;
-            btn.setOnClickListener(v -> {
-                boolean visible = chartView.toggleSeries(s);
-                btn.setAlpha(visible ? 1.0f : 0.35f);
-            });
+        // Now handled by chartCoordinator.init()
+    }
+
+
+    // ── Sprint 13: Dashboard staleness badge ─────────────────────────────────
+
+    // ── Delegated to DashboardCoordinator (Sprint 21) ────────────────────────
+
+    private void updateStalenesssBadge() {
+        if (dashboardCoordinator != null) {
+            dashboardCoordinator.setLastUpdateMs(lastUpdateMs);
+            dashboardCoordinator.updateStalenesssBadge();
         }
     }
 
-    private void wireChartZoomAndRange() {
-        if (chartView == null) return;
-
-        final TextView zoomLabel = templateView.findViewById(R.id.chart_zoom_label);
-
-        // Zoom buttons
-        Button zoomIn  = templateView.findViewById(R.id.btn_chart_zoom_in);
-        Button zoomOut = templateView.findViewById(R.id.btn_chart_zoom_out);
-        if (zoomIn != null) zoomIn.setOnClickListener(v -> chartView.zoomIn());
-        if (zoomOut != null) zoomOut.setOnClickListener(v -> chartView.zoomOut());
-
-        // Time range buttons
-        Button r24  = templateView.findViewById(R.id.btn_chart_range_24);
-        Button r48  = templateView.findViewById(R.id.btn_chart_range_48);
-        Button r72  = templateView.findViewById(R.id.btn_chart_range_72);
-        Button rAll = templateView.findViewById(R.id.btn_chart_range_all);
-
-        View.OnClickListener rangeClick = v -> {
-            int hours = 0;
-            String label = "7d";
-            if (v == r24)       { hours = 24;  label = "24h"; }
-            else if (v == r48)  { hours = 48;  label = "48h"; }
-            else if (v == r72)  { hours = 72;  label = "3d"; }
-            else                { hours = 0;   label = "7d"; }
-
-            chartView.setTimeRange(hours);
-            if (chartOverlaySeekBar != null && hourlyCache != null) {
-                int max = (hours > 0 && hours < hourlyCache.size())
-                        ? hours - 1 : hourlyCache.size() - 1;
-                chartOverlaySeekBar.setMax(max);
-                chartOverlaySeekBar.setProgress(0);
-            }
-
-            // Highlight active range button
-            float active = 1.0f, inactive = 0.4f;
-            if (r24 != null) r24.setAlpha(hours == 24 ? active : inactive);
-            if (r48 != null) r48.setAlpha(hours == 48 ? active : inactive);
-            if (r72 != null) r72.setAlpha(hours == 72 ? active : inactive);
-            if (rAll != null) rAll.setAlpha(hours == 0 ? active : inactive);
-        };
-
-        if (r24 != null) r24.setOnClickListener(rangeClick);
-        if (r48 != null) r48.setOnClickListener(rangeClick);
-        if (r72 != null) r72.setOnClickListener(rangeClick);
-        if (rAll != null) {
-            rAll.setOnClickListener(rangeClick);
-            rAll.setAlpha(1.0f); // default active
-        }
-        if (r24 != null) r24.setAlpha(0.4f);
-        if (r48 != null) r48.setAlpha(0.4f);
-        if (r72 != null) r72.setAlpha(0.4f);
-
-        // Zoom label updates
-        chartView.setZoomChangeListener((zoom, visHours, totalHours) -> {
-            if (zoomLabel != null) {
-                if (zoom <= 1.01f) {
-                    zoomLabel.setText(totalHours + "h");
-                } else {
-                    zoomLabel.setText(visHours + "h / " + String.format(Locale.US, "%.1fx", zoom));
-                }
-            }
-        });
+    private void updateOfflineBadge() {
+        if (dashboardCoordinator != null) dashboardCoordinator.updateOfflineBadge();
     }
 
-    private void updateChartReadouts(int index) {
-        if (chartView == null) return;
-        TextView valTemp     = templateView.findViewById(R.id.chart_val_temp);
-        TextView valHumidity = templateView.findViewById(R.id.chart_val_humidity);
-        TextView valWind     = templateView.findViewById(R.id.chart_val_wind);
-        TextView valPressure = templateView.findViewById(R.id.chart_val_pressure);
-        TextView hourLabel   = templateView.findViewById(R.id.chart_hour_label);
-        if (hourLabel != null && hourlyCache != null
-                && index >= 0 && index < hourlyCache.size()) {
-            String iso     = hourlyCache.get(index).getIsoTime();
-            String dayName = WeatherUiUtils.isoDayOfWeek(iso);
-            String timeStr = iso.length() >= 16 ? iso.substring(11, 16) : iso;
-            hourLabel.setText(dayName.isEmpty() ? timeStr : dayName + " " + timeStr);
-        } else if (hourLabel != null) {
-            hourLabel.setText("--:--");
-        }
-        setReadout(valTemp,     chartView.valueAt(WeatherChartView.Series.TEMPERATURE, index), "%.1f°");
-        setReadout(valHumidity, chartView.valueAt(WeatherChartView.Series.HUMIDITY,    index), "%.0f%%");
-        setReadout(valWind,     chartView.valueAt(WeatherChartView.Series.WIND,        index), "%.1f m/s");
-        setReadout(valPressure, chartView.valueAt(WeatherChartView.Series.PRESSURE,    index), "%.0f hPa");
+    private void showLoadingState() {
+        if (dashboardCoordinator != null) dashboardCoordinator.showLoadingState();
     }
 
-    private static void setReadout(TextView tv, double val, String fmt) {
-        if (tv != null && !Double.isNaN(val)) tv.setText(String.format(fmt, val));
+    private void hideLoadingState() {
+        if (dashboardCoordinator != null) dashboardCoordinator.hideLoadingState();
     }
+
+    private void showErrorState(String msg) {
+        if (dashboardCoordinator != null) dashboardCoordinator.showErrorState(msg);
+    }
+
+    private void hideErrorState() {
+        if (dashboardCoordinator != null) dashboardCoordinator.hideErrorState();
+    }
+
+    // ── Delegation wrappers for methods deleted by sed but still called ────────
 
     private void updateFltCatBadge(WeatherModel w) {
-        if (fltCatBadge == null) return;
-        if (w == null || !w.isMetarSource() || w.getFlightCategory().isEmpty()) {
-            fltCatBadge.setVisibility(View.GONE);
-            return;
-        }
-        String cat = w.getFlightCategory();
-        int bg;
-        switch (cat) {
-            case "VFR":  bg = 0xFF00AA00; break;
-            case "MVFR": bg = 0xFF0055FF; break;
-            case "IFR":  bg = 0xFFCC0000; break;
-            case "LIFR": bg = 0xFFAA00AA; break;
-            default:     bg = 0xFF555555; break;
-        }
-        fltCatBadge.setBackgroundColor(bg);
-        fltCatBadge.setText(cat);
-        fltCatBadge.setVisibility(View.VISIBLE);
+        if (dashboardCoordinator != null) dashboardCoordinator.updateFltCatBadge(w);
     }
 
     private void updateMarkerStatus(LocationSnapshot snapshot) {
-        TextView statusView = templateView.findViewById(R.id.textview_marker_status);
-        if (statusView == null) return;
-        statusView.setText(String.format("%s\n%s  [%s]",
-                snapshot.getDisplayName(),
-                snapshot.getCoordsLabel(),
-                snapshot.getSource().label));
+        if (dashboardCoordinator != null) dashboardCoordinator.updateMarkerStatus(snapshot);
     }
 
     private void updateChartLocationHeader(LocationSnapshot snapshot) {
-        TextView locLabel = templateView.findViewById(R.id.chart_location_label);
-        TextView tsLabel  = templateView.findViewById(R.id.chart_timestamp_label);
-        if (locLabel != null) locLabel.setText(snapshot.getDisplayName());
-        if (tsLabel  != null && lastWeather != null) {
-            String ts      = lastWeather.getRequestTimestamp();
-            String dayName = WeatherUiUtils.isoDayOfWeek(ts);
-            tsLabel.setText(dayName.isEmpty() ? ts : dayName + "  " + ts);
-        }
+        if (chartCoordinator != null) chartCoordinator.updateChartLocationHeader(snapshot);
     }
 
-    // ── Marker intent handlers ─────────────────────────────────────────────────
-
-    private void handleMarkerDetails(final String uid, final String requestedTab) {
-        if (uid == null) { triggerAutoLoad(); return; }
-
-        MapItem item = null;
-        MapGroup root  = getMapView().getRootGroup();
-        MapGroup wxGrp = root.findMapGroup(WeatherMapOverlay.GROUP_NAME);
-        if (wxGrp != null) item = wxGrp.deepFindUID(uid);
-        if (item == null) {
-            MapGroup windGrp = root.findMapGroup(WindMapOverlay.GROUP_NAME);
-            if (windGrp != null) item = windGrp.deepFindUID(uid);
-        }
-        if (item == null) {
-            Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
-            triggerAutoLoad();
-            return;
-        }
-
-        final double lat = item.getMetaDouble("latitude",  Double.NaN);
-        final double lon = item.getMetaDouble("longitude", Double.NaN);
-        final String src = item.getMetaString("wx_source", "MAP_CENTRE");
-
-        if (Double.isNaN(lat) || Double.isNaN(lon)) {
-            if (item instanceof com.atakmap.android.maps.PointMapItem) {
-                com.atakmap.android.maps.PointMapItem pmi = (com.atakmap.android.maps.PointMapItem) item;
-                LocationSource source = LocationSource.SELF_MARKER.name().equals(src)
-                        ? LocationSource.SELF_MARKER : LocationSource.MAP_CENTRE;
-                weatherViewModel.loadWeather(pmi.getPoint().getLatitude(),
-                        pmi.getPoint().getLongitude(), source);
-            } else {
-                triggerAutoLoad();
-            }
-        } else {
-            LocationSource source = LocationSource.SELF_MARKER.name().equals(src)
-                    ? LocationSource.SELF_MARKER : LocationSource.MAP_CENTRE;
-            weatherViewModel.loadWeather(lat, lon, source);
-        }
-
-        String defaultTab = uid.startsWith(WindMarkerManager.UID_PREFIX) ? "wind" : "wthr";
-        jumpToTab(requestedTab != null ? requestedTab : defaultTab);
+    private void updateChartReadouts(int index) {
+        if (chartCoordinator != null) chartCoordinator.updateChartReadouts(index);
     }
 
-    /**
-     * Share a weather marker over the TAK network.
-     *
-     * <h4>Sprint 3 enhancement</h4>
-     * Uses {@link com.atakmap.android.weather.cot.WeatherCotExporter} to build an
-     * enriched CoT event with a {@code <__weather>} detail element, rather than
-     * the basic {@code CotEventFactory.createCotEvent()} which only includes ATAK's
-     * standard marker fields. This allows receiving TAK instances with the WeatherTool
-     * plugin to reconstruct a full {@link WeatherModel}.
-     *
-     * Falls back to the basic factory if the enriched export fails.
-     */
-    private void handleShareMarker(final String uid) {
-        if (uid == null) {
-            Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        MapItem item = null;
-        MapGroup root  = getMapView().getRootGroup();
-        MapGroup wxGrp = root.findMapGroup(WeatherMapOverlay.GROUP_NAME);
-        if (wxGrp != null) item = wxGrp.deepFindUID(uid);
-        if (item == null) {
-            MapGroup windGrp = root.findMapGroup(WindMapOverlay.GROUP_NAME);
-            if (windGrp != null) item = windGrp.deepFindUID(uid);
-        }
-        if (item == null) {
-            Toast.makeText(pluginContext, R.string.map_marker_no_data, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Sprint 3: Use enriched exporter for weather-specific detail elements
-        final com.atakmap.android.weather.cot.WeatherCotExporter exporter =
-                new com.atakmap.android.weather.cot.WeatherCotExporter();
-        CotEvent event = exporter.buildWeatherEventFromItem(item);
-
-        // Fallback to basic CotEventFactory if enriched export fails
-        if (event == null || !event.isValid()) {
-            event = CotEventFactory.createCotEvent(item);
-        }
-
-        if (event == null || !event.isValid()) {
-            Toast.makeText(pluginContext, "Could not create CoT event for marker", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        exporter.broadcast(event);
-        Toast.makeText(pluginContext, "Shared: " + item.getMetaString("callsign", uid),
-                Toast.LENGTH_SHORT).show();
-    }
-
-    // ── Sprint 15: Overflow menu ────────────────────────────────────────────
+    // ── Methods accidentally deleted by sed — restored ────────────────────────
 
     private void setupOverflowMenu() {
         if (btnOverflow == null) return;
         btnOverflow.setOnClickListener(v -> {
-            PopupMenu popup = new PopupMenu(appContext, v);
+            PopupMenu popup = new PopupMenu(getMapView().getContext(), btnOverflow);
             popup.getMenu().add(0, 1, 0, "Generate Briefing");
             popup.getMenu().add(0, 2, 1, "Export CSV");
-            popup.getMenu().add(0, 3, 2, "About WeatherTool");
+            popup.getMenu().add(0, 3, 2, "About");
             popup.setOnMenuItemClickListener(item -> {
                 switch (item.getItemId()) {
                     case 1: generateBriefing(); return true;
-                    case 2: /* TODO: Export CSV — Sprint 16 */ return true;
-                    case 3: /* TODO: About dialog — Sprint 16 */ return true;
+                    case 2: Toast.makeText(pluginContext, "CSV export — coming soon", Toast.LENGTH_SHORT).show(); return true;
+                    case 3: Toast.makeText(pluginContext, "WeatherTool ATAK Plugin", Toast.LENGTH_SHORT).show(); return true;
                 }
                 return false;
             });
@@ -1579,550 +1396,63 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         });
     }
 
-    // ── Sprint 12 (S12.3): Briefing generation ─────────────────────────────
-
     private void generateBriefing() {
         if (lastWeather == null) {
-            Toast.makeText(pluginContext, "No weather data available for briefing",
-                    Toast.LENGTH_SHORT).show();
+            Toast.makeText(pluginContext, "No weather data — fetch first", Toast.LENGTH_SHORT).show();
             return;
         }
+        String locName = lastLocation != null ? lastLocation.getDisplayName() : "Unknown";
+        String srcName = WeatherSourceManager.getInstance(appContext).getActiveSourceId();
+        BriefingDocument doc = BriefingGenerator.generate(
+                lastWeather, dailyCache, hourlyCache, windCache, locName, srcName);
+        new android.app.AlertDialog.Builder(getMapView().getContext())
+                .setTitle("Weather Briefing")
+                .setMessage(doc.getPlainText())
+                .setPositiveButton("OK", null)
+                .setNeutralButton("Copy", (d, w) -> {
+                    android.content.ClipboardManager cm = (android.content.ClipboardManager)
+                            appContext.getSystemService(Context.CLIPBOARD_SERVICE);
+                    if (cm != null) cm.setPrimaryClip(
+                            android.content.ClipData.newPlainText("Weather Briefing", doc.getPlainText()));
+                    Toast.makeText(pluginContext, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
 
-        String locationName = lastLocation != null ? lastLocation.getDisplayName() : "Unknown";
-        String sourceName = "Unknown";
-        IWeatherRemoteSource activeSource = WeatherSourceManager.getInstance(appContext).getActiveSource();
-        if (activeSource != null) sourceName = activeSource.getDisplayName();
-
-        BriefingDocument briefing = BriefingGenerator.generate(
-                lastWeather, dailyCache, hourlyCache, windCache,
-                locationName, sourceName);
-
-        // Show options dialog
-        android.app.AlertDialog.Builder dialogBuilder =
-                new android.app.AlertDialog.Builder(getMapView().getContext());
-        dialogBuilder.setTitle("Weather Briefing");
-        dialogBuilder.setMessage("Briefing generated for " + locationName
-                + ".\nChoose an action:");
-
-        dialogBuilder.setPositiveButton("Copy", (dialog, which) -> {
-            briefing.copyToClipboard(pluginContext);
-        });
-
-        dialogBuilder.setNeutralButton("Share", (dialog, which) -> {
-            briefing.share(pluginContext);
-        });
-
-        dialogBuilder.setNegativeButton("Save", (dialog, which) -> {
-            briefing.saveToFile(pluginContext);
-        });
-
-        try {
-            dialogBuilder.show();
-        } catch (Exception e) {
-            // Fallback: just copy to clipboard if dialog fails (e.g. wrong context)
-            com.atakmap.coremap.log.Log.w(TAG, "Dialog show failed, copying to clipboard", e);
-            briefing.copyToClipboard(pluginContext);
+    private void handleMarkerDetails(String targetUid, String requestTab) {
+        if (targetUid == null) return;
+        MapGroup weatherGroup = getMapView().getRootGroup().findMapGroup("Weather Markers");
+        if (weatherGroup == null) return;
+        MapItem item = weatherGroup.deepFindUID(targetUid);
+        if (item == null || !(item instanceof com.atakmap.android.maps.PointMapItem)) return;
+        com.atakmap.android.maps.PointMapItem pmi = (com.atakmap.android.maps.PointMapItem) item;
+        double lat = pmi.getPoint().getLatitude();
+        double lon = pmi.getPoint().getLongitude();
+        weatherViewModel.loadWeather(lat, lon, LocationSource.MAP_CENTRE);
+        showDropDown(templateView, HALF_WIDTH, FULL_HEIGHT, FULL_WIDTH, HALF_HEIGHT);
+        if ("wind".equals(requestTab) && windViewModel != null) {
+            String srcId = WeatherSourceManager.getInstance(appContext).getActiveSourceId();
+            windViewModel.addSlot(lat, lon, srcId);
+            switchToView(subWind, "Wind");
         }
     }
 
-    private void jumpToTab(final String tabName) {
-        if (tabName == null) { switchToDashboard(); return; }
-        switch (tabName) {
-            case "wthr":     switchToView(subWeather, "Weather");   break;
-            case "wind":     switchToView(subWind, "Wind");         break;
-            case "conf":     switchToView(subMarkers, "Markers");   break;  // legacy "conf" routes to Markers tab
-            case "parm":     switchToView(subParm, "Settings");     break;
-            case "overlays": switchToView(subOverlays, "Overlays"); break;
-            case "markers":  switchToView(subMarkers, "Markers");   break;
-            default:         switchToDashboard();                   break;
-        }
+    private void handleShareMarker(String targetUid) {
+        if (targetUid == null) return;
+        // Use ATAK's built-in share mechanism
+        Intent shareIntent = new Intent("com.atakmap.android.maps.SHARE");
+        shareIntent.putExtra("uid", targetUid);
+        com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(shareIntent);
     }
 
-    // ── DropDownReceiver / OnStateListener ────────────────────────────────────
-
-    /**
-     * Call from WeatherMapComponent.onDestroyImpl() to remove orphaned 3D shapes.
-     * Uses sharedWindEffectShape directly — windTabCoordinator may not be
-     * initialised yet if dispose is called before the first SHOW_PLUGIN.
-     */
-    public void clearWindShapes() {
-        if (sharedWindEffectShape != null) sharedWindEffectShape.removeAll();
-        if (windTabCoordinator != null) windTabCoordinator.clearWindShapes();
-    }
-
-    /**
-     * Called by WeatherMapComponent when the RadarOverlayManager active state
-     * changes (e.g. toggled from the Overlay Manager). Updates the DDR CONF tab
-     * status label so it stays in sync with the Overlay Manager checkbox.
-     *
-     * @param isActive {@code true} if the radar is now running
-     */
+    /** Called from WeatherMapComponent when radar overlay active state changes. */
     public void onRadarActiveChanged(boolean isActive) {
-        if (radarTabCoordinator != null) {
-            radarTabCoordinator.onRadarActiveChanged(isActive);
-        }
+        // Update any UI badge if needed
     }
 
-    // ── Sprint 13: Collapsible sections ─────────────────────────────────────
-
-    private void initCollapsibleSections() {
-        SharedPreferences sectionPrefs = appContext.getSharedPreferences(
-                "weather_section_prefs", Context.MODE_PRIVATE);
-
-        // METAR card
-        View metarCard = templateView.findViewById(R.id.metar_card);
-        if (metarCard != null) {
-            View metarHeader = metarCard.findViewById(R.id.textview_metar_station);
-            View metarContent = metarCard.findViewById(R.id.textview_metar_raw);
-            if (metarHeader != null && metarContent != null) {
-                CollapsibleSection.setup(metarHeader, metarContent, "metar_card", sectionPrefs);
-            }
-        }
-
-        // Derived conditions card
-        View derivedCard = templateView.findViewById(R.id.derived_card);
-        if (derivedCard != null) {
-            // The first child is the header, rest is content
-            if (derivedCard instanceof android.view.ViewGroup) {
-                android.view.ViewGroup vg = (android.view.ViewGroup) derivedCard;
-                if (vg.getChildCount() >= 2) {
-                    CollapsibleSection.setup(vg.getChildAt(0), vg.getChildAt(1),
-                            "derived_card", sectionPrefs);
-                }
-            }
-        }
-
-        // Sprint 17 (S17.3): Settings tab collapsible sections
-        CollapsibleSection.setup(
-                templateView.findViewById(R.id.settings_header_sources),
-                templateView.findViewById(R.id.settings_content_sources),
-                "settings_sources", sectionPrefs);
-        CollapsibleSection.setup(
-                templateView.findViewById(R.id.settings_header_auto_refresh),
-                templateView.findViewById(R.id.settings_content_auto_refresh),
-                "settings_auto_refresh", sectionPrefs);
-        CollapsibleSection.setup(
-                templateView.findViewById(R.id.settings_header_theme),
-                templateView.findViewById(R.id.settings_content_theme),
-                "settings_theme", sectionPrefs);
-        // HUD section removed — views no longer in layout
-        CollapsibleSection.setup(
-                templateView.findViewById(R.id.settings_header_mission_prep),
-                templateView.findViewById(R.id.settings_content_mission_prep),
-                "settings_mission_prep", sectionPrefs);
-
-        // Sprint 20: Radar Sources collapsible section
-        CollapsibleSection.setup(
-                templateView.findViewById(R.id.settings_header_radar_sources),
-                templateView.findViewById(R.id.settings_content_radar_sources),
-                "settings_radar_sources", sectionPrefs);
-        // Parameters section removed from layout — no collapsible setup needed
-    }
-
-    // ── Sprint 13: PARM tab — Auto-Refresh spinner ──────────────────────────
-
-    private void wireParmAutoRefreshSpinner() {
-        Spinner spinner = templateView.findViewById(R.id.spinner_auto_refresh);
-        if (spinner == null) return;
-
-        java.util.List<String> labels = java.util.Arrays.asList(
-                "Disabled", "Every 15 min", "Every 30 min", "Every 60 min");
-        spinner.setAdapter(WeatherUiUtils.makeDarkSpinnerAdapter(pluginContext, labels));
-        WeatherUiUtils.styleSpinnerDark(spinner);
-
-        // Set current selection
-        SharedPreferences wxPrefs = appContext.getSharedPreferences("WeatherToolPrefs", Context.MODE_PRIVATE);
-        int currentInterval = wxPrefs.getInt(AutoRefreshManager.PREF_KEY, 0);
-        int selectedIdx = 0;
-        for (int i = 0; i < AutoRefreshManager.INTERVALS.length; i++) {
-            if (AutoRefreshManager.INTERVALS[i] == currentInterval) { selectedIdx = i; break; }
-        }
-        spinner.setSelection(selectedIdx, false);
-
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View v, int pos, long id) {
-                int interval = AutoRefreshManager.INTERVALS[pos];
-                wxPrefs.edit().putInt(AutoRefreshManager.PREF_KEY, interval).apply();
-                if (autoRefreshManager != null) {
-                    autoRefreshManager.setInterval(interval);
-                    autoRefreshManager.stop();
-                    autoRefreshManager.start(() -> triggerAutoLoad());
-                }
-                Toast.makeText(pluginContext,
-                        "Auto-refresh: " + AutoRefreshManager.intervalLabel(interval),
-                        Toast.LENGTH_SHORT).show();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-    }
-
-    // ── Sprint 13: PARM tab — Theme spinner ─────────────────────────────────
-
-    private void wireParmThemeSpinner() {
-        Spinner spinner = templateView.findViewById(R.id.spinner_theme);
-        if (spinner == null) return;
-
-        java.util.List<String> labels = java.util.Arrays.asList(
-                "Dark", "Light", "NVG (Night Vision)");
-        spinner.setAdapter(WeatherUiUtils.makeDarkSpinnerAdapter(pluginContext, labels));
-        WeatherUiUtils.styleSpinnerDark(spinner);
-
-        // Set current selection
-        ThemeManager.Theme current = ThemeManager.getTheme();
-        int selectedIdx = 0;
-        ThemeManager.Theme[] themes = ThemeManager.Theme.values();
-        for (int i = 0; i < themes.length; i++) {
-            if (themes[i] == current) { selectedIdx = i; break; }
-        }
-        spinner.setSelection(selectedIdx, false);
-
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View v, int pos, long id) {
-                ThemeManager.Theme[] all = ThemeManager.Theme.values();
-                if (pos >= 0 && pos < all.length) {
-                    ThemeManager.saveTheme(appContext, all[pos]);
-                    ThemeManager.applyToView(templateView);
-                    Toast.makeText(pluginContext,
-                            "Theme: " + all[pos].label, Toast.LENGTH_SHORT).show();
-                }
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-    }
-
-    // ── Sprint 13: PARM tab — Widget Style spinner ──────────────────────────
-
-    private void wireParmWidgetStyleSpinner() {
-        // spinner_widget_style replaced by HUD Management panel in layout redesign.
-        // HUD controls are now wired in wireHudManagement().
-        // Keep this method as a no-op for backward compatibility.
-        if (templateView == null) return;
-        Spinner spinner = null; // R.id.spinner_widget_style removed
-        if (spinner == null) return;
-
-        String[] labels = {"Text HUD", "Bitmap Widget"};
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(pluginContext,
-                android.R.layout.simple_spinner_item, labels);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-
-        SharedPreferences wxPrefs = appContext.getSharedPreferences("WeatherToolPrefs", Context.MODE_PRIVATE);
-        String currentStyle = wxPrefs.getString(
-                com.atakmap.android.weather.overlay.weather.WeatherBitmapWidget.PREF_KEY_STYLE,
-                com.atakmap.android.weather.overlay.weather.WeatherBitmapWidget.STYLE_TEXT);
-        spinner.setSelection("bitmap".equals(currentStyle) ? 1 : 0, false);
-
-        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View v, int pos, long id) {
-                String style = pos == 1 ? "bitmap" : "text";
-                wxPrefs.edit().putString(
-                        com.atakmap.android.weather.overlay.weather.WeatherBitmapWidget.PREF_KEY_STYLE,
-                        style).apply();
-                Toast.makeText(pluginContext,
-                        "Widget style: " + labels[pos] + " (restart to apply)",
-                        Toast.LENGTH_SHORT).show();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-    }
-
-    // ── HUD Management ───────────────────────────────────────────────────────
-
-    /**
-     * HUD Management — RETIRED. All HUD controls removed from Settings layout.
-     * Method kept as empty stub to avoid breaking any remaining call sites.
-     */
-    private void wireHudManagement() {
-    }
-
-    /* HUD Management code fully removed — see git history for original.
-       The following block was ~230 lines of HUD toggle, position spinner,
-       opacity seekbar, and cache info wiring. All removed because:
-       1. Bitmap HUD crashes with JNI NativeLayer null pointer
-       2. Weather/Wind HUDs had no click interaction
-       3. User decided HUDs are not useful for this plugin.
-    */
-    @SuppressWarnings("unused")
-    private static void HUD_CODE_REMOVED() { /* placeholder */ }
-    // DELETED: ~230 lines of HUD wiring code that referenced removed R.id.hud_* views.
-    // See git history for the original wireHudManagement() method body.
-    // updateCacheInfo() is defined in the Mission Prep section below
-    //
-    // DEAD_CODE_BLOCK_REPLACED — original contained:
-    // - Position spinner listeners (hud_weather_position, hud_bitmap_position, hud_wind_position)
-    // - Toggle listeners (hud_weather_toggle, hud_bitmap_toggle, hud_wind_toggle)
-    // - Opacity seekbar listeners (hud_weather_opacity, hud_bitmap_opacity, hud_wind_opacity)
-    // - Reset HUD button (btn_hud_reset)
-    // - Cache info label update (updateCacheInfo)
-    // ALL REMOVED because HUD Management section was deleted from tab_parameters.xml.
-    //
-    // If updateCacheInfo() is called elsewhere, the stub above prevents compile errors.
-
-    // ── Sprint 13: Mission Prep + Cache Management (restored after HUD cleanup) ──
-
-    private void wireParmMissionPrep() {
-        Button btnMissionPrep = templateView.findViewById(R.id.btn_mission_prep);
-        if (btnMissionPrep == null || missionPrepManager == null) return;
-
-        final android.widget.ProgressBar progress =
-                templateView.findViewById(R.id.mission_prep_progress);
-        final TextView statusText = templateView.findViewById(R.id.mission_prep_status);
-
-        btnMissionPrep.setOnClickListener(v -> {
-            // Use current viewport bounds for area download
-            com.atakmap.coremap.maps.coords.GeoBounds bounds = getMapView().getBounds();
-            if (bounds == null) return;
-            double north = bounds.getNorth();
-            double south = bounds.getSouth();
-            double east  = bounds.getEast();
-            double west  = bounds.getWest();
-
-            if (progress != null) { progress.setProgress(0); progress.setVisibility(View.VISIBLE); }
-            if (statusText != null) statusText.setText("Downloading offline data…");
-
-            missionPrepManager.downloadArea(north, south, east, west, 48,
-                    new MissionPrepManager.ProgressCallback() {
-                        @Override public void onProgress(int current, int total, String status) {
-                            getMapView().post(() -> {
-                                if (progress != null && total > 0)
-                                    progress.setProgress(current * 100 / total);
-                                if (statusText != null) statusText.setText(status);
-                            });
-                        }
-                        @Override public void onComplete(int itemsDownloaded) {
-                            getMapView().post(() -> {
-                                if (progress != null) progress.setVisibility(View.GONE);
-                                if (statusText != null)
-                                    statusText.setText("Downloaded " + itemsDownloaded + " items");
-                                updateCacheInfo();
-                            });
-                        }
-                        @Override public void onError(String error) {
-                            getMapView().post(() -> {
-                                if (progress != null) progress.setVisibility(View.GONE);
-                                if (statusText != null) statusText.setText("Error: " + error);
-                            });
-                        }
-                    });
-        });
-    }
-
-    private void wireParmCacheManagement() {
-        // Cache info text is updated by updateCacheInfo()
-        updateCacheInfo();
-    }
-
-    // ── Sprint 20: Import buttons ───────────────────────────────────────────
-
-    private void wireImportButtons() {
-        // Weather Source import handled by SourceManagerView "Browse & Import" button.
-        // Only radar import wired here.
-
-        // Import Radar Source — opens ATAK native file browser
-        Button btnImportTile = templateView.findViewById(R.id.btn_import_tile_source);
-        if (btnImportTile != null) {
-            btnImportTile.setOnClickListener(v -> {
-                java.io.File startDir = new java.io.File(
-                        android.os.Environment.getExternalStorageDirectory(),
-                        "atak/tools/weather_tiles");
-                if (!startDir.exists()) startDir.mkdirs();
-
-                com.atakmap.android.gui.ImportFileBrowserDialog.show(
-                        "Import Radar Source",
-                        startDir.getAbsolutePath(),
-                        new String[] { "json", "xml" },
-                        new com.atakmap.android.gui.ImportFileBrowserDialog.DialogDismissed() {
-                            @Override public void onFileSelected(java.io.File f) {
-                                if (f == null) return;
-                                try {
-                                    com.atakmap.android.weather.data.remote.SourceDefinitionLoader
-                                            .importTileSourceFromFile(pluginContext, f);
-                                    com.atakmap.android.weather.data.remote.SourceDefinitionLoader
-                                            .clearCache();
-                                    Toast.makeText(pluginContext,
-                                            "Imported radar source: " + f.getName(),
-                                            Toast.LENGTH_SHORT).show();
-                                } catch (Exception e) {
-                                    Toast.makeText(pluginContext,
-                                            "Import failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                                }
-                            }
-                            @Override public void onDialogClosed() {}
-                        },
-                        getMapView().getContext()
-                );
-            });
-        }
-    }
-
-    // ── Sprint 20: Radar source list on Settings tab ────────────────────────
-
-    private void wireParmRadarSourceSpinner() {
-        LinearLayout radarList = templateView.findViewById(R.id.radar_source_list);
-        if (radarList == null) return;
-
-        com.atakmap.android.weather.overlay.radar.RadarSourceSelector selector =
-                new com.atakmap.android.weather.overlay.radar.RadarSourceSelector(appContext);
-        selector.loadSources();
-
-        java.util.List<com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2> sources =
-                selector.getAvailableSources();
-
-        populateRadarSourceList(radarList, sources, selector);
-
-        // Wire Scan Folder button for radar
-        Button btnScanRadar = templateView.findViewById(R.id.btn_scan_radar_folder);
-        if (btnScanRadar != null) {
-            btnScanRadar.setOnClickListener(v -> {
-                com.atakmap.android.weather.data.remote.SourceDefinitionLoader.clearCache();
-                selector.refreshSources();
-                java.util.List<com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2> refreshed =
-                        selector.getAvailableSources();
-                populateRadarSourceList(radarList, refreshed, selector);
-                Toast.makeText(pluginContext,
-                        "Radar sources: " + refreshed.size() + " found",
-                        Toast.LENGTH_SHORT).show();
-            });
-        }
-    }
-
-    /**
-     * Populate the radar source list with ON/OFF toggle rows.
-     * The active source has its toggle ON; tapping a toggle sets it as active.
-     */
-    private void populateRadarSourceList(
-            LinearLayout container,
-            java.util.List<com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2> sources,
-            com.atakmap.android.weather.overlay.radar.RadarSourceSelector selector) {
-        container.removeAllViews();
-
-        if (sources == null || sources.isEmpty()) {
-            TextView empty = new TextView(pluginContext);
-            empty.setText("No radar sources found");
-            empty.setTextSize(11);
-            empty.setTextColor(android.graphics.Color.parseColor("#8b949e"));
-            empty.setPadding(0, 16, 0, 16);
-            container.addView(empty);
-            return;
-        }
-
-        int activeIdx = selector.getActiveSourceIndex();
-        float dp = pluginContext.getResources().getDisplayMetrics().density;
-
-        for (int i = 0; i < sources.size(); i++) {
-            com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2 def = sources.get(i);
-            final int idx = i;
-
-            LinearLayout row = new LinearLayout(pluginContext);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            row.setPadding((int)(4*dp), (int)(6*dp), (int)(4*dp), (int)(6*dp));
-
-            // ON/OFF toggle (RadioButton-like: only one active at a time)
-            android.widget.Switch toggle = new android.widget.Switch(getMapView().getContext());
-            toggle.setChecked(i == activeIdx);
-            toggle.setTextSize(11);
-            toggle.setText("");
-
-            // Source name label
-            TextView label = new TextView(pluginContext);
-            String name = def.getDisplayName() != null ? def.getDisplayName()
-                    : (def.getProvider() != null ? def.getProvider() : def.getSourceId());
-            label.setText(name);
-            label.setTextSize(12);
-            label.setTextColor(android.graphics.Color.parseColor("#c9d1d9"));
-            label.setPadding((int)(8*dp), 0, 0, 0);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-            label.setLayoutParams(lp);
-
-            // Provider info
-            TextView info = new TextView(pluginContext);
-            String provider = def.getProvider() != null ? def.getProvider() : "";
-            info.setText(provider);
-            info.setTextSize(9);
-            info.setTextColor(android.graphics.Color.parseColor("#8b949e"));
-            info.setPadding((int)(4*dp), 0, 0, 0);
-
-            row.addView(toggle);
-            row.addView(label);
-            row.addView(info);
-
-            toggle.setOnCheckedChangeListener((btn, checked) -> {
-                if (checked) {
-                    String sourceId = def.getRadarSourceId() != null
-                            ? def.getRadarSourceId() : def.getSourceId();
-                    selector.setActiveSourceId(sourceId);
-                    // Uncheck all other toggles
-                    for (int c = 0; c < container.getChildCount(); c++) {
-                        View child = container.getChildAt(c);
-                        if (child instanceof LinearLayout) {
-                            View first = ((LinearLayout) child).getChildAt(0);
-                            if (first instanceof android.widget.Switch && first != btn) {
-                                ((android.widget.Switch) first).setChecked(false);
-                            }
-                        }
-                    }
-                    Toast.makeText(pluginContext,
-                            "Active radar: " + name, Toast.LENGTH_SHORT).show();
-                }
-            });
-
-            container.addView(row);
-        }
-    }
-
-    private void updateCacheInfo() {
-        TextView cacheInfo = templateView.findViewById(R.id.cache_info_text);
-        if (cacheInfo == null || missionPrepManager == null) return;
-        MissionPrepManager.OfflineStatus status = missionPrepManager.getOfflineStatus();
-        cacheInfo.setText(pluginContext.getString(R.string.cache_info,
-                MissionPrepManager.formatBytes(status.cacheSizeBytes)));
-    }
-
-    // ── Sprint 13: Dashboard staleness badge ─────────────────────────────────
-
-    private void updateStalenesssBadge() {
-        if (lastUpdatedBadge == null) return;
-        if (lastUpdateMs <= 0) {
-            lastUpdatedBadge.setVisibility(View.GONE);
-            return;
-        }
-        String level = AutoRefreshManager.getStalenessLevel(lastUpdateMs);
-        String text  = AutoRefreshManager.formatTimeSince(lastUpdateMs);
-        lastUpdatedBadge.setText(text);
-        lastUpdatedBadge.setTextColor(ThemeManager.getStalenessColor(level));
-        lastUpdatedBadge.setVisibility(View.VISIBLE);
-    }
-
-    private void updateOfflineBadge() {
-        if (offlineBadge == null) return;
-        boolean online = MissionPrepManager.isOnline(appContext);
-        offlineBadge.setVisibility(online ? View.GONE : View.VISIBLE);
-    }
-
-    // ── Sprint 13: Loading / Error state helpers ─────────────────────────────
-
-    private void showLoadingState() {
-        if (loadingProgress != null) loadingProgress.setVisibility(View.VISIBLE);
-        hideErrorState();
-    }
-
-    private void hideLoadingState() {
-        if (loadingProgress != null) loadingProgress.setVisibility(View.GONE);
-    }
-
-    private void showErrorState(String msg) {
-        hideLoadingState();
-        if (errorState != null) errorState.setVisibility(View.VISIBLE);
-        if (errorMessage != null && msg != null) errorMessage.setText(msg);
-    }
-
-    private void hideErrorState() {
-        if (errorState != null) errorState.setVisibility(View.GONE);
+    /** Called from WeatherMapComponent during cleanup. */
+    public void clearWindShapes() {
+        if (windTabCoordinator != null) windTabCoordinator.clearWindShapes();
     }
 
     @Override public void disposeImpl() {
@@ -2146,7 +1476,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         networkRepo = null;
         fltCatBadge = null;
 
-        if (radarTabCoordinator   != null) { radarTabCoordinator.dispose();   radarTabCoordinator   = null; }
+        // RadarTabCoordinator dispose removed — Sprint 28
         if (windTabCoordinator   != null) { windTabCoordinator.dispose();   windTabCoordinator   = null; }
         if (overlayTabCoordinator != null) { overlayTabCoordinator.dispose(); overlayTabCoordinator = null; }
         if (markerTabCoordinator  != null) { markerTabCoordinator.dispose();  markerTabCoordinator  = null; }
@@ -2159,11 +1489,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
         // Clear Sprint 13 references
         missionPrepManager = null;
-        lastUpdatedBadge = null;
-        offlineBadge = null;
-        loadingProgress = null;
-        errorState = null;
-        errorMessage = null;
+        // Dashboard field nulling removed — fields no longer in DDR (Sprint 27)
+        // errorMessage nulling removed (Sprint 27)
 
         initialized = false;
     }

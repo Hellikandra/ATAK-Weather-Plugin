@@ -6,8 +6,8 @@
       1. Weather Sources — source list with ON/OFF + Browse & Import + Scan Folder
       2. Radar Sources — radar source list with ON/OFF + Import + Scan Folder
       3. Auto-Refresh — interval spinner
-      4. Theme — Dark / Light / NVG
-      5. Mission Prep — download, progress, cache management
+      4. Mission Prep — download, progress, cache management
+         (Theme section removed in v3.1.1 — see issue #20)
 -->
 <ScrollView
   xmlns:android="http://schemas.android.com/apk/res/android"
@@ -231,51 +231,6 @@
       </LinearLayout>
     </LinearLayout>
 
-    <!-- ══════════════════════════════════════════════════════════════════
-         SECTION 4: THEME
-         ══════════════════════════════════════════════════════════════════ -->
-    <LinearLayout
-      android:id="@+id/settings_section_theme"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:orientation="vertical"
-      android:layout_marginBottom="4dp">
-
-      <TextView
-        android:id="@+id/settings_header_theme"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="\u25B6 Theme"
-        android:textSize="13sp"
-        android:textStyle="bold"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="@drawable/image_view_bg"
-        android:padding="8dp"
-        android:layout_marginBottom="4dp"/>
-
-      <LinearLayout
-        android:id="@+id/settings_content_theme"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:visibility="gone"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"
-        android:layout_marginBottom="4dp">
-
-        <Spinner
-          android:id="@+id/spinner_theme"
-          android:layout_width="match_parent"
-          android:layout_height="wrap_content"
-          android:minHeight="44dp"
-          android:spinnerMode="dropdown"/>
-      </LinearLayout>
-    </LinearLayout>
-
-    <!-- ── Divider ───────────────────────────────────────────────── -->
-    <View android:layout_width="match_parent" android:layout_height="1dp"
-      android:background="#30363d" android:layout_marginBottom="4dp"/>
 
     <!-- ══════════════════════════════════════════════════════════════════
          SECTION 5: MISSION PREP

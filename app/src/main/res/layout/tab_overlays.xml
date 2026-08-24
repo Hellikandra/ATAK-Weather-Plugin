@@ -54,6 +54,14 @@
           android:layout_width="wrap_content" android:layout_height="32dp"
           android:text="CBRN" android:textSize="11sp" android:textAllCaps="false"
           android:paddingStart="12dp" android:paddingEnd="12dp"
+          android:minWidth="0dp" android:minHeight="0dp"
+          android:layout_marginEnd="4dp"/>
+
+        <Button android:id="@+id/pill_marine"
+          style="@style/darkButton"
+          android:layout_width="wrap_content" android:layout_height="32dp"
+          android:text="Marine" android:textSize="11sp" android:textAllCaps="false"
+          android:paddingStart="12dp" android:paddingEnd="12dp"
           android:minWidth="0dp" android:minHeight="0dp"/>
 
       </LinearLayout>
@@ -227,13 +235,19 @@
           <!-- Wind arrow config (visible only for Wind Speed parameter) -->
           <LinearLayout android:id="@+id/overlay_wind_arrow_config"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:orientation="vertical" android:visibility="gone"
+            android:orientation="vertical" android:visibility="visible"
             android:layout_marginBottom="4dp">
 
             <!-- Show/Hide wind arrows checkbox -->
             <CheckBox android:id="@+id/overlay_wind_arrow_toggle"
               android:layout_width="match_parent" android:layout_height="wrap_content"
               android:text="Show Wind Arrows" android:textSize="10sp"
+              android:checked="true" android:layout_marginBottom="2dp"/>
+
+            <!-- Show/Hide city labels checkbox -->
+            <CheckBox android:id="@+id/overlay_city_label_toggle"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:text="Show City Labels" android:textSize="10sp"
               android:checked="true" android:layout_marginBottom="2dp"/>
 
             <!-- Grid density -->
@@ -376,6 +390,36 @@
               <SeekBar android:id="@+id/overlay_particle_brightness"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:max="150" android:progress="100" android:layout_marginBottom="4dp"/>
+
+              <!-- Trail fade rate (lower = longer trails) -->
+              <LinearLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Trail Fade" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_fade_label"
+                  android:layout_width="50dp" android:layout_height="wrap_content"
+                  android:text="slow" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_fade"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="20" android:progress="4" android:layout_marginBottom="4dp"/>
+
+              <!-- Line width -->
+              <LinearLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:gravity="center_vertical"
+                android:layout_marginBottom="2dp">
+                <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+                  android:layout_weight="1" android:text="Line Width" android:textSize="10sp"/>
+                <TextView android:id="@+id/overlay_particle_linewidth_label"
+                  android:layout_width="40dp" android:layout_height="wrap_content"
+                  android:text="2.5" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+              </LinearLayout>
+              <SeekBar android:id="@+id/overlay_particle_linewidth"
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:max="40" android:progress="15" android:layout_marginBottom="4dp"/>
             </LinearLayout>
           </LinearLayout>
 
@@ -713,6 +757,235 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:max="47" android:progress="0"
             android:layout_marginBottom="4dp"/>
+
+        </LinearLayout>
+      </ScrollView>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           MARINE PANEL
+           ════════════════════════════════════════════════════════════════ -->
+      <ScrollView
+        android:id="@+id/overlay_marine_panel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone">
+
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:orientation="vertical"
+          android:padding="8dp">
+
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Marine Overlay" android:textSize="12sp" android:textStyle="bold"
+            android:layout_marginBottom="4dp"/>
+
+          <TextView
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Waves, ocean currents, tides, and sea surface temperature from Open-Meteo Marine API."
+            android:textSize="9sp" android:alpha="0.65" android:layout_marginBottom="6dp"/>
+
+          <!-- Show/Hide toggle + cache badge -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="4dp">
+            <CheckBox android:id="@+id/overlay_marine_toggle"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Show Marine" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_marine_cache_badge"
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="" android:textSize="9sp" android:textColor="#39D2C0"
+              android:textStyle="italic" android:visibility="gone"/>
+          </LinearLayout>
+
+          <!-- Parameter spinner -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="6dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="Parameter" android:textSize="10sp" android:alpha="0.85"
+              android:layout_marginEnd="6dp"/>
+            <Spinner android:id="@+id/overlay_marine_param"
+              android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:minHeight="44dp"
+              android:spinnerMode="dropdown"/>
+          </LinearLayout>
+
+          <!-- Colour legend -->
+          <FrameLayout android:id="@+id/overlay_marine_legend_frame"
+            android:layout_width="match_parent" android:layout_height="40dp"
+            android:layout_marginBottom="6dp"/>
+
+          <!-- Current particles toggle — shows ocean current flow direction -->
+          <CheckBox android:id="@+id/overlay_marine_particles"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Ocean Current Particles (flow direction)" android:textSize="10sp"
+            android:layout_marginBottom="4dp"/>
+
+          <!-- Wave arrows toggle — shows wave height + direction -->
+          <CheckBox android:id="@+id/overlay_marine_arrows"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Wave Direction Arrows (height + direction)" android:textSize="10sp"
+            android:layout_marginBottom="4dp"/>
+
+          <!-- Debug: show coastline contour -->
+          <CheckBox android:id="@+id/overlay_marine_contour"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Show Coastline Contour (debug)" android:textSize="10sp"
+            android:alpha="0.7"
+            android:layout_marginBottom="6dp"/>
+
+          <!-- ── Marine Particle Config (collapsed by default) ─── -->
+          <LinearLayout android:id="@+id/marine_particle_config"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:visibility="gone"
+            android:background="#10FFFFFF" android:padding="6dp"
+            android:layout_marginBottom="6dp">
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:text="Particle Settings" android:textSize="10sp" android:textStyle="bold"
+              android:alpha="0.8" android:layout_marginBottom="4dp"/>
+
+            <!-- Particle count -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+              <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:text="Particles" android:textSize="10sp"/>
+              <TextView android:id="@+id/marine_particle_count_label"
+                android:layout_width="40dp" android:layout_height="wrap_content"
+                android:text="800" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+            </LinearLayout>
+            <SeekBar android:id="@+id/marine_particle_count"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:max="30" android:progress="8" android:layout_marginBottom="4dp"/>
+
+            <!-- Speed -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+              <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:text="Speed" android:textSize="10sp"/>
+              <TextView android:id="@+id/marine_particle_speed_label"
+                android:layout_width="40dp" android:layout_height="wrap_content"
+                android:text="2.0x" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+            </LinearLayout>
+            <SeekBar android:id="@+id/marine_particle_speed"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:max="40" android:progress="20" android:layout_marginBottom="4dp"/>
+
+            <!-- Trail -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+              <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:text="Trail" android:textSize="10sp"/>
+              <TextView android:id="@+id/marine_particle_trail_label"
+                android:layout_width="40dp" android:layout_height="wrap_content"
+                android:text="120" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+            </LinearLayout>
+            <SeekBar android:id="@+id/marine_particle_trail"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:max="200" android:progress="120" android:layout_marginBottom="4dp"/>
+
+            <!-- Trail Fade -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+              <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:text="Trail Fade" android:textSize="10sp"/>
+              <TextView android:id="@+id/marine_particle_fade_label"
+                android:layout_width="40dp" android:layout_height="wrap_content"
+                android:text="4" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+            </LinearLayout>
+            <SeekBar android:id="@+id/marine_particle_fade"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:max="20" android:progress="4" android:layout_marginBottom="4dp"/>
+
+            <!-- Line Width -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+              <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:text="Line Width" android:textSize="10sp"/>
+              <TextView android:id="@+id/marine_particle_width_label"
+                android:layout_width="40dp" android:layout_height="wrap_content"
+                android:text="2.5" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+            </LinearLayout>
+            <SeekBar android:id="@+id/marine_particle_width"
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:max="50" android:progress="25" android:layout_marginBottom="4dp"/>
+
+            <!-- Intensity / Saturation / Brightness in one row -->
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="I" android:textSize="9sp" android:layout_marginEnd="2dp"/>
+              <SeekBar android:id="@+id/marine_particle_intensity"
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:max="100" android:progress="100"/>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text=" S" android:textSize="9sp" android:layout_marginStart="4dp" android:layout_marginEnd="2dp"/>
+              <SeekBar android:id="@+id/marine_particle_saturation"
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:max="100" android:progress="100"/>
+              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text=" B" android:textSize="9sp" android:layout_marginStart="4dp" android:layout_marginEnd="2dp"/>
+              <SeekBar android:id="@+id/marine_particle_brightness"
+                android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                android:max="150" android:progress="120"/>
+            </LinearLayout>
+          </LinearLayout>
+
+          <!-- Opacity -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Opacity" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_marine_opacity_label"
+              android:layout_width="40dp" android:layout_height="wrap_content"
+              android:text="70%" android:textSize="10sp" android:textStyle="bold" android:gravity="end"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_marine_opacity"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="100" android:progress="70" android:layout_marginBottom="6dp"/>
+
+          <!-- Time scrubber -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:gravity="center_vertical"
+            android:layout_marginBottom="2dp">
+            <TextView android:layout_width="0dp" android:layout_height="wrap_content"
+              android:layout_weight="1" android:text="Time" android:textSize="11sp"/>
+            <TextView android:id="@+id/overlay_marine_time_label"
+              android:layout_width="wrap_content" android:layout_height="wrap_content"
+              android:text="\u2014" android:textSize="10sp" android:textStyle="bold"
+              android:fontFamily="monospace"/>
+          </LinearLayout>
+          <SeekBar android:id="@+id/overlay_marine_time"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:max="47" android:progress="0" android:layout_marginBottom="6dp"/>
+
+          <!-- Playback -->
+          <LinearLayout
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="horizontal" android:layout_marginBottom="6dp">
+            <Button android:id="@+id/overlay_marine_play" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1"
+              android:text="\u25B6 Play" android:textSize="10sp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/overlay_marine_stop" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1"
+              android:text="\u25A0 Stop" android:textSize="10sp" android:layout_marginEnd="4dp"/>
+            <Button android:id="@+id/overlay_marine_fetch" style="@style/darkButton"
+              android:layout_width="0dp" android:layout_height="36dp" android:layout_weight="1"
+              android:text="\u27F3 Fetch" android:textSize="10sp"/>
+          </LinearLayout>
+
+          <!-- Status -->
+          <TextView android:id="@+id/overlay_marine_status"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Idle" android:textSize="10sp" android:textStyle="italic"
+            android:alpha="0.7" android:fontFamily="monospace"/>
 
         </LinearLayout>
       </ScrollView>

@@ -75,7 +75,10 @@ To override a built-in source, use the same `sourceId` / `radarSourceId` in your
 
 ---
 
-## YAML support (optional)
+## File format
 
-The plugin also accepts `.yaml` / `.yml` files in the same folder using the same field names.
-The YAML file must be valid YAML 1.1 without aliases or anchors.
+Source definitions must be JSON. The legacy hand-rolled YAML loader was removed in
+v3.1.1 — see issue #19 — because it could not parse list-of-mappings (the most
+common YAML structure) and silently produced malformed JSON. Use the v2 JSON schema
+(`_schema_version: "2.0"`) for all source definitions. AWC METAR is shipped as
+`aviation-weather-v2.json`.

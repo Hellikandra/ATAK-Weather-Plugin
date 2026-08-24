@@ -1,4 +1,4 @@
-package com.atakmap.android.weather.overlay.wind;
+package com.atakmap.android.weather.overlay.marine;
 
 import com.atakmap.coremap.log.Log;
 import com.atakmap.map.layer.AbstractLayer;
@@ -10,80 +10,72 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Wind particle overlay — pre-computed streamline approach.
+ * Marine current particle data layer — completely independent from wind particles.
  *
- * <p><b>Architecture (Approach B — Sprint 29):</b></p>
- * <ol>
- *   <li>When wind data changes ({@link #setWindField}), streamlines are computed
- *       ONCE on a background thread using RK4 integration through the wind field.</li>
- *   <li>Each streamline is a dense array of (lat,lon) positions at ~50m spacing.</li>
- *   <li>The GL renderer ({@link GLWindParticleLayer}) animates "cursors" along
- *       these pre-computed paths — no per-frame physics needed.</li>
- * </ol>
+ * <p>Holds ocean current velocity + direction grids and pre-computed streamlines.
+ * Each instance gets its own native C++ engine via {@code NativeWindParticle.nCreate()}.
+ * This ensures marine and wind particles can be active simultaneously without interference.</p>
  *
- * <p>This eliminates the CPU bottleneck of per-frame wind interpolation and
- * produces perfectly smooth streamlines at any zoom level.</p>
+ * <p>Differences from {@link com.atakmap.android.weather.overlay.wind.WindParticleLayer}:</p>
+ * <ul>
+ *   <li>Default particle count: 800 (ocean currents are slower, need fewer particles)</li>
+ *   <li>Default speed: 2.0 (currents are ~0.1-2 m/s, need higher multiplier for visibility)</li>
+ *   <li>Step size: 100m (currents cover larger distances)</li>
+ *   <li>Own color ramp: navy→cyan→white (0-2 m/s) instead of green→magenta (0-25 m/s)</li>
+ * </ul>
  */
-public class WindParticleLayer extends AbstractLayer {
+public class MarineParticleLayer extends AbstractLayer {
 
-    private static final String TAG = "WindParticleLayer";
+    private static final String TAG = "MarineParticleLayer";
 
-    // ── Wind field data ───────────────────────────────────────────────────
-    private double[][] windSpeed;
-    private double[][] windDirection;
+    // ── Current field data ────────────────────────────────────────────────
+    private double[][] currentSpeed;
+    private double[][] currentDirection;
     private double gridNorth, gridSouth, gridWest, gridEast;
     private int gridRows, gridCols;
     private boolean hasData = false;
 
-    // ── Pre-computed streamlines (Approach B) ─────────────────────────────
-    /**
-     * Each streamline is double[steps][2] where [i][0]=lat, [i][1]=lon.
-     * Also stores speed at each point for color mapping.
-     */
+    // ── Pre-computed streamlines ──────────────────────────────────────────
     private volatile List<Streamline> streamlines = new ArrayList<>();
     private volatile boolean streamlinesReady = false;
-    private volatile long streamlineGeneration = 0; // incremented on each recompute
+    private volatile long streamlineGeneration = 0;
 
-    /** Number of streamlines to seed across the grid. */
-    private static final int NUM_STREAMLINES = 200;
-    /** Integration steps per streamline (at ~50m each = ~25km max length). */
-    private static final int STEPS_PER_STREAMLINE = 500;
-    /** Integration step size in meters. */
-    private static final double STEP_SIZE_M = 50.0;
+    private static final int NUM_STREAMLINES = 150;
+    private static final int STEPS_PER_STREAMLINE = 600;
+    private static final double STEP_SIZE_M = 100.0; // larger steps for ocean scale
 
     private final ExecutorService computeExecutor = Executors.newSingleThreadExecutor();
     private final Random rng = new Random();
 
-    // ── Configuration ─────────────────────────────────────────────────────
-    private int   particleCount = 1500;
-    private float particleSpeed = 1.0f;
-    private float particleLife  = 100f;
+    // ── Configuration (marine defaults) ──────────────────────────────────
+    private int   particleCount = 800;
+    private float particleSpeed = 2.0f;   // higher multiplier — currents are slow
+    private float particleLife  = 120f;
     private float lineWidth     = 2.5f;
     private float fadeOpacity   = 0.96f;
-    private boolean showParticles = true;
+    private boolean showParticles = false; // off by default
 
-    // ── Color controls ────────────────────────────────────────────────────
+    // ── Color controls ───────────────────────────────────────────────────
     private float colorIntensity  = 1.0f;
     private float colorSaturation = 1.0f;
     private float colorValue      = 1.2f;
 
-    public WindParticleLayer(String name) {
+    // ── Trail fade + line width ──────────────────────────────────────────
+    private int   trailFadeAlpha = 4;
+    private float trailLineWidth = 2.5f;
+
+    public MarineParticleLayer(String name) {
         super(name);
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // Streamline data class
+    // Streamline data class (same structure as wind — reusable)
     // ══════════════════════════════════════════════════════════════════════
 
-    /** A single pre-computed streamline path through the wind field. */
     public static class Streamline {
-        /** Latitude at each step. */
         public final double[] lat;
-        /** Longitude at each step. */
         public final double[] lon;
-        /** Wind speed at each step (for color mapping). */
         public final float[] speed;
-        /** Number of valid steps (may be < array length if streamline left grid). */
         public final int length;
 
         public Streamline(double[] lat, double[] lon, float[] speed, int length) {
@@ -95,14 +87,14 @@ public class WindParticleLayer extends AbstractLayer {
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // Wind data setters
+    // Current data setters
     // ══════════════════════════════════════════════════════════════════════
 
-    public synchronized void setWindField(double[][] speed, double[][] direction,
-                                           double north, double south,
-                                           double west, double east) {
-        this.windSpeed = speed;
-        this.windDirection = direction;
+    public synchronized void setCurrentField(double[][] speed, double[][] direction,
+                                              double north, double south,
+                                              double west, double east) {
+        this.currentSpeed = speed;
+        this.currentDirection = direction;
         this.gridNorth = north;
         this.gridSouth = south;
         this.gridWest  = west;
@@ -114,7 +106,6 @@ public class WindParticleLayer extends AbstractLayer {
         this.hasData = (speed != null && direction != null
                 && gridRows > 0 && gridCols > 0);
 
-        // Trigger streamline recomputation on background thread
         if (hasData) {
             recomputeStreamlines();
         } else {
@@ -123,35 +114,34 @@ public class WindParticleLayer extends AbstractLayer {
         }
     }
 
-    public synchronized void clearWindField() {
-        this.windSpeed = null;
-        this.windDirection = null;
+    public synchronized void clearCurrentField() {
+        this.currentSpeed = null;
+        this.currentDirection = null;
         this.hasData = false;
         this.streamlinesReady = false;
         this.streamlines = new ArrayList<>();
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // Streamline computation (RK4 integration on background thread)
+    // Streamline computation (RK4 — same algorithm as wind, different params)
     // ══════════════════════════════════════════════════════════════════════
 
     private void recomputeStreamlines() {
         final long gen = ++streamlineGeneration;
 
-        // Snapshot wind data for background thread (avoid synchronized access during compute)
         final double[][] snapSpeed;
         final double[][] snapDir;
         final double sn, ss, sw, se;
         final int sRows, sCols;
         synchronized (this) {
-            if (!hasData || windSpeed == null || windDirection == null) return;
+            if (!hasData || currentSpeed == null || currentDirection == null) return;
             sRows = gridRows;
             sCols = gridCols;
             snapSpeed = new double[sRows][];
             snapDir = new double[sRows][];
             for (int r = 0; r < sRows; r++) {
-                snapSpeed[r] = windSpeed[r].clone();
-                snapDir[r] = windDirection[r].clone();
+                snapSpeed[r] = currentSpeed[r].clone();
+                snapDir[r] = currentDirection[r].clone();
             }
             sn = gridNorth; ss = gridSouth; sw = gridWest; se = gridEast;
         }
@@ -167,17 +157,15 @@ public class WindParticleLayer extends AbstractLayer {
                 double degPerMeterLat = 1.0 / 111320.0;
                 double degPerMeterLon = 1.0 / (111320.0 * Math.cos(Math.toRadians(midLat)));
 
-                // Seed points: grid pattern with jitter
-                int seedRows = (int) Math.sqrt(NUM_STREAMLINES * latRange / lonRange);
+                int seedRows = (int) Math.sqrt(NUM_STREAMLINES * latRange / Math.max(0.01, lonRange));
                 int seedCols = NUM_STREAMLINES / Math.max(1, seedRows);
                 if (seedRows < 2) seedRows = 2;
                 if (seedCols < 2) seedCols = 2;
 
                 for (int sr = 0; sr < seedRows; sr++) {
                     for (int sc = 0; sc < seedCols; sc++) {
-                        if (gen != streamlineGeneration) return; // cancelled
+                        if (gen != streamlineGeneration) return;
 
-                        // Seed position with jitter
                         double seedLat = ss + (sr + 0.1 + 0.8 * rng.nextDouble()) * latRange / seedRows;
                         double seedLon = sw + (sc + 0.1 + 0.8 * rng.nextDouble()) * lonRange / seedCols;
 
@@ -196,18 +184,15 @@ public class WindParticleLayer extends AbstractLayer {
                     streamlines = result;
                     streamlinesReady = true;
                     long dt = System.currentTimeMillis() - t0;
-                    Log.d(TAG, "Streamlines computed: " + result.size()
+                    Log.d(TAG, "Marine streamlines: " + result.size()
                             + " paths in " + dt + "ms");
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Streamline compute error", e);
+                Log.e(TAG, "Marine streamline error", e);
             }
         });
     }
 
-    /**
-     * Integrate a single streamline using RK4 through the wind field.
-     */
     private Streamline integrateStreamline(
             double startLat, double startLon,
             double[][] speed, double[][] dir,
@@ -219,79 +204,57 @@ public class WindParticleLayer extends AbstractLayer {
         double[] lons = new double[STEPS_PER_STREAMLINE];
         float[] speeds = new float[STEPS_PER_STREAMLINE];
 
-        double lat = startLat;
-        double lon = startLon;
+        double lat = startLat, lon = startLon;
         int validSteps = 0;
 
         for (int step = 0; step < STEPS_PER_STREAMLINE; step++) {
-            // Bounds check
             if (lat < south || lat > north || lon < west || lon > east) break;
 
-            // Interpolate wind at current position
             double[] w = bilinearInterp(lat, lon, speed, dir,
                     north, south, west, east, rows, cols);
-            if (w == null || w[0] < 0.1) break;
+            if (w == null || Double.isNaN(w[0]) || w[0] < 0.001) break; // NaN = land
 
             lats[step] = lat;
             lons[step] = lon;
             speeds[step] = (float) w[0];
             validSteps = step + 1;
 
-            // RK4 integration
+            // RK4
             double h = STEP_SIZE_M;
+            double[] k1 = velocity(w[0], w[1], degPerMeterLat, degPerMeterLon);
 
-            // k1
-            double[] k1 = windVelocity(w[0], w[1], degPerMeterLat, degPerMeterLon);
+            double[] w2 = bilinearInterp(lat + 0.5*h*k1[0], lon + 0.5*h*k1[1],
+                    speed, dir, north, south, west, east, rows, cols);
+            if (w2 == null || Double.isNaN(w2[0])) break;
+            double[] k2 = velocity(w2[0], w2[1], degPerMeterLat, degPerMeterLon);
 
-            // k2 — half step using k1
-            double lat2 = lat + 0.5 * h * k1[0];
-            double lon2 = lon + 0.5 * h * k1[1];
-            double[] w2 = bilinearInterp(lat2, lon2, speed, dir,
-                    north, south, west, east, rows, cols);
-            if (w2 == null) break;
-            double[] k2 = windVelocity(w2[0], w2[1], degPerMeterLat, degPerMeterLon);
+            double[] w3 = bilinearInterp(lat + 0.5*h*k2[0], lon + 0.5*h*k2[1],
+                    speed, dir, north, south, west, east, rows, cols);
+            if (w3 == null || Double.isNaN(w3[0])) break;
+            double[] k3 = velocity(w3[0], w3[1], degPerMeterLat, degPerMeterLon);
 
-            // k3 — half step using k2
-            double lat3 = lat + 0.5 * h * k2[0];
-            double lon3 = lon + 0.5 * h * k2[1];
-            double[] w3 = bilinearInterp(lat3, lon3, speed, dir,
-                    north, south, west, east, rows, cols);
-            if (w3 == null) break;
-            double[] k3 = windVelocity(w3[0], w3[1], degPerMeterLat, degPerMeterLon);
+            double[] w4 = bilinearInterp(lat + h*k3[0], lon + h*k3[1],
+                    speed, dir, north, south, west, east, rows, cols);
+            if (w4 == null || Double.isNaN(w4[0])) break;
+            double[] k4 = velocity(w4[0], w4[1], degPerMeterLat, degPerMeterLon);
 
-            // k4 — full step using k3
-            double lat4 = lat + h * k3[0];
-            double lon4 = lon + h * k3[1];
-            double[] w4 = bilinearInterp(lat4, lon4, speed, dir,
-                    north, south, west, east, rows, cols);
-            if (w4 == null) break;
-            double[] k4 = windVelocity(w4[0], w4[1], degPerMeterLat, degPerMeterLon);
-
-            // Combine
-            lat += h / 6.0 * (k1[0] + 2 * k2[0] + 2 * k3[0] + k4[0]);
-            lon += h / 6.0 * (k1[1] + 2 * k2[1] + 2 * k3[1] + k4[1]);
+            lat += h/6.0 * (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]);
+            lon += h/6.0 * (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]);
         }
 
         if (validSteps < 10) return null;
         return new Streamline(lats, lons, speeds, validSteps);
     }
 
-    /**
-     * Convert wind speed + meteorological direction to velocity in degrees/meter.
-     * Wind FROM dir → particle moves opposite direction.
-     */
-    private static double[] windVelocity(double speed, double dirDeg,
-                                          double degPerMeterLat, double degPerMeterLon) {
-        double bearingRad = Math.toRadians((dirDeg + 180.0) % 360.0);
+    private static double[] velocity(double speed, double dirDeg,
+                                      double degPerMeterLat, double degPerMeterLon) {
+        // Ocean current direction = direction current flows TOWARDS (unlike wind which is FROM)
+        double bearingRad = Math.toRadians(dirDeg);
         double dLat = Math.cos(bearingRad) * degPerMeterLat;
         double dLon = Math.sin(bearingRad) * degPerMeterLon;
         return new double[]{dLat, dLon};
     }
 
-    /**
-     * Bilinear interpolation of wind speed and direction from the grid.
-     * Non-synchronized — operates on snapshot arrays.
-     */
     private static double[] bilinearInterp(
             double lat, double lon,
             double[][] speed, double[][] dir,
@@ -307,14 +270,22 @@ public class WindParticleLayer extends AbstractLayer {
         double fr = fracRow - r0;
         double fc = fracCol - c0;
 
-        double spd = speed[r0][c0] * (1-fr)*(1-fc) + speed[r0][c0+1] * (1-fr)*fc
-                + speed[r0+1][c0] * fr*(1-fc) + speed[r0+1][c0+1] * fr*fc;
+        double s00 = speed[r0][c0], s01 = speed[r0][c0+1];
+        double s10 = speed[r0+1][c0], s11 = speed[r0+1][c0+1];
 
-        // Direction interpolation via sin/cos for 360° wrap
+        // Any NaN = land point → abort
+        if (Double.isNaN(s00) || Double.isNaN(s01) || Double.isNaN(s10) || Double.isNaN(s11))
+            return null;
+
+        double spd = s00*(1-fr)*(1-fc) + s01*(1-fr)*fc + s10*fr*(1-fc) + s11*fr*fc;
+
         double d00 = Math.toRadians(dir[r0][c0]);
         double d01 = Math.toRadians(dir[r0][c0+1]);
         double d10 = Math.toRadians(dir[r0+1][c0]);
         double d11 = Math.toRadians(dir[r0+1][c0+1]);
+
+        if (Double.isNaN(d00) || Double.isNaN(d01) || Double.isNaN(d10) || Double.isNaN(d11))
+            return null;
 
         double sinS = Math.sin(d00)*(1-fr)*(1-fc) + Math.sin(d01)*(1-fr)*fc
                 + Math.sin(d10)*fr*(1-fc) + Math.sin(d11)*fr*fc;
@@ -326,15 +297,8 @@ public class WindParticleLayer extends AbstractLayer {
         return new double[]{spd, d};
     }
 
-    // Keep interpolateWind for backward compatibility (wind arrows still use it)
-    public synchronized double[] interpolateWind(double lat, double lon) {
-        if (!hasData || windSpeed == null || windDirection == null) return null;
-        return bilinearInterp(lat, lon, windSpeed, windDirection,
-                gridNorth, gridSouth, gridWest, gridEast, gridRows, gridCols);
-    }
-
     // ══════════════════════════════════════════════════════════════════════
-    // Accessors (GL thread reads these)
+    // Accessors — used by MarineParticleBitmapView and native engine
     // ══════════════════════════════════════════════════════════════════════
 
     public boolean hasData() { return hasData; }
@@ -348,10 +312,10 @@ public class WindParticleLayer extends AbstractLayer {
     public synchronized double getGridEast()  { return gridEast; }
     public synchronized int getGridRows() { return gridRows; }
     public synchronized int getGridCols() { return gridCols; }
-    public synchronized double[][] getWindSpeed() { return windSpeed; }
-    public synchronized double[][] getWindDirection() { return windDirection; }
+    public synchronized double[][] getWindSpeed() { return currentSpeed; }
+    public synchronized double[][] getWindDirection() { return currentDirection; }
 
-    // ── Configuration accessors ───────────────────────────────────────────
+    // ── Configuration ────────────────────────────────────────────────────
 
     public int getParticleCount()       { return particleCount; }
     public float getParticleSpeed()     { return particleSpeed; }
@@ -360,7 +324,7 @@ public class WindParticleLayer extends AbstractLayer {
     public float getFadeOpacity()       { return fadeOpacity; }
     public boolean isShowParticles()    { return showParticles; }
 
-    public void setParticleCount(int n)      { this.particleCount = Math.max(10, Math.min(10000, n)); }
+    public void setParticleCount(int n)      { this.particleCount = Math.max(10, Math.min(5000, n)); }
     public void setParticleSpeed(float s)    { this.particleSpeed = Math.max(0.1f, Math.min(5f, s)); }
     public void setParticleLife(float l)      { this.particleLife = Math.max(20f, Math.min(200f, l)); }
     public void setLineWidth(float w)        { this.lineWidth = Math.max(0.5f, Math.min(4f, w)); }
@@ -374,10 +338,6 @@ public class WindParticleLayer extends AbstractLayer {
     public void setColorIntensity(float v)  { this.colorIntensity  = Math.max(0f, Math.min(1f, v)); }
     public void setColorSaturation(float v) { this.colorSaturation = Math.max(0f, Math.min(1f, v)); }
     public void setColorValue(float v)      { this.colorValue      = Math.max(0f, Math.min(1.5f, v)); }
-
-    // ── Trail fade + line width (V4 bitmap view controls) ─────────────────
-    private int   trailFadeAlpha = 4;     // DST_OUT alpha per frame (1-20, lower=longer trails)
-    private float trailLineWidth = 2.5f;  // dp
 
     public int getTrailFadeAlpha()     { return trailFadeAlpha; }
     public float getTrailLineWidth()   { return trailLineWidth; }

@@ -135,7 +135,12 @@ public class RadarOverlayView extends View {
     public void attach() {
         if (getParent() != null) return;
         mapView.addView(this);
-        movedListener = (v, animate) -> post(RadarOverlayView.this::invalidate);
+        // Fix #22 — radar overlay drift. post(invalidate) lands one Looper
+        // tick later than the next GL frame, so during continuous map
+        // movement the View overlay lags ~1 frame behind the GL globe.
+        // postInvalidateOnAnimation() aligns the redraw with VSYNC, the
+        // same frame boundary GL uses.
+        movedListener = (v, animate) -> postInvalidateOnAnimation();
         mapView.addOnMapMovedListener(movedListener);
     }
 

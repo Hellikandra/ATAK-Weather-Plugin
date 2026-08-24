@@ -8,7 +8,7 @@
 
 buildscript {
 
-    ext.PLUGIN_VERSION = "3.0.0"
+    ext.PLUGIN_VERSION = "3.1.1"
     ext.ATAK_VERSION   = "5.6.0"
 
     def takdevVersion = '3.+'
@@ -113,8 +113,11 @@ def supportedFlavors =
         ]
 
 android {
-    compileSdkVersion 34
+    compileSdkVersion 36
     namespace "com.atakmap.android.weather.plugin"
+    // ndkVersion not required — native .so files pre-built in jniLibs/
+    // If rebuilding native code locally, uncomment and set to your local NDK:
+    // ndkVersion "27.2.12479018"
 
     buildFeatures {
         buildConfig = true
@@ -132,6 +135,16 @@ android {
             useLegacyPackaging = true
         }
     }
+
+    // Native C++ particle engine (Sprint 29)
+    // Pre-built .so files are in src/main/jniLibs/{arm64-v8a,armeabi-v7a}/
+    // To rebuild: uncomment externalNativeBuild, run buildCMakeRelWithDebInfo,
+    // then copy .so files back to jniLibs/ and re-comment.
+    // externalNativeBuild {
+    //     cmake {
+    //         path file('src/main/cpp/CMakeLists.txt')
+    //     }
+    // }
 
 
     lintOptions {
@@ -233,7 +246,7 @@ android {
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 34
+        targetSdkVersion 36
 
         def runTasks = gradle.startParameter.taskNames
         if(runTasks.toString().contains('bundle')) {
@@ -256,6 +269,11 @@ android {
         unitTests {
             includeAndroidResources = true
             all { jvmArgs '-noverify' }
+        }
+    }
+    bundle {
+        storeArchive {
+            enable = false
         }
     }
 }
@@ -346,4 +364,36 @@ dependencies {
     androidTestImplementation "androidx.test.espresso:espresso-core:3.5.1"
     androidTestImplementation "androidx.test.uiautomator:uiautomator:2.3.0"
     androidTestImplementation "androidx.room:room-testing:$room_version"
+}
+
+// ── TPP Dependency Resolution Strategy (ATAK 5.6.0) ─────────────────────
+// Align transitive dependency versions with ATAK Core to avoid conflicts.
+// See: Build_Environment_Changes.pdf for 5.6.0
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'androidx.core' && !details.requested.name.contains('core-viewtree')) {
+            details.useVersion '1.17.0'
+        }
+        if (details.requested.group == 'androidx.lifecycle') {
+            details.useVersion '2.9.4'
+        }
+        if (details.requested.group == 'androidx.fragment') {
+            details.useVersion '1.8.9'
+        }
+        if (details.requested.group == 'com.squareup.okhttp3') {
+            details.useVersion '4.11.0'
+        }
+        if (details.requested.group == 'com.squareup.okio') {
+            details.useVersion '3.2.0'
+        }
+    }
+}
+configurations.implementation {
+    exclude group: 'androidx.core', module: 'core-ktx'
+    exclude group: 'androidx.core', module: 'core'
+    exclude group: 'androidx.fragment', module: 'fragment'
+    exclude group: 'androidx.lifecycle', module: 'lifecycle'
+    exclude group: 'androidx.lifecycle', module: 'lifecycle-process'
+    exclude group: 'com.squareup.okhttp3', module: 'okhttp'
+    exclude group: 'com.squareup.okio', module: 'okio'
 }

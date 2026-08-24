@@ -37,10 +37,12 @@ public class HeatmapOverlayView extends View {
     private final Paint   paint    = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Matrix  tileMtx  = new Matrix();
 
-    private Bitmap   bitmap;
-    private double   geoNorth, geoSouth, geoEast, geoWest;
-    private boolean  hasBounds = false;
-    private int      alpha = 153; // 60%
+    // Thread-safe: setHeatmap() called from background render thread,
+    // onDraw() called from UI thread. Use volatile + snapshot pattern.
+    private volatile Bitmap   bitmap;
+    private volatile double   geoNorth, geoSouth, geoEast, geoWest;
+    private volatile boolean  hasBounds = false;
+    private volatile int      alpha = 153; // 60%
 
     private MapView.OnMapMovedListener movedListener;
 
@@ -58,7 +60,9 @@ public class HeatmapOverlayView extends View {
     public void attach() {
         if (getParent() != null) return;
         mapView.addView(this);
-        movedListener = (v, animate) -> post(HeatmapOverlayView.this::invalidate);
+        // Fix #22 audit — postInvalidateOnAnimation aligns redraw with VSYNC,
+        // eliminating the 1-frame drift that post(invalidate) introduces.
+        movedListener = (v, animate) -> postInvalidateOnAnimation();
         mapView.addOnMapMovedListener(movedListener);
     }
 

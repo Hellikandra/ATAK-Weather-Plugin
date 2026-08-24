@@ -226,11 +226,11 @@ public class SourceDefinitionLoader {
             String[] files = ctx.getAssets().list(ASSET_DIR);
             if (files == null) return result;
             for (String file : files) {
-                if (!file.endsWith(".json") && !file.endsWith(".yaml") && !file.endsWith(".yml")) continue;
+                // YAML loader removed in v3.1.1 — see issue #19. JSON only.
+                if (!file.endsWith(".json")) continue;
                 try (InputStream is = ctx.getAssets().open(ASSET_DIR + "/" + file)) {
                     String json = readString(is);
-                    boolean isYml = file.endsWith(".yaml") || file.endsWith(".yml");
-                    WeatherSourceDefinition def = parse(json, isYml);
+                    WeatherSourceDefinition def = parse(json);
                     if (def != null) result.add(def);
                 } catch (Exception e) {
                     Log.w(TAG, "Asset parse failed: " + file + " — " + e.getMessage());
@@ -246,13 +246,13 @@ public class SourceDefinitionLoader {
         List<WeatherSourceDefinition> result = new ArrayList<>();
         File dir = new File(Environment.getExternalStorageDirectory(), EXTERNAL_DIR);
         if (!dir.exists() || !dir.isDirectory()) return result;
-        File[] files = dir.listFiles((d, name) -> name.endsWith(".json") || name.endsWith(".yaml") || name.endsWith(".yml"));
+        // YAML loader removed in v3.1.1 — see issue #19. JSON only.
+        File[] files = dir.listFiles((d, name) -> name.endsWith(".json"));
         if (files == null) return result;
         for (File file : files) {
             try (FileInputStream fis = new FileInputStream(file)) {
                 String json = readString(fis);
-                boolean isYml = file.getName().endsWith(".yaml") || file.getName().endsWith(".yml");
-                WeatherSourceDefinition def = parse(json, isYml);
+                WeatherSourceDefinition def = parse(json);
                 if (def != null) result.add(def);
                 Log.d(TAG, "Loaded user definition: " + file.getName());
             } catch (Exception e) {
@@ -263,134 +263,12 @@ public class SourceDefinitionLoader {
     }
 
     /**
-     * Minimal YAML → JSON converter for the weather_sources definition subset.
-     *
-     * Handles:
-     *   • Top-level key: value  pairs (quoted and unquoted strings, booleans, numbers)
-     *   • Simple lists:  - item  under a list key
-     *   • Nested mappings indented by 2+ spaces
-     *   • Comments (#) stripped
-     *   • _comment and _doc fields (silently ignored by JSON parser)
-     *
-     * Does NOT handle: anchors/aliases, multi-document streams, flow sequences,
-     * quoted multi-line strings, or complex nesting beyond 2 levels.
+     * Parse a source definition from JSON text.
+     * YAML support was removed in v3.1.1 — see issue #19.
      */
-    @android.annotation.SuppressLint("DefaultLocale")
-    private static String yamlToJson(String yaml) {
-        // Delegate: convert the YAML subset to a JSON string that JSONObject can parse.
-        // Strategy: line-by-line state machine.
-        String[] lines = yaml.split("\n");
-        StringBuilder sb = new StringBuilder("{\n");
-        java.util.Deque<String> stack = new java.util.ArrayDeque<>();
-        stack.push("object");
-        boolean firstTopField = true;
-        boolean inList = false;
-        String  listKey = null;
-        StringBuilder listBuf = null;
-        boolean firstListItem = true;
-
-        for (String rawLine : lines) {
-            String stripped = rawLine.stripTrailing();
-            // Strip comments
-            int commentIdx = stripped.indexOf('#');
-            if (commentIdx >= 0) stripped = stripped.substring(0, commentIdx).stripTrailing();
-            if (stripped.isBlank()) continue;
-
-            int indent = 0;
-            while (indent < stripped.length() && stripped.charAt(indent) == ' ') indent++;
-            String trimmed = stripped.trim();
-
-            // List item
-            if (trimmed.startsWith("- ")) {
-                if (listBuf == null) continue;
-                String val = trimmed.substring(2).trim();
-                if (!firstListItem) listBuf.append(",\n");
-                listBuf.append(jsonValue(val));
-                firstListItem = false;
-                continue;
-            }
-
-            // Key: value pair
-            int colon = trimmed.indexOf(": ");
-            if (colon < 0 && trimmed.endsWith(":")) colon = trimmed.length() - 1;
-            if (colon < 0) continue;
-
-            String key = trimmed.substring(0, colon).trim();
-            String val = (colon + 2 <= trimmed.length()) ? trimmed.substring(colon + 2).trim() : "";
-
-            // Flush pending list
-            if (inList && listBuf != null && indent == 0) {
-                sb.append("\"").append(listKey).append("\": [\n").append(listBuf).append("\n]");
-                inList = false; listKey = null; listBuf = null;
-                firstTopField = false;
-            }
-
-            if (!firstTopField && indent == 0) sb.append(",\n");
-            if (indent == 0) firstTopField = false;
-
-            if (val.isEmpty()) {
-                // Start of a list or nested object — peek ahead handled as list
-                inList = true;
-                listKey = key;
-                listBuf = new StringBuilder();
-                firstListItem = true;
-            } else if (indent > 0 && inList) {
-                // Nested mapping inside a list item
-                if (listBuf == null) continue;
-                if (!firstListItem) { listBuf.append(",\n"); }
-                // Check if this is a sub-key inside a list-of-objects
-                // We handle this by buffering nested keys into one JSON object
-                // Simple approach: just append as "key": val pairs in a flat object
-                if (firstListItem || listBuf.toString().endsWith("}")) {
-                    if (!firstListItem) { listBuf.deleteCharAt(listBuf.length()-1); listBuf.append(",\n"); }
-                    else { listBuf.append("{\n"); firstListItem = false; }
-                } else {
-                    listBuf.append(", ");
-                }
-                listBuf.append("\"").append(key).append("\": ").append(jsonValue(val));
-            } else if (indent == 0) {
-                sb.append("\"").append(key).append("\": ").append(jsonValue(val));
-            }
-        }
-
-        // Flush last list
-        if (inList && listBuf != null) {
-            sb.append("\"").append(listKey).append("\": [\n").append(listBuf).append("\n]");
-        }
-        sb.append("\n}");
-        return sb.toString();
-    }
-
-    private static String jsonValue(String v) {
-        if (v.equalsIgnoreCase("true"))  return "true";
-        if (v.equalsIgnoreCase("false")) return "false";
-        if (v.equalsIgnoreCase("null") || v.isEmpty()) return "null";
-        // Unquoted number
-        try { Double.parseDouble(v); return v; } catch (NumberFormatException ignored) {}
-        // Strip wrapping quotes if already quoted
-        if ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'"))) {
-            v = v.substring(1, v.length() - 1);
-        }
-        // Escape for JSON
-        v = v.replace("\\", "\\\\").replace("\"", "\\\"");
-        return "\"" + v + "\"";
-    }
-
-    /**
-     * Parse a source definition from JSON or YAML text.
-     *
-     * YAML support is intentionally minimal: converts the subset of YAML used by
-     * the templates (key-value pairs, string arrays, boolean/null literals) to
-     * JSON before handing off to the JSON parser.  Complex YAML (anchors, aliases,
-     * multi-document streams) is not supported.
-     *
-     * @param text    raw file content (JSON or YAML)
-     * @param isYaml  true if the file extension was .yaml or .yml
-     */
-    private static WeatherSourceDefinition parse(String text, boolean isYaml) {
-        String json = isYaml ? yamlToJson(text) : text;
+    private static WeatherSourceDefinition parse(String text) {
         try {
-            JSONObject root = new JSONObject(json);
+            JSONObject root = new JSONObject(text);
             WeatherSourceDefinition.Builder b = new WeatherSourceDefinition.Builder();
 
             // Detect radar vs weather source

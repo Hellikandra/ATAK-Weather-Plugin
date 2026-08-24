@@ -46,7 +46,10 @@ public class HeatmapOverlayManager {
     private static final String TAG = "HeatmapOverlayMgr";
 
     /** Debounce delay for viewport changes (milliseconds). */
-    private static final long VIEWPORT_DEBOUNCE_MS = 2000;
+    private static final long VIEWPORT_DEBOUNCE_MS = 4000;
+
+    /** Cooldown after HTTP 429 rate-limit — don't fetch for 30 seconds. */
+    private static final long RATE_LIMIT_COOLDOWN_MS = 30_000;
 
     /** Default model resolution (GFS = 13km). */
     private static final double DEFAULT_MODEL_RES_KM = 13.0;
@@ -90,6 +93,11 @@ public class HeatmapOverlayManager {
     private Listener            listener;
     private ActiveStateListener activeStateListener;
 
+    /** Timestamp until which we won't fetch (after 429 rate-limit). */
+    private long rateLimitUntil = 0;
+    /** Is a fetch currently in-flight? Prevents parallel requests. */
+    private boolean fetchInFlight = false;
+
     /** Viewport listener for debounced re-fetch on pan/zoom. */
     private MapView.OnMapMovedListener mapMovedListener;
 
@@ -98,9 +106,14 @@ public class HeatmapOverlayManager {
     public HeatmapOverlayManager(MapView mapView, Context context) {
         this.mapView = mapView;
         this.context = context;
-        this.cache   = new HeatmapTileCache(context);
+        // Use mapView.getContext() (host Activity) for DB, not pluginContext
+        // pluginContext.getApplicationContext() returns null in ATAK sandbox
+        this.cache   = new HeatmapTileCache(mapView.getContext());
         this.fetcher = new HeatmapBatchFetcher();
     }
+
+    /** Get the overlay view for direct rendering (used by marine overlay). */
+    public HeatmapOverlayView getOverlayView() { return overlayView; }
 
     // ── Public API ──────────────────────────────────────────────────────────
 
@@ -277,6 +290,21 @@ public class HeatmapOverlayManager {
             return;
         }
 
+        // Check rate-limit cooldown
+        if (System.currentTimeMillis() < rateLimitUntil) {
+            Log.w(TAG, "Rate-limited — skipping fetch (cooldown "
+                    + ((rateLimitUntil - System.currentTimeMillis()) / 1000) + "s remaining)");
+            if (listener != null) listener.onError("Rate-limited — retry in "
+                    + ((rateLimitUntil - System.currentTimeMillis()) / 1000) + "s");
+            return;
+        }
+
+        // Prevent parallel requests
+        if (fetchInFlight) {
+            Log.d(TAG, "Fetch already in-flight — skipping");
+            return;
+        }
+
         // Fetch new data
         fetchForViewport(n, s, e, w);
     }
@@ -309,15 +337,20 @@ public class HeatmapOverlayManager {
                 + " = " + grid.getTotalPoints() + " pts"
                 + (grid.isBeyondResolution() ? " [BEYOND RES]" : ""));
 
+        fetchInFlight = true;
         fetcher.fetchGrid(grid, null, context, new HeatmapBatchFetcher.Callback() {
             @Override
             public void onResult(HeatmapDataSet dataSet) {
+                fetchInFlight = false;
                 if (!active.get()) return;
                 currentDataSet = dataSet;
 
                 // Cache the result
                 String sid = getActiveSourceId();
-                renderExec.submit(() -> cache.store(sid, dataSet));
+                renderExec.submit(() -> {
+                    cache.store(sid, dataSet);
+                    cache.evictIfNeeded();  // Sprint 25: LRU eviction
+                });
 
                 renderAndDisplay();
                 notifyDataLoaded();
@@ -325,8 +358,22 @@ public class HeatmapOverlayManager {
 
             @Override
             public void onError(String error) {
+                fetchInFlight = false;
                 Log.e(TAG, "Fetch error: " + error);
-                if (listener != null) {
+
+                // Detect rate-limit and apply cooldown
+                if (error != null && error.contains("429")) {
+                    rateLimitUntil = System.currentTimeMillis() + RATE_LIMIT_COOLDOWN_MS;
+                    Log.w(TAG, "Rate-limited by API — cooling down for 30s");
+                    if (listener != null) {
+                        handler.post(() -> listener.onError(
+                                "API rate-limited \u2014 using cached data. Retry in 30s."));
+                    }
+                    // Try to render from whatever data we have
+                    if (currentDataSet != null) {
+                        renderAndDisplay();
+                    }
+                } else if (listener != null) {
                     handler.post(() -> listener.onError(error));
                 }
             }

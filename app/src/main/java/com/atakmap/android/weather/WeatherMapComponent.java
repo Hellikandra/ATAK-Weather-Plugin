@@ -26,10 +26,7 @@ import com.atakmap.android.weather.overlay.heatmap.HeatmapOverlayManager;
 import com.atakmap.android.weather.overlay.radar.RadarMapOverlay;
 import com.atakmap.android.weather.overlay.radar.RadarOverlayManager;
 import com.atakmap.android.weather.overlay.wind.WindEffectShape;
-import com.atakmap.android.weather.overlay.weather.WeatherBitmapWidget;
-import com.atakmap.android.weather.overlay.weather.WeatherHudWidget;
-import com.atakmap.android.weather.overlay.wind.WindHudWidget;
-import com.atakmap.android.weather.util.ThemeManager;
+// HUD widget imports removed — Sprint 27 (Phase 4)
 import com.atakmap.android.weather.overlay.aviation.SigmetOverlayManager;
 import com.atakmap.android.weather.overlay.lightning.LightningOverlayManager;
 import com.atakmap.android.weather.overlay.cbrn.CbrnOverlayManager;
@@ -95,20 +92,17 @@ public class WeatherMapComponent extends DropDownMapComponent {
     private RadarOverlayManager   radarManager;
     private RadarTileCache        radarTileCache;
     private HeatmapOverlayManager heatmapManager;
-    private WindHudWidget         windHudWidget;
-    private WeatherHudWidget      weatherHudWidget;
-    private WeatherBitmapWidget   bitmapWidget;      // Sprint 13: Approach B widget
-
-    /** BroadcastReceiver for the Bitmap HUD toggle intent (Sprint 13 — S13.5). */
-    private android.content.BroadcastReceiver bitmapHudToggleReceiver;
+    // HUD widgets fully deleted in Sprint 27 (Phase 4).
+    // Fields removed: windHudWidget, weatherHudWidget, bitmapWidget, bitmapHudToggleReceiver
 
     // ── Sprint 14: R&D overlay managers ──────────────────────────────────────
     private SigmetOverlayManager    sigmetManager;
     private LightningOverlayManager lightningManager;
     private CbrnOverlayManager      cbrnManager;
     private com.atakmap.android.weather.overlay.heatmap.HeatmapLegendWidget heatmapLegendWidget;
-    private com.atakmap.android.weather.overlay.wind.WindArrowOverlayView   windArrowOverlay;
+    private com.atakmap.android.weather.overlay.wind.WindArrowOverlayView    windArrowOverlay;
     private com.atakmap.android.weather.overlay.wind.WindParticleLayer       windParticleLayer;
+    private com.atakmap.android.weather.overlay.wind.WindParticleBitmapView  windParticleView;
 
     // ── CoT integration (Sprint 3) ──────────────────────────────────────────
     private com.atakmap.android.weather.cot.WeatherCotImporter cotImporter;
@@ -117,11 +111,10 @@ public class WeatherMapComponent extends DropDownMapComponent {
     private WeatherDropDownReceiver ddr;
     private WeatherMenuFactory      menuFactory;
 
-    /** BroadcastReceiver for the HUD toggle intent sent by the DDR WIND tab button. */
-    private android.content.BroadcastReceiver hudToggleReceiver;
+    // HUD toggle receivers removed — Sprint 27
 
-    /** BroadcastReceiver for the Weather HUD toggle intent (Sprint 7 — S7.3). */
-    private android.content.BroadcastReceiver weatherHudToggleReceiver;
+    /** Sprint 28: Screen-off receiver to pause GL particle rendering. */
+    private android.content.BroadcastReceiver screenOffReceiver;
 
     @Override
     public void onCreate(final Context context, Intent intent, final MapView view) {
@@ -211,16 +204,7 @@ public class WeatherMapComponent extends DropDownMapComponent {
         // WeatherBitmapWidget are created or attached. See git history for
         // the original HUD code (removed because HUDs had no user interaction
         // and the bitmap widget crashed with JNI NativeLayer null pointer).
-        windHudWidget = null;
-        weatherHudWidget = null;
-        bitmapWidget = null;
-        hudToggleReceiver = null;
-        weatherHudToggleReceiver = null;
-        bitmapHudToggleReceiver = null;
-        Log.d(TAG, "HUD widgets retired — not created or attached");
-
-        // ── Step 4d: Theme detection (Sprint 13 — S13.3) ──────────────────────
-        ThemeManager.detectAtakTheme(view.getContext());
+        // HUD widgets fully removed in Sprint 27 — no fields to null.
 
         // ── Step 4e: Sprint 14 R&D Overlay Managers ──────────────────────────
         sigmetManager = new SigmetOverlayManager(view);
@@ -235,14 +219,14 @@ public class WeatherMapComponent extends DropDownMapComponent {
         windArrowOverlay = new com.atakmap.android.weather.overlay.wind.WindArrowOverlayView(context, view);
         windArrowOverlay.attach();
 
-        // Wind particle flow overlay (Windy.com style) — GL rendered on MAP_SURFACE_OVERLAYS
-        // Force GLWindParticleLayer class load so the static GLLayerSpi2 registers
-        // BEFORE we add the layer to the render stack.
-        try { Class.forName("com.atakmap.android.weather.overlay.wind.GLWindParticleLayer"); }
-        catch (ClassNotFoundException ignored) {}
+        // Wind particle flow overlay (Windy.com style)
+        // Uses View-based rendering (full-screen bitmap) instead of GLLayer2
+        // to avoid ATAK's 512×512 offscreen texture pass limitation.
         windParticleLayer = new com.atakmap.android.weather.overlay.wind.WindParticleLayer("Wind Particles");
-        windParticleLayer.setVisible(false); // off by default, user enables in Overlays tab
-        view.addLayer(MapView.RenderStack.MAP_SURFACE_OVERLAYS, windParticleLayer);
+        windParticleLayer.setVisible(false); // off by default
+        // V4 Hybrid: use bitmap View (full-screen) instead of GL layer or old overlay view
+        windParticleView = new com.atakmap.android.weather.overlay.wind.WindParticleBitmapView(view, windParticleLayer);
+        // Don't attach yet — attached when user enables particles in Overlays tab
 
         Log.d(TAG, "Sprint 14+ managers + overlays created");
 
@@ -263,6 +247,34 @@ public class WeatherMapComponent extends DropDownMapComponent {
         ddr.setHeatmapLegendWidget(heatmapLegendWidget);
         ddr.setWindArrowOverlay(windArrowOverlay);
         ddr.setWindParticleLayer(windParticleLayer);
+        ddr.setWindParticleView(windParticleView);
+
+        // Sprint 28: Auto-pause particles when screen off, resume on screen on
+        screenOffReceiver = new android.content.BroadcastReceiver() {
+            private boolean wasShowingParticles = false;
+            @Override
+            public void onReceive(android.content.Context ctx, Intent intent) {
+                if (windParticleLayer == null) return;
+                if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) {
+                    wasShowingParticles = windParticleLayer.isShowParticles();
+                    if (wasShowingParticles) {
+                        windParticleLayer.setShowParticles(false);
+                        // V4 bitmap view stops automatically when showParticles=false
+                        Log.d(TAG, "Particles paused (screen off)");
+                    }
+                } else if (Intent.ACTION_SCREEN_ON.equals(intent.getAction())) {
+                    if (wasShowingParticles) {
+                        windParticleLayer.setShowParticles(true);
+                        if (windParticleView != null) windParticleView.postInvalidate();
+                        Log.d(TAG, "Particles resumed (screen on)");
+                    }
+                }
+            }
+        };
+        android.content.IntentFilter screenFilter = new android.content.IntentFilter();
+        screenFilter.addAction(Intent.ACTION_SCREEN_OFF);
+        screenFilter.addAction(Intent.ACTION_SCREEN_ON);
+        context.registerReceiver(screenOffReceiver, screenFilter);
 
         // Wire the Overlay Manager toggle ↔ DDR Show/Hide buttons.
         // When the user toggles radar in the Overlay Manager, the DDR status
@@ -320,41 +332,10 @@ public class WeatherMapComponent extends DropDownMapComponent {
             MapMenuReceiver.getInstance().unregisterMapMenuFactory(menuFactory);
         }
 
-        // Detach HUD and remove from WIDGETS stack
-        if (hudToggleReceiver != null) {
-            com.atakmap.android.ipc.AtakBroadcast.getInstance()
-                    .unregisterReceiver(hudToggleReceiver);
-            hudToggleReceiver = null;
-        }
-
-        if (windHudWidget != null) {
-            windHudWidget.detach();
-            windHudWidget = null;
-            Log.d(TAG, "WindHudWidget detached");
-        }
-
-        if (weatherHudToggleReceiver != null) {
-            com.atakmap.android.ipc.AtakBroadcast.getInstance()
-                    .unregisterReceiver(weatherHudToggleReceiver);
-            weatherHudToggleReceiver = null;
-        }
-
-        if (weatherHudWidget != null) {
-            weatherHudWidget.detach();
-            weatherHudWidget = null;
-            Log.d(TAG, "WeatherHudWidget detached");
-        }
-
-        // Sprint 13: Detach bitmap widget
-        if (bitmapHudToggleReceiver != null) {
-            com.atakmap.android.ipc.AtakBroadcast.getInstance()
-                    .unregisterReceiver(bitmapHudToggleReceiver);
-            bitmapHudToggleReceiver = null;
-        }
-        if (bitmapWidget != null) {
-            bitmapWidget.detach();
-            bitmapWidget = null;
-            Log.d(TAG, "WeatherBitmapWidget detached");
+        // Sprint 28: Unregister screen-off receiver
+        if (screenOffReceiver != null) {
+            try { context.unregisterReceiver(screenOffReceiver); } catch (Exception ignored) {}
+            screenOffReceiver = null;
         }
 
         // Clear 3D wind shapes before overlay disconnects
@@ -423,9 +404,12 @@ public class WeatherMapComponent extends DropDownMapComponent {
             windArrowOverlay.detach();
             windArrowOverlay = null;
         }
+        if (windParticleView != null) {
+            windParticleView.detach();  // V4 bitmap view — detach handles cleanup
+            windParticleView = null;
+        }
         if (windParticleLayer != null) {
-            MapView mv = MapView.getMapView();
-            if (mv != null) mv.removeLayer(MapView.RenderStack.MAP_SURFACE_OVERLAYS, windParticleLayer);
+            // No GL layer to remove — particle layer is data-only now
             windParticleLayer = null;
         }
 
@@ -435,11 +419,7 @@ public class WeatherMapComponent extends DropDownMapComponent {
         super.onDestroyImpl(context, view);
     }
 
-    /** Accessor so DDR / other components can push weather data to the HUD. */
-    public WeatherHudWidget getWeatherHudWidget() { return weatherHudWidget; }
-
-    /** Accessor so DDR / other components can push weather data to the bitmap widget. */
-    public WeatherBitmapWidget getBitmapWidget() { return bitmapWidget; }
+    // HUD getters removed — Sprint 27 (Phase 4)
 
     // ── Sprint 14 accessors ───────────────────────────────────────────────────
 

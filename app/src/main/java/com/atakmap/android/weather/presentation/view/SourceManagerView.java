@@ -62,7 +62,10 @@ public class SourceManagerView {
     private static final int COLOR_TEXT_FAIL     = 0xFFf85149;
 
     private final View rootView;
+    /** Plugin APK context — used for LayoutInflater + string/drawable resources. */
     private final Context context;
+    /** Host activity context — used for SharedPreferences (plugin context has no data dir). */
+    private final Context appContext;
     private final LinearLayout sourceListContainer;
     private final TextView emptyLabel;
     private final WeatherSourceManager sourceManager;
@@ -71,14 +74,32 @@ public class SourceManagerView {
 
     // ── Constructor ─────────────────────────────────────────────────────────────
 
-    public SourceManagerView(View rootView, Context context) {
-        this.rootView   = rootView;
-        this.context    = context;
-        this.sourceManager = WeatherSourceManager.getInstance(context);
-        this.prefs      = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+    /**
+     * @param rootView      pre-inflated container view
+     * @param pluginContext plugin APK context — used for inflate/string resources
+     * @param appContext    host activity context — used for SharedPreferences
+     */
+    public SourceManagerView(View rootView, Context pluginContext, Context appContext) {
+        this.rootView    = rootView;
+        this.context     = pluginContext;   // resources live here
+        this.appContext  = appContext;      // disk-backed prefs live here
+        this.sourceManager = WeatherSourceManager.getInstance(appContext);
+        this.prefs       = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
         sourceListContainer = rootView.findViewById(R.id.source_list_container);
         emptyLabel          = rootView.findViewById(R.id.src_mgr_empty_label);
+    }
+
+    /**
+     * Backward-compat constructor — kept so existing callers compile.
+     * Uses pluginContext for both resources AND prefs (will fail with mkdir
+     * ENOENT for prefs — see issue #18). New callers should pass both.
+     *
+     * @deprecated use {@link #SourceManagerView(View, Context, Context)} instead.
+     */
+    @Deprecated
+    public SourceManagerView(View rootView, Context pluginContext) {
+        this(rootView, pluginContext, pluginContext);
     }
 
     // ── Public API ──────────────────────────────────────────────────────────────

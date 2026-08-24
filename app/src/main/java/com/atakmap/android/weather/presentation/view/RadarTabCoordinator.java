@@ -48,6 +48,7 @@ public class RadarTabCoordinator {
     private static final String TAG = "RadarTabCoordinator";
 
     private final Context            pluginContext;
+    private final Context            appContext;
     private final RadarOverlayManager radarManager;
     private final View               rootView;
 
@@ -57,6 +58,9 @@ public class RadarTabCoordinator {
     public RadarTabCoordinator(MapView mapView, View rootView, Context pluginContext,
                                RadarOverlayManager sharedRadarManager) {
         this.pluginContext = pluginContext;
+        // Fix #18 audit — RadarSourceSelector calls context.getSharedPreferences;
+        // pluginContext has no on-disk data dir. Use the host activity context.
+        this.appContext    = mapView.getContext();
         this.rootView      = rootView;
         // Use the shared RadarOverlayManager from WeatherMapComponent so the
         // Overlay Manager toggle and the DDR Show/Hide buttons act on the same instance.
@@ -80,7 +84,7 @@ public class RadarTabCoordinator {
                 rootView.findViewById(R.id.textview_radar_source_info);
 
         // Sprint 10: Try v2 sources first via RadarSourceSelector
-        radarSourceSelector = new RadarSourceSelector(pluginContext);
+        radarSourceSelector = new RadarSourceSelector(appContext);
         radarSourceSelector.loadSources();
         List<WeatherSourceDefinitionV2> v2Sources = radarSourceSelector.getAvailableSources();
 

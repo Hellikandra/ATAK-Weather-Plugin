@@ -54,7 +54,14 @@ public class HeatmapTileCache {
     private final CacheDbHelper dbHelper;
 
     public HeatmapTileCache(Context context) {
-        this.dbHelper = new CacheDbHelper(context);
+        // CRITICAL: In ATAK plugins, pluginContext.getApplicationContext() returns null.
+        // We need the host Activity context for database access.
+        // The caller should pass mapView.getContext() (host Activity), not pluginContext.
+        // As a safety net, try getApplicationContext first, then fall back to the
+        // passed context (which hopefully is already the Activity context).
+        Context dbCtx = context.getApplicationContext();
+        if (dbCtx == null) dbCtx = context;
+        this.dbHelper = new CacheDbHelper(dbCtx);
     }
 
     /**
@@ -223,6 +230,67 @@ public class HeatmapTileCache {
             return null;
         } finally {
             if (cursor != null) cursor.close();
+        }
+    }
+
+    // ── Sprint 25 (S25.2): LRU eviction ────────────────────────────────────
+
+    /** Max cache size in bytes (~50 MB). Beyond this, oldest entries evicted. */
+    private static final long MAX_CACHE_BYTES = 50L * 1024L * 1024L;
+
+    /** Max number of entries. */
+    private static final int MAX_ENTRIES = 5000;
+
+    /**
+     * Evict expired entries and enforce LRU size limits.
+     * Call periodically (e.g., after each data fetch).
+     */
+    public void evictIfNeeded() {
+        try {
+            SQLiteDatabase db = dbHelper.getWritableDatabase();
+
+            // 1. Remove expired entries
+            long now = System.currentTimeMillis();
+            int expiredCount = db.delete("heatmap_data",
+                    "expiry_time < ?", new String[]{String.valueOf(now)});
+            if (expiredCount > 0) {
+                Log.d(TAG, "Evicted " + expiredCount + " expired entries");
+            }
+
+            // 2. Enforce max entry count (delete oldest by fetch_time)
+            Cursor countCursor = db.rawQuery(
+                    "SELECT COUNT(*) FROM heatmap_data", null);
+            if (countCursor != null && countCursor.moveToFirst()) {
+                int total = countCursor.getInt(0);
+                countCursor.close();
+                if (total > MAX_ENTRIES) {
+                    int excess = total - MAX_ENTRIES;
+                    db.execSQL("DELETE FROM heatmap_data WHERE id IN ("
+                            + "SELECT id FROM heatmap_data ORDER BY fetch_time ASC LIMIT "
+                            + excess + ")");
+                    Log.d(TAG, "LRU evicted " + excess + " entries (count limit)");
+                }
+            }
+
+            // 3. Enforce max size (delete oldest by fetch_time until under limit)
+            long size = getCacheSizeBytes();
+            if (size > MAX_CACHE_BYTES) {
+                // Delete oldest 20% of entries
+                Cursor totalCursor = db.rawQuery(
+                        "SELECT COUNT(*) FROM heatmap_data", null);
+                if (totalCursor != null && totalCursor.moveToFirst()) {
+                    int total = totalCursor.getInt(0);
+                    totalCursor.close();
+                    int toDelete = Math.max(1, total / 5);
+                    db.execSQL("DELETE FROM heatmap_data WHERE id IN ("
+                            + "SELECT id FROM heatmap_data ORDER BY fetch_time ASC LIMIT "
+                            + toDelete + ")");
+                    Log.d(TAG, "LRU evicted " + toDelete + " entries (size limit: "
+                            + getCacheSizeLabel() + ")");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Eviction error", e);
         }
     }
 

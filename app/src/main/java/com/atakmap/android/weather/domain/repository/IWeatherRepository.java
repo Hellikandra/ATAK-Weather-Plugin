@@ -10,6 +10,15 @@ import java.util.List;
 /**
  * Contract for weather data — implemented in the data layer.
  * The domain layer depends only on this interface (Dependency Inversion).
+ *
+ * <p>Sprint 24 (S24.2): This broad interface is kept for backward compatibility.
+ * New code should prefer the narrow interfaces:
+ * <ul>
+ *   <li>{@link ICurrentWeatherSource} — current conditions only</li>
+ *   <li>{@link IForecastSource} — daily/hourly forecasts</li>
+ *   <li>{@link IWindProfileSource} — wind profile data</li>
+ * </ul>
+ * The implementation class ({@code WeatherRepositoryImpl}) implements all four.</p>
  */
 public interface IWeatherRepository {
 
