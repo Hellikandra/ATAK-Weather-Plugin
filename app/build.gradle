@@ -268,7 +268,13 @@ android {
     testOptions {
         unitTests {
             includeAndroidResources = true
-            all { jvmArgs '-noverify' }
+            // All five suites are JUnit 5 (org.junit.jupiter). Without
+            // useJUnitPlatform() Gradle runs the JUnit 4 engine, discovers
+            // nothing, and reports BUILD SUCCESSFUL with zero tests executed.
+            all {
+                useJUnitPlatform()
+                jvmArgs '-noverify'
+            }
         }
     }
     bundle {

@@ -68,7 +68,7 @@ class GaussianPlumeModelTest {
                     5.0     // max 5 km downwind
             );
             assertNotNull(result, "PlumeResult should not be null");
-            assertFalse(result.getCenterline().isEmpty(), "Centerline should have points");
+            assertFalse(result.centerline.isEmpty(), "Centerline should have points");
         }
 
         @Test @DisplayName("Plume respects maxDownwindKm")
@@ -77,7 +77,7 @@ class GaussianPlumeModelTest {
                     RELEASE_LAT, RELEASE_LON, 10.0, 0.0, 'D', 1.0, 2.0);
 
             // Centerline should not extend beyond ~2km from release point
-            for (double[] pt : result.getCenterline()) {
+            for (double[] pt : result.centerline) {
                 double distKm = haversineKm(RELEASE_LAT, RELEASE_LON, pt[0], pt[1]);
                 assertTrue(distKm <= 2.5,
                         "Centerline point at " + distKm + " km exceeds 2.0 km max");
@@ -107,7 +107,7 @@ class GaussianPlumeModelTest {
                     RELEASE_LAT, RELEASE_LON, speeds, dirs, 'D', 4, 10.0);
 
             assertNotNull(result);
-            assertTrue(result.getCenterline().size() > 4,
+            assertTrue(result.centerline.size() > 4,
                     "Curved plume should have multiple centerline points per hour");
         }
 
@@ -116,7 +116,7 @@ class GaussianPlumeModelTest {
             GaussianPlumeModel.PlumeResult result = GaussianPlumeModel.calculateCurvedPlume(
                     RELEASE_LAT, RELEASE_LON, null, null, 'D', 4, 5.0);
             assertNotNull(result);
-            assertTrue(result.getCenterline().isEmpty());
+            assertTrue(result.centerline.isEmpty());
         }
 
         @Test @DisplayName("Curved plume distance bounded by maxDownwindKm")
@@ -127,7 +127,7 @@ class GaussianPlumeModelTest {
             GaussianPlumeModel.PlumeResult result = GaussianPlumeModel.calculateCurvedPlume(
                     RELEASE_LAT, RELEASE_LON, speeds, dirs, 'D', 5, 3.0);
 
-            for (double[] pt : result.getCenterline()) {
+            for (double[] pt : result.centerline) {
                 double distKm = haversineKm(RELEASE_LAT, RELEASE_LON, pt[0], pt[1]);
                 assertTrue(distKm <= 3.5,
                         "Curved plume at " + distKm + " km exceeds 3.0 km max");

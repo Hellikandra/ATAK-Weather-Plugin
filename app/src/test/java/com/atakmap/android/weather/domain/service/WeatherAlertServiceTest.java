@@ -49,7 +49,7 @@ class WeatherAlertServiceTest {
                     .windSpeed(10.0).build();
             List<WeatherAlert> alerts = WeatherAlertService.evaluate(wx, thresholds);
             assertTrue(alerts.stream().anyMatch(a ->
-                    a.getCategory().contains("WIND")
+                    a.getCategory() == WeatherAlert.Category.WIND
                             && a.getSeverity() == WeatherAlert.Severity.ADVISORY),
                     "Expected WIND ADVISORY for 10 m/s");
         }
@@ -60,7 +60,7 @@ class WeatherAlertServiceTest {
                     .windSpeed(20.0).build();
             List<WeatherAlert> alerts = WeatherAlertService.evaluate(wx, thresholds);
             assertTrue(alerts.stream().anyMatch(a ->
-                    a.getCategory().contains("WIND")
+                    a.getCategory() == WeatherAlert.Category.WIND
                             && a.getSeverity() == WeatherAlert.Severity.WARNING),
                     "Expected WIND WARNING for 20 m/s");
         }
@@ -71,7 +71,7 @@ class WeatherAlertServiceTest {
                     .windSpeed(30.0).build();
             List<WeatherAlert> alerts = WeatherAlertService.evaluate(wx, thresholds);
             assertTrue(alerts.stream().anyMatch(a ->
-                    a.getCategory().contains("WIND")
+                    a.getCategory() == WeatherAlert.Category.WIND
                             && a.getSeverity() == WeatherAlert.Severity.CRITICAL),
                     "Expected WIND CRITICAL for 30 m/s");
         }
@@ -81,7 +81,7 @@ class WeatherAlertServiceTest {
             WeatherModel wx = new WeatherModel.Builder(50.0, 5.0)
                     .windSpeed(5.0).build();
             List<WeatherAlert> alerts = WeatherAlertService.evaluate(wx, thresholds);
-            assertTrue(alerts.stream().noneMatch(a -> a.getCategory().contains("WIND")),
+            assertTrue(alerts.stream().noneMatch(a -> a.getCategory() == WeatherAlert.Category.WIND),
                     "No wind alert expected for 5 m/s");
         }
     }
@@ -97,7 +97,7 @@ class WeatherAlertServiceTest {
                     .temperatureMin(-15.0).temperatureMax(-10.0).build();
             List<WeatherAlert> alerts = WeatherAlertService.evaluate(wx, thresholds);
             assertTrue(alerts.stream().anyMatch(a ->
-                    a.getCategory().contains("TEMP")
+                    a.getCategory() == WeatherAlert.Category.TEMPERATURE
                             && a.getSeverity() == WeatherAlert.Severity.CRITICAL),
                     "Expected TEMP CRITICAL for -12.5°C avg");
         }
@@ -108,7 +108,7 @@ class WeatherAlertServiceTest {
                     .temperatureMin(43.0).temperatureMax(47.0).build();
             List<WeatherAlert> alerts = WeatherAlertService.evaluate(wx, thresholds);
             assertTrue(alerts.stream().anyMatch(a ->
-                    a.getCategory().contains("TEMP")
+                    a.getCategory() == WeatherAlert.Category.TEMPERATURE
                             && a.getSeverity() == WeatherAlert.Severity.CRITICAL),
                     "Expected TEMP CRITICAL for 45°C avg");
         }
@@ -138,7 +138,7 @@ class WeatherAlertServiceTest {
                 .weatherCode(95).build();
         List<WeatherAlert> alerts = WeatherAlertService.evaluate(wx, thresholds);
         assertTrue(alerts.stream().anyMatch(a ->
-                a.getCategory().contains("THUNDER")),
+                a.getCategory() == WeatherAlert.Category.THUNDERSTORM),
                 "Expected THUNDERSTORM alert for WMO 95");
     }
 }
