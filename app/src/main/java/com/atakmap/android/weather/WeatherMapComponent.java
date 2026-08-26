@@ -8,14 +8,7 @@ import com.atakmap.android.ipc.AtakBroadcast.DocumentedIntentFilter;
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.menu.MapMenuReceiver;
 import com.atakmap.android.overlay.MapOverlayParent;
-import com.atakmap.android.weather.data.WeatherRepositoryImpl;
-import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
 import com.atakmap.android.weather.data.cache.WeatherDatabase;
-import com.atakmap.android.weather.data.geocoding.NominatimGeocodingSource;
-import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
-import com.atakmap.android.weather.data.remote.WeatherSourceManager;
-import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
-import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
 import com.atakmap.android.weather.overlay.WeatherMapOverlay;
 import com.atakmap.android.weather.overlay.WindMapOverlay;
 import com.atakmap.android.weather.overlay.WeatherMenuFactory;
@@ -36,8 +29,6 @@ import com.atakmap.android.weather.presentation.viewmodel.WindProfileViewModel;
 import com.atakmap.app.preferences.ToolsPreferenceFragment;
 import com.atakmap.coremap.log.Log;
 
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * WeatherMapComponent — ATAK MapComponent lifecycle entry point.
@@ -87,6 +78,10 @@ public class WeatherMapComponent extends DropDownMapComponent {
     private WindMapOverlay     windOverlay;
     private RadarMapOverlay    radarOverlay;
     private HeatmapMapOverlay  heatmapOverlay;
+
+    // ── Composition root (F20) ────────────────────────────────────────────────
+    /** Built once in onCreate; every data-layer object in the plugin comes from here. */
+    private WeatherDependencies   deps;
 
     // ── Managers ──────────────────────────────────────────────────────────────
     private RadarOverlayManager   radarManager;
@@ -172,27 +167,14 @@ public class WeatherMapComponent extends DropDownMapComponent {
         //
         // WindProfileViewModel is created HERE so WindHudWidget and the DDR share
         // the same instance — scrubbing the hour slider in either UI updates both.
-        WeatherSourceManager sourceMgr = WeatherSourceManager.getInstance(view.getContext());
-        // Register v2 JSON-driven sources (after built-in Java sources)
-        sourceMgr.registerV2Sources(view.getContext());
-        Log.d(TAG, "v2 sources registered; total sources: " + sourceMgr.getSourceCount());
+        // Fix F20 — the dependency graph is built exactly once, here, and passed
+        // down. It used to be built a second time inside the drop-down, which put
+        // the Wind and Weather tabs on separate caches over the same database.
+        // See WeatherDependencies for the full list of what that broke.
+        deps = WeatherDependencies.create(view);
 
-        Map<String, IWeatherRemoteSource> sources = new HashMap<>();
-        for (WeatherSourceManager.SourceEntry entry : sourceMgr.getAvailableEntries()) {
-            IWeatherRemoteSource src = sourceMgr.getSourceById(entry.sourceId);
-            if (src != null) sources.put(entry.sourceId, src);
-        }
-
-        WeatherParameterPreferences paramPrefs = new WeatherParameterPreferences(context);
-        WeatherRepositoryImpl networkRepo = new WeatherRepositoryImpl(sources, sourceMgr.getActiveSourceId());
-        networkRepo.setParameterPreferences(paramPrefs);
-        CachingWeatherRepository cachingRepo = new CachingWeatherRepository(
-                networkRepo,
-                WeatherDatabase.getInstance(view.getContext()).weatherDao(),
-                paramPrefs);
-        cachingRepo.purgeExpired();
-
-        final WindProfileViewModel windViewModel = new WindProfileViewModel(cachingRepo);
+        final WindProfileViewModel windViewModel =
+                new WindProfileViewModel(deps.repository());
 
         // ── Step 4: WindEffectShape (shared between DDR and overlays) ────────
         //
@@ -236,7 +218,7 @@ public class WeatherMapComponent extends DropDownMapComponent {
         // same ViewModel state as the HUD. The DDR's initDependencies() creates
         // its own WeatherViewModel (for weather data) but delegates wind to these.
         ddr = new WeatherDropDownReceiver(
-                view, context,
+                view, context, deps,
                 markerManager, windMarkerManager,
                 windViewModel, windEffectShape,
                 radarManager);
@@ -415,6 +397,10 @@ public class WeatherMapComponent extends DropDownMapComponent {
 
         WeatherDatabase.destroyInstance();
         Log.d(TAG, "WeatherDatabase closed");
+
+        // Drop the composition root last — the drop-down still holds it until
+        // super.onDestroyImpl() disposes it below.
+        deps = null;
 
         super.onDestroyImpl(context, view);
     }

@@ -31,8 +31,6 @@ import com.atakmap.android.maps.MapView;
 import com.atakmap.android.weather.data.WeatherRepositoryImpl;
 import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
 import com.atakmap.android.weather.data.cache.ForecastRecorder;
-import com.atakmap.android.weather.data.cache.WeatherDatabase;
-import com.atakmap.android.weather.data.geocoding.NominatimGeocodingSource;
 import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
 import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
 import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
@@ -42,7 +40,6 @@ import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.LocationSource;
 import com.atakmap.android.weather.domain.model.WeatherModel;
-import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
 import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
 import com.atakmap.android.weather.overlay.WeatherMapOverlay;
 import com.atakmap.android.weather.overlay.WindMapOverlay;
@@ -86,7 +83,6 @@ import com.atakmap.android.importexport.CotEventFactory;
 import com.atakmap.coremap.cot.event.CotEvent;
 import com.atakmap.coremap.maps.coords.GeoPoint;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -145,6 +141,14 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     private final View    templateView;
     private final Context pluginContext;
     private final Context appContext;
+
+    /**
+     * The plugin's composition root, built once in
+     * {@link WeatherMapComponent#onCreate} (finding F20). Every repository,
+     * source and preferences object below comes from here rather than being
+     * constructed locally.
+     */
+    private final WeatherDependencies deps;
 
     // ── ViewModels ────────────────────────────────────────────────────────────
     private WeatherViewModel     weatherViewModel;
@@ -275,6 +279,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
      */
     public WeatherDropDownReceiver(final MapView mapView,
                                    final Context context,
+                                   final WeatherDependencies deps,
                                    final WeatherMarkerManager markerManager,
                                    final WindMarkerManager windMarkerManager,
                                    final WindProfileViewModel windViewModel,
@@ -283,6 +288,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         super(mapView);
         this.pluginContext          = context;
         this.appContext             = mapView.getContext();
+        this.deps                   = deps;
         this.markerManager          = markerManager;
         this.windMarkerManager      = windMarkerManager;
         this.windViewModel          = windViewModel;
@@ -423,30 +429,21 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     // ── Dependency wiring ─────────────────────────────────────────────────────
 
     private void initDependencies() {
-        WeatherSourceManager sourceMgr = WeatherSourceManager.getInstance(appContext);
+        // Fix F20 — this method used to build a second, independent copy of the
+        // whole data layer: its own source map, WeatherParameterPreferences,
+        // WeatherRepositoryImpl and CachingWeatherRepository. The Wind tab (fed
+        // from WeatherMapComponent's copy) and the Weather tab (fed from this
+        // one) therefore ran on separate caches over the same database. Both now
+        // read from the single graph built in WeatherMapComponent.onCreate.
+        //
+        // Because these are references rather than constructions, this method is
+        // idempotent — running it again after disposeImpl() cannot produce a
+        // third graph.
+        networkRepo = deps.networkRepository();
+        paramPrefs  = deps.parameterPreferences();
+        cachingRepo = deps.repository();
 
-        Map<String, IWeatherRemoteSource> sources = new HashMap<>();
-        for (WeatherSourceManager.SourceEntry entry : sourceMgr.getAvailableEntries()) {
-            IWeatherRemoteSource src = sourceMgr.getSourceById(entry.sourceId);
-            if (src != null) sources.put(entry.sourceId, src);
-        }
-
-        networkRepo = new WeatherRepositoryImpl(sources, sourceMgr.getActiveSourceId());
-        IGeocodingRepository geocodingRepo = new NominatimGeocodingSource();
-
-        // Fix #18 — pluginContext has no on-disk data dir; SharedPreferences
-        // mkdir fails with ENOENT. Use the host activity context. See
-        // CLAUDE.md "ATAK Plugin Context" rule.
-        paramPrefs = new WeatherParameterPreferences(appContext);
-        networkRepo.setParameterPreferences(paramPrefs);
-
-        cachingRepo = new CachingWeatherRepository(
-                networkRepo,
-                WeatherDatabase.getInstance(appContext).weatherDao(),
-                paramPrefs);
-        cachingRepo.purgeExpired();
-
-        weatherViewModel = new WeatherViewModel(cachingRepo, geocodingRepo);
+        weatherViewModel = new WeatherViewModel(cachingRepo, deps.geocoding());
         // windViewModel is injected via constructor — shared with WindHudWidget.
         // Do NOT create a new instance here; that would break the shared state.
 
@@ -1471,9 +1468,13 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         // Remove all LiveData observers in one call (replaces 14-line removeObservers())
         observers.removeAll();
 
-        // Evict in-memory caches
-        if (cachingRepo != null) { cachingRepo.clearWindCache(); cachingRepo = null; }
+        // Evict in-memory caches, then drop our aliases. The objects themselves
+        // are owned by WeatherDependencies and outlive this receiver (F20), so
+        // this clears the shared wind cache but does not tear the graph down.
+        if (cachingRepo != null) cachingRepo.clearWindCache();
+        cachingRepo = null;
         networkRepo = null;
+        paramPrefs  = null;
         fltCatBadge = null;
 
         // RadarTabCoordinator dispose removed — Sprint 28
