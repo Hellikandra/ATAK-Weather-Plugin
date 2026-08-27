@@ -268,6 +268,12 @@ android {
     testOptions {
         unitTests {
             includeAndroidResources = true
+            // Without this, every android.* stub throws RuntimeException("not
+            // mocked") — android.util.Log included. That is not merely awkward
+            // for tests: it made HttpClientTest fail in a way that revealed a
+            // real defect, because a throwing Log inside the retry path escaped
+            // executeWithRetry's IOException-only catch and stranded the caller.
+            returnDefaultValues = true
             // All five suites are JUnit 5 (org.junit.jupiter). Without
             // useJUnitPlatform() Gradle runs the JUnit 4 engine, discovers
             // nothing, and reports BUILD SUCCESSFUL with zero tests executed.

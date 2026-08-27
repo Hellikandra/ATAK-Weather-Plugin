@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +18,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
 
-import javax.net.ssl.HttpsURLConnection;
 
 /**
  * Minimal async HTTP GET client with deduplication and retry.
@@ -66,8 +66,69 @@ public final class HttpClient {
      */
     private static final ScheduledExecutorService EXECUTOR =
             Executors.newScheduledThreadPool(4);
-    private static final Handler MAIN_HANDLER =
-            new Handler(Looper.getMainLooper());
+    // ── Seams (finding F31) ───────────────────────────────────────────────
+    //
+    // Two indirections, both package-private, both existing so this class can be
+    // tested. Without them it cannot be: the connection was constructed inline
+    // with no way to point it at a stub, and the main-thread Handler was built
+    // in a static initialiser, so merely loading the class under plain JUnit
+    // threw on the android.jar Looper stub.
+    //
+    // Production behaviour is unchanged. Tests substitute both in @BeforeEach
+    // and restore them in @AfterEach.
+
+    /** Opens a connection for a URL. Substituted in tests. */
+    interface UrlOpener {
+        HttpURLConnection open(String url) throws IOException;
+    }
+
+    /** Delivers a completed result. Substituted in tests. */
+    interface Dispatcher {
+        void dispatch(Runnable r);
+    }
+
+    /**
+     * Default transport. Rejects anything that is not HTTPS.
+     *
+     * <p>The old code cast to {@code HttpsURLConnection}, so a plain-http URL
+     * failed with a ClassCastException — enforcement by accident. Widening the
+     * type to {@link HttpURLConnection} for testability would have quietly
+     * dropped that, so the check is now explicit and deliberate.
+     */
+    static final UrlOpener HTTPS_ONLY = url -> {
+        if (url == null || !url.regionMatches(true, 0, "https://", 0, 8)) {
+            throw new IOException("refusing non-HTTPS URL: " + url);
+        }
+        return (HttpURLConnection) new URL(url).openConnection();
+    };
+
+    /**
+     * Default delivery: the main thread. The Handler is created lazily rather
+     * than in a static initialiser so that swapping this out in a test avoids
+     * touching Looper at all.
+     */
+    static final Dispatcher MAIN_THREAD = new Dispatcher() {
+        private volatile Handler handler;
+        @Override public void dispatch(Runnable r) {
+            Handler h = handler;
+            if (h == null) {
+                synchronized (this) {
+                    h = handler;
+                    if (h == null) h = handler = new Handler(Looper.getMainLooper());
+                }
+            }
+            h.post(r);
+        }
+    };
+
+    private static volatile UrlOpener opener = HTTPS_ONLY;
+    private static volatile Dispatcher dispatcher = MAIN_THREAD;
+
+    /** Test hook. Package-private so only tests in this package can reach it. */
+    static void setTransportForTesting(UrlOpener o, Dispatcher d) {
+        opener = (o == null) ? HTTPS_ONLY : o;
+        dispatcher = (d == null) ? MAIN_THREAD : d;
+    }
 
     /** In-flight request dedup map: URL → list of pending callbacks. */
     private static final ConcurrentHashMap<String, List<Callback>> IN_FLIGHT =
@@ -111,7 +172,31 @@ public final class HttpClient {
             return;
         }
 
-        EXECUTOR.execute(() -> executeWithRetry(urlString, 0));
+        EXECUTOR.execute(() -> runGuarded(urlString, 0));
+    }
+
+    /**
+     * Run an attempt, guaranteeing the caller is answered whatever happens.
+     *
+     * <p>{@link #executeWithRetry} catches {@link IOException} — the failure it
+     * expects. Anything else escaping it (a RuntimeException from a logging
+     * call, an unexpected NPE, an OutOfMemoryError building the body) would
+     * unwind into the executor, be swallowed there, and leave the caller waiting
+     * for a callback that can never arrive. That is the same silent hang as
+     * finding F4, reached by a different route, and a unit test caught it: a
+     * throwing {@code android.util.Log} stub inside the retry path stranded the
+     * caller with no diagnostic at all.
+     *
+     * <p>Delivery is idempotent — {@code deliverX} removes the in-flight entry
+     * before notifying — so a failure here after a successful delivery is a
+     * no-op rather than a double callback.
+     */
+    private static void runGuarded(String urlString, int attempt) {
+        try {
+            executeWithRetry(urlString, attempt);
+        } catch (Throwable t) {
+            deliverFailure(urlString, "unexpected error: " + t);
+        }
     }
 
     /**
@@ -119,11 +204,10 @@ public final class HttpClient {
      * permanent failures (4xx except 429) fail immediately.
      */
     private static void executeWithRetry(String urlString, int attempt) {
-        HttpsURLConnection connection = null;
+        HttpURLConnection connection = null;
         BufferedReader reader = null;
         try {
-            URL url = new URL(urlString);
-            connection = (HttpsURLConnection) url.openConnection();
+            connection = opener.open(urlString);
             connection.setConnectTimeout(TIMEOUT_MS);
             connection.setReadTimeout(TIMEOUT_MS);
             connection.connect();
@@ -131,13 +215,13 @@ public final class HttpClient {
             int status = connection.getResponseCode();
 
             // 204 No Content — valid response (e.g., AWC SIGMET when none active)
-            if (status == HttpsURLConnection.HTTP_NO_CONTENT) {
+            if (status == HttpURLConnection.HTTP_NO_CONTENT) {
                 deliverSuccess(urlString, "[]");
                 return;
             }
 
             // 200 OK — read body
-            if (status == HttpsURLConnection.HTTP_OK) {
+            if (status == HttpURLConnection.HTTP_OK) {
                 InputStream stream = connection.getInputStream();
                 reader = new BufferedReader(new InputStreamReader(stream));
                 StringBuilder sb = new StringBuilder();
@@ -190,7 +274,7 @@ public final class HttpClient {
         Log.w(TAG, reason + " — retry " + (attempt + 1) + "/" + MAX_RETRIES
                 + " in " + delay + "ms: " + urlString);
         try {
-            EXECUTOR.schedule(() -> executeWithRetry(urlString, attempt + 1),
+            EXECUTOR.schedule(() -> runGuarded(urlString, attempt + 1),
                     delay, TimeUnit.MILLISECONDS);
         } catch (java.util.concurrent.RejectedExecutionException e) {
             // Pool shut down mid-flight (plugin teardown). Answer the caller
@@ -206,7 +290,7 @@ public final class HttpClient {
         if (callbacks == null) return;
         synchronized (callbacks) {
             for (Callback cb : callbacks) {
-                MAIN_HANDLER.post(() -> cb.onSuccess(body));
+                dispatcher.dispatch(() -> cb.onSuccess(body));
             }
         }
     }
@@ -217,7 +301,7 @@ public final class HttpClient {
         String safeMsg = msg != null ? msg : "Unknown error";
         synchronized (callbacks) {
             for (Callback cb : callbacks) {
-                MAIN_HANDLER.post(() -> cb.onFailure(safeMsg));
+                dispatcher.dispatch(() -> cb.onFailure(safeMsg));
             }
         }
     }
@@ -240,6 +324,10 @@ public final class HttpClient {
      */
     public static void shutdown() {
         EXECUTOR.shutdownNow();
+        // Note for tests: the pool is a static final, so a shutdown class stays
+        // shut down for the rest of the JVM. Tests must not call this unless
+        // they are the last thing to run.
+
         for (String url : new ArrayList<>(IN_FLIGHT.keySet())) {
             deliverFailure(url, "cancelled: plugin shutting down");
         }
