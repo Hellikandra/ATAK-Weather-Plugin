@@ -51,7 +51,7 @@ import com.atakmap.coremap.log.Log;
  * <ul>
  *   <li>{@link RadarOverlayManager} created once here and injected into both
  *       the new {@link RadarMapOverlay} (for Overlay Manager toggle) and the
- *       DDR's {@link com.atakmap.android.weather.presentation.view.RadarTabCoordinator}
+ *       DDR's {@link com.atakmap.android.weather.presentation.view.OverlayTabCoordinator}
  *       (for DDR Show/Hide buttons). The {@code ActiveStateListener} keeps both in sync.</li>
  *   <li>{@link WindHudWidget} created and attached here. It observes the shared
  *       {@link WindProfileViewModel} that the DDR also uses, so scrubbing the hour

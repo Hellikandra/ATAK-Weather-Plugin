@@ -129,14 +129,4 @@ public class DashboardCoordinator {
         fltCatBadge.setVisibility(View.VISIBLE);
     }
 
-    // ── Marker status ──────────────────────────────────────────────────────
-
-    public void updateMarkerStatus(LocationSnapshot snapshot) {
-        TextView statusView = rootView.findViewById(R.id.textview_marker_status);
-        if (statusView == null || snapshot == null) return;
-        statusView.setText(String.format("%s\n%s  [%s]",
-                snapshot.getDisplayName(),
-                snapshot.getCoordsLabel(),
-                snapshot.getSource().label));
-    }
 }

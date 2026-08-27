@@ -17,7 +17,7 @@ import java.util.concurrent.Executors;
  *   <li>When wind data changes ({@link #setWindField}), streamlines are computed
  *       ONCE on a background thread using RK4 integration through the wind field.</li>
  *   <li>Each streamline is a dense array of (lat,lon) positions at ~50m spacing.</li>
- *   <li>The GL renderer ({@link GLWindParticleLayer}) animates "cursors" along
+ *   <li>The renderer ({@link WindParticleBitmapView}) animates "cursors" along
  *       these pre-computed paths — no per-frame physics needed.</li>
  * </ol>
  *

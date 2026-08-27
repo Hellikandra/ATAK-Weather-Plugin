@@ -93,7 +93,7 @@ import java.util.Map;
  * <h3>Refactoring summary (vs original ~1 865-line version)</h3>
  * <ul>
  *   <li><b>DDR decomposition</b> — radar and wind tab initialisation extracted
- *       to {@link RadarTabCoordinator} and {@link WindTabCoordinator}.</li>
+ *       to {@link WindTabCoordinator}.</li>
  *   <li><b>Observer registry</b> — the 14 typed observer fields replaced by a
  *       single {@link WeatherObserverRegistry}; {@code removeObservers()} is now
  *       a one-liner.</li>
@@ -107,7 +107,6 @@ import java.util.Map;
  *       {@code isoDayOfWeek}, {@code buildMarkerUid} extracted to utility class.</li>
  *   <li><b>suppressSeekSync dead field removed.</b></li>
  *   <li><b>pendingPick* consolidated</b> — three fields collapsed to a single
- *       {@code @Nullable GeoPoint pendingPickPoint}.</li>
  * </ul>
  *
  * <h3>Feature: "Tap Map to Place Weather Marker"</h3>
@@ -247,9 +246,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     private ForecastRecorder forecastRecorder;
 
     // ── Point-pick state (consolidated from three fields) ─────────────────────
-    private GeoPoint pendingPickPoint = null;  // non-null = place marker on next weather success
-    private boolean  pickModeActive   = false;
-    private Button   btnDropMarker    = null;
+
+
 
     // ── Last active slot tracking ─────────────────────────────────────────────
     private int    lastActiveSlotIdx  = -1;
@@ -795,17 +793,17 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     // ── Map tab ───────────────────────────────────────────────────────────────
 
+    /**
+     * Wire the marker buttons that live in {@code tab_markers.xml}.
+     *
+     * <p>This used to also wire a "pick a point and drop a marker" button from
+     * {@code tab_config.xml}. That layout was retired and its controls moved to
+     * the Markers tab, where {@code MarkerTabCoordinator} owns the live
+     * point-picking. The wiring here kept compiling because
+     * {@code findViewById} on an absent id returns null rather than failing, so
+     * the whole path was a no-op behind a null check. Removed with the layout.
+     */
     private void initMapTab() {
-        btnDropMarker = templateView.findViewById(R.id.btn_drop_weather_marker);
-        final TextView pickHint = templateView.findViewById(R.id.textview_pick_hint);
-
-        if (btnDropMarker != null) {
-            btnDropMarker.setOnClickListener(v -> {
-                if (pickModeActive) cancelPickMode(btnDropMarker, pickHint);
-                else                enterPickMode(btnDropMarker, pickHint);
-            });
-        }
-
         Button btnShareMarker = templateView.findViewById(R.id.btn_share_marker);
         Button btnRemoveAll   = templateView.findViewById(R.id.btn_remove_all_markers);
 
@@ -822,47 +820,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         }
 
         if (btnRemoveAll != null) {
-            btnRemoveAll.setOnClickListener(v -> {
-                markerManager.removeAllMarkers();
-                TextView statusView = templateView.findViewById(R.id.textview_marker_status);
-                if (statusView != null) statusView.setText(R.string.map_marker_none_placed);
-            });
+            btnRemoveAll.setOnClickListener(v -> markerManager.removeAllMarkers());
         }
-    }
-
-    private void enterPickMode(Button btn, TextView hint) {
-        pickModeActive = true;
-        btn.setText(R.string.map_btn_pick_cancel);
-        btn.setAlpha(0.75f);
-        if (hint != null) hint.setVisibility(View.VISIBLE);
-
-        // Register the tool FIRST, then close the dropdown (see original comment).
-        WeatherPlaceTool.start(getMapView(), WeatherPlaceTool.Mode.WEATHER,
-                (pickedPoint, mode) -> {
-                    resetPickMode(btn, hint);
-                    pendingPickPoint = pickedPoint;
-                    weatherViewModel.loadWeather(
-                            pickedPoint.getLatitude(), pickedPoint.getLongitude(),
-                            LocationSource.MAP_CENTRE);
-                    Intent reopen = new Intent(SHOW_PLUGIN);
-                    reopen.putExtra(EXTRA_REQUESTED_TAB, "conf");
-                    com.atakmap.android.ipc.AtakBroadcast.getInstance().sendBroadcast(reopen);
-                });
-
-        new android.os.Handler(android.os.Looper.getMainLooper())
-                .postDelayed(this::closeDropDown, 200);
-    }
-
-    private void cancelPickMode(Button btn, TextView hint) {
-        WeatherPlaceTool.cancel(getMapView());
-        resetPickMode(btn, hint);
-    }
-
-    private void resetPickMode(Button btn, TextView hint) {
-        pickModeActive   = false;
-        pendingPickPoint = null;
-        if (btn  != null) { btn.setText(R.string.map_btn_pick_and_drop); btn.setAlpha(1.0f); }
-        if (hint != null) hint.setVisibility(View.GONE);
     }
 
     // ── LiveData observers ────────────────────────────────────────────────────
@@ -901,20 +860,10 @@ public class WeatherDropDownReceiver extends DropDownReceiver
                 hideErrorState();
                 updateOfflineBadge();
 
-                // Auto-place after point-pick
-                if (pendingPickPoint != null) {
-                    LocationSnapshot placeSnap = new LocationSnapshot(
-                            pendingPickPoint.getLatitude(), pendingPickPoint.getLongitude(),
-                            null, LocationSource.MAP_CENTRE);
-                    markerManager.placeMarker(placeSnap, w);
-                    updateMarkerStatus(placeSnap);
-                    pendingPickPoint = null;
-                }
             } else if (state.isError()) {
                 currentWeatherView.showError(state.getErrorMessage());
                 if (weatherTabView != null) weatherTabView.showError(state.getErrorMessage());
                 showErrorState(state.getErrorMessage());  // Sprint 13: error + retry
-                pendingPickPoint = null;
             }
         });
 
@@ -1368,10 +1317,6 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     private void updateFltCatBadge(WeatherModel w) {
         if (dashboardCoordinator != null) dashboardCoordinator.updateFltCatBadge(w);
-    }
-
-    private void updateMarkerStatus(LocationSnapshot snapshot) {
-        if (dashboardCoordinator != null) dashboardCoordinator.updateMarkerStatus(snapshot);
     }
 
     private void updateChartLocationHeader(LocationSnapshot snapshot) {

@@ -41,29 +41,33 @@ class LayerBoundaryTest {
 
     // ── Ratcheted rules ───────────────────────────────────────────────────────
     //
-    // Two of these rules describe the architecture the project intends but does
-    // not yet have. They were failing outright, which meant the whole suite was
-    // red — and a permanently red suite is one nobody reads, which is how the
-    // compile errors in this source set went unnoticed for months.
+    // One rule below is ratcheted: it describes the architecture the project
+    // intends but does not yet have. It was failing outright, which meant the
+    // whole suite was red — and a permanently red suite is one nobody reads,
+    // which is how the compile errors in this source set went unnoticed for
+    // months.
+    //
+    // The domain rule was ratcheted too, at 16 violations. The F26 dead-code
+    // removal took it to 0, so it is a hard assertion again. That is the ratchet
+    // working: the count could only go down, and when it hit zero the guard was
+    // made permanent.
     //
     // Rather than delete the rules or weaken what they assert, the violation
     // counts are frozen here. The rules still run in full; they simply fail on
     // an INCREASE rather than on any violation at all. Both numbers must only
     // ever go down.
     //
-    // These are not fixes. The real work is:
-    //   F16 — inject SourceCatalog / IWeatherRepository instead of reaching for
-    //         WeatherSourceManager.getInstance() from the presentation layer.
-    //   F17 — give MultiPointForecastService a domain-owned fetch interface and
-    //         put the HttpClient adapter in `data`.
-    // Both are Wave 2. When you land part of either, lower the number here in
-    // the same commit — that is the whole point of a ratchet.
+    // A ratchet is not a fix. The real work for F16 is to inject SourceCatalog /
+    // IWeatherRepository instead of reaching for WeatherSourceManager.getInstance()
+    // from the presentation layer — Wave 2. When you land part of it, lower the
+    // number here in the same commit; that is the whole point of a ratchet.
 
-    /** Presentation -> data.remote. Measured 2026-08-27 at commit b814271. */
-    private static final int PRESENTATION_TO_REMOTE_BASELINE = 121;
-
-    /** Domain -> data / presentation / overlay / infrastructure. Same measurement. */
-    private static final int DOMAIN_OUTWARD_BASELINE = 16;
+    /**
+     * Presentation -> data.remote. Was 121 at commit b814271; down to 101 after
+     * the F26 dead-code removal took RadarTabCoordinator, RouteWeatherView and
+     * ComparisonView out of the presentation layer. Wave 2 (F22) takes it to 0.
+     */
+    private static final int PRESENTATION_TO_REMOTE_BASELINE = 101;
 
     /**
      * Evaluate a rule and fail only if the violation count has grown.
@@ -126,7 +130,11 @@ class LayerBoundaryTest {
                 )
                 .because("Domain layer must not have outward dependencies");
 
-        ratchet(rule, DOMAIN_OUTWARD_BASELINE, "F17");
+        // No longer ratcheted. Deleting the dead code in F26 removed every one of
+        // the 16 violations — MultiPointForecastService, which implemented
+        // HttpClient.Callback directly, was the bulk of them. The domain layer is
+        // clean, so this is a hard assertion again and must stay that way.
+        rule.check(classes);
     }
 
     // ── Rule 3: Data layer must not depend on presentation ─────────────────────
