@@ -3,6 +3,8 @@
 *.aar
 *.ap_
 *.aab
+# Source bundles produced by .claude/analysis/make-tpp-zip.py for TPP submission
+*.zip
 
 # Files for the ART/Dalvik VM
 *.dex
