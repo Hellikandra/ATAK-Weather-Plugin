@@ -13,7 +13,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Executors;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -21,15 +22,31 @@ import javax.net.ssl.HttpsURLConnection;
 /**
  * Minimal async HTTP GET client with deduplication and retry.
  *
- * <h3>Sprint 23 improvements</h3>
+ * <h3>Behaviour</h3>
  * <ul>
- *   <li><b>S23.2 — Request deduplication:</b> If a GET is in-flight for a URL,
+ *   <li><b>Request deduplication:</b> If a GET is in-flight for a URL,
  *       subsequent calls for the same URL attach their callbacks to the existing
  *       request instead of firing a new one.</li>
- *   <li><b>S23.3 — Retry with exponential backoff:</b> Transient failures
+ *   <li><b>Retry with exponential backoff:</b> Transient failures
  *       (timeout, 5xx, IOException) retry up to 3 times with 1s/2s/4s delays.
  *       Permanent failures (4xx except 429) fail immediately.</li>
  * </ul>
+ *
+ * <h3>Two invariants worth stating (findings F4, F5)</h3>
+ * <ol>
+ *   <li><b>Every callback is answered exactly once.</b> Registration into
+ *       {@link #IN_FLIGHT} uses {@code putIfAbsent} so two threads racing on the
+ *       same URL cannot each install a list — the loser attaches to the winner's.
+ *       An earlier check-then-put let the second call replace the first list, and
+ *       the displaced callback was never invoked at all: no success, no failure,
+ *       and a UI left on its loading state forever.</li>
+ *   <li><b>Backoff does not occupy a thread or a socket.</b> Retries are
+ *       rescheduled on a {@link ScheduledExecutorService} rather than slept
+ *       through in place, and the connection is closed before the wait. With a
+ *       4-thread pool and 1+2+4s of sleeping, four rate-limited URLs used to
+ *       block every other weather request behind them — which is precisely the
+ *       situation Open-Meteo's ~10 req/min limit creates.</li>
+ * </ol>
  */
 public final class HttpClient {
 
@@ -43,8 +60,12 @@ public final class HttpClient {
         void onFailure(String error);
     }
 
-    private static final ExecutorService EXECUTOR =
-            Executors.newFixedThreadPool(4);
+    /**
+     * Scheduled rather than fixed so a backoff can be queued instead of slept
+     * through — see invariant 2 in the class javadoc.
+     */
+    private static final ScheduledExecutorService EXECUTOR =
+            Executors.newScheduledThreadPool(4);
     private static final Handler MAIN_HANDLER =
             new Handler(Looper.getMainLooper());
 
@@ -62,25 +83,34 @@ public final class HttpClient {
      * to the existing request (deduplication).</p>
      */
     public static void get(final String urlString, final Callback callback) {
-        // ── Dedup check ─────────────────────────────────────────────────
-        List<Callback> existing = IN_FLIGHT.get(urlString);
-        if (existing != null) {
-            synchronized (existing) {
-                // Double-check under lock (request may have completed between get and lock)
-                if (IN_FLIGHT.containsKey(urlString)) {
-                    existing.add(callback);
+        if (callback == null) return;
+
+        // Register atomically. A check-then-put here is a lost-callback bug:
+        // two threads racing on the same URL both see no entry, both install a
+        // list, and the second put discards the first — whose callback is then
+        // never invoked at all. Finding F4.
+        final List<Callback> mine = new ArrayList<>();
+        mine.add(callback);
+
+        final List<Callback> winner = IN_FLIGHT.putIfAbsent(urlString, mine);
+        if (winner != null) {
+            // Someone else owns this URL. Attach to their list, unless they
+            // finished between putIfAbsent and the lock — deliverX() removes the
+            // entry before notifying, so an absent key means the result is
+            // already on its way and this callback would otherwise be stranded.
+            synchronized (winner) {
+                if (IN_FLIGHT.get(urlString) == winner) {
+                    winner.add(callback);
                     Log.d(TAG, "Dedup: attached callback to in-flight request for " + urlString);
                     return;
                 }
             }
+            // The in-flight request completed underneath us. Start a fresh one
+            // rather than dropping the caller.
+            EXECUTOR.execute(() -> get(urlString, callback));
+            return;
         }
 
-        // Create new in-flight entry
-        List<Callback> callbacks = new ArrayList<>();
-        callbacks.add(callback);
-        IN_FLIGHT.put(urlString, callbacks);
-
-        // ── Execute with retry ──────────────────────────────────────────
         EXECUTOR.execute(() -> executeWithRetry(urlString, 0));
     }
 
@@ -122,11 +152,7 @@ public final class HttpClient {
             // 429 Too Many Requests or 5xx — transient, retry
             if (status == 429 || status >= 500) {
                 if (attempt < MAX_RETRIES) {
-                    long delay = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)];
-                    Log.w(TAG, "HTTP " + status + " — retry " + (attempt + 1)
-                            + "/" + MAX_RETRIES + " in " + delay + "ms: " + urlString);
-                    try { Thread.sleep(delay); } catch (InterruptedException ignored) {}
-                    executeWithRetry(urlString, attempt + 1);
+                    scheduleRetry(urlString, attempt, "HTTP " + status);
                     return;
                 }
                 deliverFailure(urlString, "HTTP " + status + " after " + MAX_RETRIES + " retries");
@@ -139,11 +165,7 @@ public final class HttpClient {
         } catch (IOException e) {
             Log.e(TAG, "GET failed (attempt " + attempt + "): " + urlString, e);
             if (attempt < MAX_RETRIES) {
-                long delay = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)];
-                Log.w(TAG, "IOException — retry " + (attempt + 1)
-                        + "/" + MAX_RETRIES + " in " + delay + "ms");
-                try { Thread.sleep(delay); } catch (InterruptedException ignored) {}
-                executeWithRetry(urlString, attempt + 1);
+                scheduleRetry(urlString, attempt, String.valueOf(e.getMessage()));
             } else {
                 deliverFailure(urlString, e.getMessage());
             }
@@ -152,6 +174,28 @@ public final class HttpClient {
             if (reader != null) {
                 try { reader.close(); } catch (IOException ignored) {}
             }
+        }
+    }
+
+    /**
+     * Queue the next attempt after the backoff delay.
+     *
+     * <p>Returning rather than sleeping matters twice over: the pool thread is
+     * released for other requests, and — because this runs before the caller's
+     * {@code finally} — the socket for the failed attempt is closed while we
+     * wait rather than being held open across it. Finding F5.
+     */
+    private static void scheduleRetry(String urlString, int attempt, String reason) {
+        long delay = BACKOFF_MS[Math.min(attempt, BACKOFF_MS.length - 1)];
+        Log.w(TAG, reason + " — retry " + (attempt + 1) + "/" + MAX_RETRIES
+                + " in " + delay + "ms: " + urlString);
+        try {
+            EXECUTOR.schedule(() -> executeWithRetry(urlString, attempt + 1),
+                    delay, TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            // Pool shut down mid-flight (plugin teardown). Answer the caller
+            // rather than leaving it waiting on a retry that will never run.
+            deliverFailure(urlString, "cancelled: " + reason);
         }
     }
 
@@ -181,5 +225,24 @@ public final class HttpClient {
     /** Returns the number of currently in-flight requests (for diagnostics). */
     public static int getInFlightCount() {
         return IN_FLIGHT.size();
+    }
+
+    /**
+     * Stop the pool and fail anything still waiting. Call from
+     * {@code WeatherMapComponent.onDestroyImpl}.
+     *
+     * <p>Without this the four pool threads outlive plugin teardown, and an
+     * in-flight callback can fire into a torn-down UI. Every pending caller is
+     * answered here rather than left hanging — the same invariant the dedup map
+     * upholds during normal operation. Finding F13.
+     *
+     * <p>Idempotent, and safe to call when nothing is in flight.
+     */
+    public static void shutdown() {
+        EXECUTOR.shutdownNow();
+        for (String url : new ArrayList<>(IN_FLIGHT.keySet())) {
+            deliverFailure(url, "cancelled: plugin shutting down");
+        }
+        Log.d(TAG, "HttpClient shut down");
     }
 }

@@ -395,6 +395,12 @@ public class WeatherMapComponent extends DropDownMapComponent {
             windParticleLayer = null;
         }
 
+        // Stop the HTTP pool before closing the database — an in-flight
+        // response would otherwise try to write to a cache that is gone, and
+        // the four pool threads would outlive the plugin. Every pending caller
+        // is failed rather than left waiting. Finding F13.
+        com.atakmap.android.weather.data.remote.HttpClient.shutdown();
+
         WeatherDatabase.destroyInstance();
         Log.d(TAG, "WeatherDatabase closed");
 
