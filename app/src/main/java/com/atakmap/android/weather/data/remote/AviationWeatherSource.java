@@ -96,6 +96,11 @@ public class AviationWeatherSource implements IWeatherRemoteSource {
     /**
      * Open-Meteo instance used for hourly/daily series (AWC has no equivalent).
      * Prefs are forwarded to it via setParameterPreferences().
+     *
+     * <p>Anything this instance returns is Open-Meteo model output, not an AWC
+     * observation. {@link #getProviderNotice()} states that in the UI, and
+     * models built from real METAR carry a {@code servedBy} stamp so the two
+     * can be told apart at the point of display. Finding F21.
      */
     private final OpenMeteoSource fallback = new OpenMeteoSource();
 
@@ -103,6 +108,19 @@ public class AviationWeatherSource implements IWeatherRemoteSource {
 
     @Override public String getSourceId()    { return SOURCE_ID; }
     @Override public String getDisplayName() { return "Aviation Weather Center (METAR)"; }
+
+    /**
+     * This source is two providers wearing one name, so it has to say so.
+     * Current conditions and wind aloft are real AWC observations; daily and
+     * hourly forecasts come from Open-Meteo because AWC publishes no gridded
+     * forecast. Finding F21.
+     */
+    @Override
+    public String getProviderNotice() {
+        return "Current conditions and wind aloft are real AWC observations. "
+                + "Daily and hourly forecasts come from Open-Meteo \u2014 AWC "
+                + "publishes no gridded forecast.";
+    }
 
     @Override
     public List<WeatherParameter> getSupportedParameters() {
@@ -375,6 +393,9 @@ public class AviationWeatherSource implements IWeatherRemoteSource {
         double temp = Double.isNaN(tempC) ? 0.0 : tempC;
 
         return new WeatherModel.Builder(stationLat, stationLon)
+                // Real METAR from AWC — the one path where this source serves
+                // its own observations rather than delegating.
+                .servedBy("Aviation Weather Center METAR " + icaoId)
                 .locationName(name)
                 .temperatureMax(temp)
                 .temperatureMin(temp)

@@ -3,7 +3,7 @@
 
   "sourceId": "aviation-weather-center",
   "displayName": "Aviation Weather Center (METAR)",
-  "description": "Real-time METAR observations from US and international airports. Point observations, hourly updates. No API key required.",
+  "description": "Real-time METAR observations from US and international airports. Point observations, hourly updates. No API key required. Note: AWC publishes no gridded forecast, so daily and hourly forecast tabs are served by Open-Meteo, not by AWC.",
   "type": "weather",
   "provider": "awc",
 

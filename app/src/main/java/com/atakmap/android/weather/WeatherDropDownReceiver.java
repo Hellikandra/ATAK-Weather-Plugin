@@ -1312,7 +1312,17 @@ public class WeatherDropDownReceiver extends DropDownReceiver
 
     private void updateSourceStatusLabel(TextView tv, IWeatherRemoteSource src) {
         if (tv == null || src == null) return;
-        tv.setText(src.getDisplayName() + "  |  " + src.getSupportedParameters().size() + " parameters");
+        String label = src.getDisplayName()
+                + "  |  " + src.getSupportedParameters().size() + " parameters";
+
+        // A source that delegates part of its interface to another provider has
+        // to say so here — this label is the only place the user sees what the
+        // selected source actually covers. Finding F21.
+        String notice = src.getProviderNotice();
+        if (notice != null && !notice.isEmpty()) {
+            label += "\n\u26A0 " + notice;
+        }
+        tv.setText(label);
     }
 
     // ── Chart helpers ─────────────────────────────────────────────────────────

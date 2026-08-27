@@ -145,6 +145,7 @@ public class OpenMeteoSource implements IWeatherRemoteSource,
                     WeatherModel model = new WeatherModel.Builder(
                             root.getDouble("latitude"),
                             root.getDouble("longitude"))
+                            .servedBy(getDisplayName())
                             .weatherCode(daily.getJSONArray("weather_code").getInt(0))
                             .temperatureMax(daily.getJSONArray("temperature_2m_max").getDouble(0))
                             .temperatureMin(daily.getJSONArray("temperature_2m_min").getDouble(0))

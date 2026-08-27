@@ -45,6 +45,21 @@ public interface IWeatherRemoteSource {
     List<WeatherParameter> getSupportedParameters();
 
     /**
+     * Plain-language note about anything this source does not serve itself.
+     *
+     * <p>Returning null — the default — asserts that everything the source
+     * returns is its own data. A source that delegates part of the interface to
+     * a different provider <b>must</b> override this and say so, because the
+     * user picked this source by name and has no other way to find out.
+     * Finding F21.
+     *
+     * <p>This is a stopgap. The real fix is interface segregation (F30): a
+     * source that cannot serve forecasts should not implement a forecast
+     * method at all. Until then, this at least makes the substitution visible.
+     */
+    default String getProviderNotice() { return null; }
+
+    /**
      * Inject user parameter preferences so URL building reads from prefs
      * rather than hardcoded constants. Must be called before any fetch.
      * A null value resets to source-internal defaults.

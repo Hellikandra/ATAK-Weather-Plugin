@@ -98,19 +98,4 @@
 
     </PreferenceCategory>
 
-    <!-- ══════════════════════════════════════════════════════════════════
-         SECTION 4: Developer
-         ══════════════════════════════════════════════════════════════════ -->
-    <PreferenceCategory
-        android:key="developer_category"
-        android:title="@string/pref_developer_category">
-
-        <CheckBoxPreference
-            android:key="weather_lightning_simulation"
-            android:title="@string/pref_lightning_simulation"
-            android:summary="@string/pref_lightning_simulation_summary"
-            android:defaultValue="false" />
-
-    </PreferenceCategory>
-
 </PreferenceScreen>

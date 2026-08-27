@@ -448,9 +448,4 @@
     <string name="cbrn_wind_default">Wind: \u2014</string>
     <string name="stability_class">Stability Class: %1$c (%2$s)</string>
 
-
-    <!-- Developer preferences (F6 / issue #23) -->
-    <string name="pref_developer_category">Developer</string>
-    <string name="pref_lightning_simulation">Simulate lightning strikes</string>
-    <string name="pref_lightning_simulation_summary">OFF by default. There is no live lightning feed yet, so the overlay normally shows nothing. Turning this on fabricates strikes near the map centre for testing — they are drawn magenta and labelled SIMULATED. Never enable this for operational use.</string>
 </resources>

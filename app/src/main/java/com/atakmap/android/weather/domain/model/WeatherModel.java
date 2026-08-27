@@ -31,6 +31,22 @@ public class WeatherModel {
     /** Full encoded METAR observation string, e.g. "EBLG 111220Z 27008KT ...". */
     private final String rawMetar;
 
+    // ── Provenance (finding F21) ─────────────────────────────────────────────
+    /**
+     * Human-readable name of the provider that actually answered, which is not
+     * always the source the user selected.
+     *
+     * <p>The Aviation Weather Center source, for instance, serves real METAR for
+     * current conditions but has no gridded forecast, so it delegates daily and
+     * hourly series to Open-Meteo. Before this field existed the UI said "AWC"
+     * throughout and the substitution was invisible.
+     *
+     * <p>Empty when unknown — notably for models rehydrated from the Room cache,
+     * which has no column for it. Callers must treat empty as "not stated"
+     * rather than asserting a provider.
+     */
+    private final String servedBy;
+
     private WeatherModel(Builder b) {
         this.latitude             = b.latitude;
         this.longitude            = b.longitude;
@@ -50,6 +66,7 @@ public class WeatherModel {
         this.icaoId               = b.icaoId;
         this.flightCategory       = b.flightCategory;
         this.rawMetar             = b.rawMetar;
+        this.servedBy             = b.servedBy;
     }
 
     // ── Getters ──────────────────────────────────────────────────────────────
@@ -74,6 +91,12 @@ public class WeatherModel {
     public String getFlightCategory()      { return flightCategory; }
     /** Full raw encoded METAR string.  Empty for non-METAR sources. */
     public String getRawMetar()            { return rawMetar; }
+
+    /** Provider that actually answered, or empty when not stated. See {@link #servedBy}. */
+    public String getServedBy()            { return servedBy; }
+
+    /** True when the answering provider is known and can be shown to the user. */
+    public boolean hasProvenance()         { return servedBy != null && !servedBy.isEmpty(); }
     /** Returns true when this model was produced by an AWC METAR fetch. */
     public boolean isMetarSource()         { return !icaoId.isEmpty(); }
 
@@ -178,6 +201,7 @@ public class WeatherModel {
         private String icaoId               = "";
         private String flightCategory       = "";
         private String rawMetar             = "";
+        private String servedBy             = "";
 
         public Builder(double latitude, double longitude) {
             this.latitude  = latitude;
@@ -200,6 +224,9 @@ public class WeatherModel {
         public Builder icaoId(String v)              { icaoId = v;              return this; }
         public Builder flightCategory(String v)      { flightCategory = v;      return this; }
         public Builder rawMetar(String v)            { rawMetar = v;            return this; }
+
+        /** Name the provider that actually produced this reading. See {@link #servedBy}. */
+        public Builder servedBy(String v) { this.servedBy = v == null ? "" : v; return this; }
 
         public WeatherModel build() { return new WeatherModel(this); }
     }

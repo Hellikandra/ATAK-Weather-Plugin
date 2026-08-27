@@ -152,6 +152,7 @@ public class FieldMapper {
         double precipitation  = fm.getDouble(currentData, "precipitation", 0);
 
         return new WeatherModel.Builder(lat, lon)
+                .servedBy(sourceName)
                 .temperatureMax(temperature)
                 .temperatureMin(temperature)
                 .apparentTemperature(apparentTemp)

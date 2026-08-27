@@ -12,36 +12,49 @@ import com.atakmap.coremap.log.Log;
 import com.atakmap.coremap.maps.coords.GeoPoint;
 import com.atakmap.coremap.maps.coords.GeoPointMetaData;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * LightningOverlayManager -- Displays lightning strike markers on the ATAK map.
  *
- * <h3>Data source — read this before trusting anything on screen</h3>
- * <b>There is currently no live lightning feed.</b> The Blitzortung WebSocket
- * protocol was never implemented; the connection attempt below only proves the
- * host is reachable and then gives up.
+ * <h3>Data source — there is none, and that is deliberate</h3>
+ * This overlay has no lightning feed. Enabling it renders nothing and reports
+ * "Lightning: no source configured". That is the honest state until a lawful
+ * provider is wired
+ * in (issue #23).
  *
- * <p>Until a real feed exists (issue #23), enabling this overlay displays
- * nothing at all. A developer simulation mode can be switched on from
- * ATAK → Settings → Tool Preferences → WeatherTool, but it is <b>off by
- * default</b> and everything it produces is labelled SIMULATED — in the marker
- * callsign, in the marker title, in the overlay status line and in the
- * proximity alert. It renders magenta rather than the amber of a real strike.
+ * <h3>Why Blitzortung is not used</h3>
+ * The obvious free feed is Blitzortung's {@code wss://ws1.blitzortung.org}, and
+ * it is technically trivial — send <code>{"a":111}</code> on open, LZW-decode
+ * each JSON message, read {@code lat}/{@code lon}. Earlier versions of this
+ * class pointed at it and an ATAK plugin exists that implements it.
  *
- * <p>This matters more than it looks. Before finding F6 was raised, this class
- * fabricated a strike every three seconds within ~50 km of map centre and added
- * it as an ordinary clickable marker, indistinguishable from an observation once
- * the status text scrolled away. On a tactical map that is worse than showing
- * no lightning layer at all.
+ * <p>It is excluded on licence, not difficulty. Blitzortung state their data is
+ * "provided only for private and entertainment purposes" and explicitly
+ * prohibit using it for <b>storm warning systems</b> and <b>risk analysis for
+ * protective technology</b> — and say that restriction applies even when the
+ * data arrives via a third party. {@link #checkProximityAlert} is a storm
+ * warning system. That is the named prohibited use, so no amount of relaying
+ * makes it acceptable.
+ *
+ * <p>Other options considered: NOAA GOES GLM is public domain but ships as bulk
+ * netCDF on S3 with no per-request API, so it needs a server-side aggregator
+ * rather than a client. Commercial networks (Vaisala, via Xweather's
+ * {@code /lightning}) are the only feeds that are both lawful for this use and
+ * reachable from a device — those need a key, which should be user-supplied
+ * through the existing external source-definition mechanism rather than
+ * embedded in the APK.
+ *
+ * <h3>What was removed</h3>
+ * Until 2026-08-27 this class fabricated a strike every three seconds within
+ * ~50 km of map centre and drew it as an ordinary marker. Finding F6 gated that
+ * behind a developer preference; this change deletes it. A weather overlay that
+ * invents its own data is worse than an empty one, and a disabled-by-default
+ * simulation is still code that can be switched on by accident.
  *
  * <h3>Map integration</h3>
  * Strikes are rendered as small circle markers in a dedicated MapGroup
@@ -61,17 +74,9 @@ public class LightningOverlayManager {
 
     private static final String TAG = "LightningOverlayMgr";
 
-    private static final String WS_URL = "wss://ws1.blitzortung.org/";
     private static final int MAX_STRIKES = 500;
     private static final long STRIKE_TTL_MS = 30 * 60 * 1000L;  // 30 min display
     private static final long DISPLAY_REFRESH_MS = 10_000L;       // refresh every 10s
-    private static final long SIM_STRIKE_INTERVAL_MS = 3_000L;    // new simulated strike every 3s
-
-    /**
-     * Host preference gating the developer simulation. Absent or false means no
-     * synthetic strike is ever generated. See res/xml/preferences.xml.
-     */
-    public static final String PREF_SIMULATION = "weather_lightning_simulation";
     private static final long PROXIMITY_WINDOW_MS = 5 * 60 * 1000L; // 5 min window
 
     private static final String GROUP_NAME = "Weather Lightning";
@@ -81,18 +86,6 @@ public class LightningOverlayManager {
     private final AtomicBoolean active = new AtomicBoolean(false);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    private Thread wsThread;
-
-    /**
-     * True only while the developer simulation is producing strikes. Never set
-     * unless {@link #PREF_SIMULATION} was explicitly enabled.
-     */
-    private boolean simulating = false;
-
-    /** Read from preferences on each start(); defaults to off. */
-    private boolean simulationAllowed = false;
-
-    private final Random random = new Random();
 
     private double proximityRadiusKm = 25.0;
 
@@ -117,14 +110,6 @@ public class LightningOverlayManager {
 
     public boolean isActive() { return active.get(); }
 
-    /** True when the strikes on screen are fabricated rather than observed. */
-    public boolean isSimulating() { return simulating; }
-
-    /**
-     * Override the preference, for tests. Production reads
-     * {@link #PREF_SIMULATION} from the host preferences in {@link #start()}.
-     */
-    public void setSimulationAllowed(boolean allowed) { this.simulationAllowed = allowed; }
 
     public void setProximityRadiusKm(double km) { this.proximityRadiusKm = km; }
 
@@ -160,37 +145,18 @@ public class LightningOverlayManager {
     /** Start listening for lightning strikes. */
     public void start() {
         if (!active.compareAndSet(false, true)) return;
-        simulating = false;
-        simulationAllowed = readSimulationPreference();
-        notifyStatus("Connecting...");
-        connectWebSocket();
+        // No feed to connect to. Rather than probe a host we have decided we
+        // cannot lawfully consume, say plainly that there is nothing to show.
+        Log.i(TAG, "Lightning overlay enabled, but no lightning source is configured. "
+                + "See the class javadoc and issue #23.");
+        notifyStatus("Lightning: no source configured");
+        notifyStrikeCount(0);
         startDisplayRefresh();
-    }
-
-    /**
-     * Read the simulation gate from the host's default preferences.
-     *
-     * <p>Uses {@code mapView.getContext()} — the host activity context. The
-     * plugin context has no data directory and its getSharedPreferences fails
-     * with mkdir ENOENT; see the "ATAK Plugin Context" rule in CLAUDE.md.
-     */
-    private boolean readSimulationPreference() {
-        try {
-            return android.preference.PreferenceManager
-                    .getDefaultSharedPreferences(mapView.getContext())
-                    .getBoolean(PREF_SIMULATION, false);
-        } catch (Exception e) {
-            // Fail closed: if the preference cannot be read, do not fabricate data.
-            Log.w(TAG, "Could not read " + PREF_SIMULATION + "; simulation stays off", e);
-            return false;
-        }
     }
 
     /** Stop listening and remove all markers. */
     public void stop() {
         if (!active.compareAndSet(true, false)) return;
-        simulating = false;
-        disconnectWebSocket();
         mainHandler.removeCallbacksAndMessages(null);
         clearMarkers();
         notifyStatus("Lightning: Off");
@@ -200,115 +166,6 @@ public class LightningOverlayManager {
     /** Clean up resources. Call from WeatherMapComponent.onDestroyImpl(). */
     public void dispose() {
         stop();
-    }
-
-    // ── WebSocket connection ──────────────────────────────────────────────────
-
-    /**
-     * Attempt to connect to the Blitzortung WebSocket.
-     * If connection fails, fall back to demo mode.
-     */
-    private void connectWebSocket() {
-        wsThread = new Thread(() -> {
-            try {
-                // Attempt a simple socket connection to verify reachability
-                // Blitzortung may not be available or may have usage restrictions
-                java.net.Socket testSocket = new java.net.Socket();
-                testSocket.connect(
-                        new java.net.InetSocketAddress("ws1.blitzortung.org", 443),
-                        5000);
-                testSocket.close();
-
-                // The host is reachable, but that is all this proves. The
-                // Blitzortung subscription protocol is not implemented, so there
-                // is no live data either way.
-                Log.d(TAG, "Blitzortung host reachable, but the WS protocol is "
-                        + "not implemented -- no live lightning data available");
-                onNoLiveSource();
-
-            } catch (Exception e) {
-                Log.w(TAG, "Lightning source unreachable: " + e.getMessage());
-                onNoLiveSource();
-            }
-        }, "Lightning-WS");
-        wsThread.setDaemon(true);
-        wsThread.start();
-    }
-
-    private void disconnectWebSocket() {
-        if (wsThread != null) {
-            wsThread.interrupt();
-            wsThread = null;
-        }
-    }
-
-    // ── No live source ────────────────────────────────────────────────────────
-
-    /**
-     * Called when no real lightning data can be obtained — which, until issue
-     * #23 is done, is always.
-     *
-     * <p>Shows an empty overlay and says so. Only starts the simulation if a
-     * developer explicitly enabled {@link #PREF_SIMULATION}.
-     */
-    private void onNoLiveSource() {
-        if (!active.get()) return;
-        if (simulationAllowed) {
-            startSimulation();
-        } else {
-            Log.i(TAG, "No live lightning source and simulation is disabled — "
-                    + "the overlay will stay empty.");
-            notifyStatus("Lightning: no live source");
-            notifyStrikeCount(0);
-        }
-    }
-
-    // ── Developer simulation (off by default) ─────────────────────────────────
-
-    /**
-     * Fabricates strikes near map centre so the overlay's rendering, filtering
-     * and proximity logic can be exercised without a feed.
-     *
-     * <p>Every strike it produces is flagged {@link LightningStrike#simulated},
-     * which drives a magenta marker, a SIMULATED callsign and title, a SIMULATED
-     * status line and a SIMULATED proximity toast. Nothing here may ever be
-     * mistaken for an observation.
-     */
-    private void startSimulation() {
-        if (!active.get()) return;
-        simulating = true;
-        Log.w(TAG, "Lightning SIMULATION enabled — every strike shown is fabricated.");
-        mainHandler.post(() -> notifyStatus("Lightning: SIMULATED DATA — not real"));
-
-        mainHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                if (!active.get() || !simulating) return;
-                generateSimulatedStrike();
-                mainHandler.postDelayed(this, SIM_STRIKE_INTERVAL_MS);
-            }
-        });
-    }
-
-    private void generateSimulatedStrike() {
-        GeoPoint center = mapView.getCenterPoint().get();
-        if (center == null) return;
-
-        double lat = center.getLatitude();
-        double lon = center.getLongitude();
-
-        // Random offset within ~50km of center
-        double offsetLat = (random.nextDouble() - 0.5) * 0.9;  // ~50km
-        double offsetLon = (random.nextDouble() - 0.5) * 0.9;
-
-        LightningStrike strike = new LightningStrike();
-        strike.lat = lat + offsetLat;
-        strike.lon = lon + offsetLon;
-        strike.timestamp = System.currentTimeMillis();
-        strike.altitudeM = random.nextInt(12000) + 1000;
-        strike.simulated = true;
-
-        addStrike(strike);
     }
 
     // ── Strike management ─────────────────────────────────────────────────────
@@ -391,38 +248,25 @@ public class LightningOverlayManager {
                 // Alpha: 255 (new) -> 50 (old)
                 int alpha = (int) (255 - ageFraction * 205);
 
-                // Real strikes fade bright yellow -> dim orange. Simulated ones
-                // are magenta, so they never read as an observation at a glance.
-                int color;
-                if (s.simulated) {
-                    color = Color.argb(alpha, 220, 60, 220);
-                } else {
-                    int red = 255;
-                    int green = (int) (255 - ageFraction * 110);  // 255 -> 145
-                    int blue = (int) (50 - ageFraction * 50);     // 50 -> 0
-                    color = Color.argb(alpha, red, green, blue);
-                }
+                // Fades bright yellow (new) -> dim orange (old).
+                int red = 255;
+                int green = (int) (255 - ageFraction * 110);  // 255 -> 145
+                int blue = (int) (50 - ageFraction * 50);     // 50 -> 0
+                int color = Color.argb(alpha, red, green, blue);
 
                 String uid = "wx_lightning_" + i;
                 Marker marker = new Marker(new GeoPoint(s.lat, s.lon), uid);
                 marker.setType("a-X-G");
                 marker.setMetaString("how", "m-g");
                 marker.setMetaString("wx_type", "wx_lightning");
-                marker.setMetaBoolean("wx_simulated", s.simulated);
-
-                // The callsign is what shows on the map and in Overlay Manager,
-                // and it is often all the operator sees. Lead with SIMULATED.
-                marker.setMetaString("callsign", s.simulated
-                        ? String.format(Locale.US, "SIMULATED strike %.4f,%.4f", s.lat, s.lon)
-                        : String.format(Locale.US, "Strike %.4f,%.4f", s.lat, s.lon));
+                marker.setMetaString("callsign",
+                        String.format(Locale.US, "Strike %.4f,%.4f", s.lat, s.lon));
 
                 long ageSeconds = (now - s.timestamp) / 1000;
                 String ageStr = ageSeconds < 60
                         ? ageSeconds + "s ago"
                         : (ageSeconds / 60) + "m ago";
-                marker.setTitle((s.simulated
-                                ? "\u26A0 SIMULATED \u2014 NOT REAL DATA\nLightning  "
-                                : "Lightning  ") + ageStr
+                marker.setTitle("Lightning  " + ageStr
                         + String.format(Locale.US, "\n%.4fN %.4fE", s.lat, s.lon)
                         + "\nAlt: " + s.altitudeM + " m");
 
@@ -532,13 +376,5 @@ public class LightningOverlayManager {
         public double lon;
         public long timestamp;
         public int altitudeM;
-
-        /**
-         * True when this strike was fabricated by the developer simulation
-         * rather than observed. Anything that surfaces a strike to the user —
-         * marker, title, status line, proximity alert — must check this and say
-         * so. Finding F6.
-         */
-        public boolean simulated;
     }
 }

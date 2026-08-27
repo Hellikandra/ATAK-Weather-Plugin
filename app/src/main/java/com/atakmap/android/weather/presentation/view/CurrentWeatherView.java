@@ -123,8 +123,20 @@ public class CurrentWeatherView {
      */
     @SuppressLint("SetTextI18n")
     public void bindCurrentWeather(WeatherModel weather, String requestTime) {
-        if (textDate != null)
-            textDate.setText(context.getString(R.string.now) + requestTime);
+        if (textDate != null) {
+            // Name the provider that actually answered, next to the reading it
+            // produced. The source spinner says what the user picked, which is
+            // not always what served the data — the AWC source delegates its
+            // forecasts to Open-Meteo. Finding F21.
+            //
+            // Absent for cache hits: the Room schema has no column for it, so
+            // rather than guess, the line simply omits the provider.
+            String line = context.getString(R.string.now) + requestTime;
+            if (weather != null && weather.hasProvenance()) {
+                line += "  \u00b7  via " + weather.getServedBy();
+            }
+            textDate.setText(line);
+        }
 
         if (textAirTemp != null)
             textAirTemp.setText(WeatherUnitConverter.fmtTempRange(

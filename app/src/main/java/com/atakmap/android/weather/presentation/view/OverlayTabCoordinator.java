@@ -951,7 +951,11 @@ public class OverlayTabCoordinator {
                 if (lightningManager != null) {
                     if (checked) lightningManager.start(); else lightningManager.stop();
                 }
-                setText(R.id.overlay_lightning_status, checked ? "Connecting..." : "Off");
+                // There is no lightning feed — see LightningOverlayManager's
+                // javadoc for why Blitzortung is excluded on licence. Do not
+                // promise a connection that will never be attempted.
+                setText(R.id.overlay_lightning_status,
+                        checked ? "No source configured" : "Off");
             });
         }
 
@@ -1031,17 +1035,8 @@ public class OverlayTabCoordinator {
             }
             @Override public void onProximityAlert(double distKm,
                     LightningOverlayManager.LightningStrike strike) {
-                // A proximity warning is the most actionable thing this overlay
-                // produces, so it is the last place a fabricated strike may be
-                // allowed to pass as real. Finding F6.
-                boolean simulated = strike != null && strike.simulated;
                 Toast.makeText(pluginContext,
-                        simulated
-                            ? String.format(Locale.US,
-                                "\u26A0 SIMULATED lightning %.1f km away \u2014 not real data",
-                                distKm)
-                            : String.format(Locale.US,
-                                "\u26A1 Lightning %.1f km away!", distKm),
+                        String.format(Locale.US, "\u26A1 Lightning %.1f km away!", distKm),
                         Toast.LENGTH_SHORT).show();
             }
         });
