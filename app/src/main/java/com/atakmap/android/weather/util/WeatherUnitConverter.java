@@ -216,7 +216,16 @@ public final class WeatherUnitConverter {
                 "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
         };
         double d = ((degrees % 360) + 360) % 360;  // normalise to [0, 360)
-        int idx = (int) Math.round(d / 22.5) % 16;
+
+        // Sector boundaries belong to the LOWER sector, following meteorological
+        // convention: N spans 348.75°–11.25° inclusive, so 11.25° reads N and
+        // 11.26° reads NNE.
+        //
+        // This is why the obvious Math.round(d / 22.5) is wrong here: Java rounds
+        // half UP, so exactly 11.25° (0.5 sectors) rounds to 1 and reports NNE.
+        // Subtracting half a sector before ceil() puts the boundary on the lower
+        // side instead. Finding F19.
+        int idx = (int) Math.ceil(d / 22.5 - 0.5) % 16;
         return CARDINALS[idx];
     }
 

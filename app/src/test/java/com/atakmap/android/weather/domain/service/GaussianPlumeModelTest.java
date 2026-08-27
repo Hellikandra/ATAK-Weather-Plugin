@@ -103,12 +103,23 @@ class GaussianPlumeModelTest {
             double[] speeds = {5.0, 5.0, 5.0, 5.0};
             double[] dirs   = {0.0, 90.0, 180.0, 270.0}; // full rotation
 
+            // maxDownwindKm must exceed the distance the plume actually travels,
+            // or the model clamps and returns before the wind ever rotates. At
+            // 5 m/s over 4 hours that is 72 km — the old fixture passed 10.0,
+            // which clamped after 33 minutes, so this test had never once
+            // exercised a curve despite its name. Finding F18.
             GaussianPlumeModel.PlumeResult result = GaussianPlumeModel.calculateCurvedPlume(
-                    RELEASE_LAT, RELEASE_LON, speeds, dirs, 'D', 4, 10.0);
+                    RELEASE_LAT, RELEASE_LON, speeds, dirs, 'D', 4, 100.0);
 
             assertNotNull(result);
             assertTrue(result.centerline.size() > 4,
                     "Curved plume should have multiple centerline points per hour");
+
+            // The point of the test: the path must actually bend. A straight
+            // plume would hold one bearing throughout.
+            assertTrue(distinctBearings(result.centerline) > 1,
+                    "Centerline should change bearing as the wind rotates, but every "
+                            + "leg had the same bearing — the plume is straight");
         }
 
         @Test @DisplayName("Null wind arrays return empty result")
@@ -135,7 +146,25 @@ class GaussianPlumeModelTest {
         }
     }
 
-    // ── Helper ──────────────────────────────────────────────────────────
+    // ── Helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * Number of distinct leg bearings along a centerline, rounded to the nearest
+     * degree. A straight plume yields 1; a plume that turns yields more.
+     */
+    private static int distinctBearings(java.util.List<double[]> centerline) {
+        java.util.Set<Long> bearings = new java.util.HashSet<>();
+        for (int i = 1; i < centerline.size(); i++) {
+            double[] a = centerline.get(i - 1), b = centerline.get(i);
+            double dLon = Math.toRadians(b[1] - a[1]);
+            double lat1 = Math.toRadians(a[0]), lat2 = Math.toRadians(b[0]);
+            double y = Math.sin(dLon) * Math.cos(lat2);
+            double x = Math.cos(lat1) * Math.sin(lat2)
+                    - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+            bearings.add(Math.round((Math.toDegrees(Math.atan2(y, x)) + 360) % 360));
+        }
+        return bearings.size();
+    }
 
     private static double haversineKm(double lat1, double lon1, double lat2, double lon2) {
         double R = 6371.0;
