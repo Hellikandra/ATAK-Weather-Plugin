@@ -1,84 +1,118 @@
-# ATAK Weather Plugin — External Source Definitions
+# ATAK Weather Plugin
 
-Place `.json` files in `/sdcard/atak/tools/weather_sources/` to add or override data sources
-without recompiling the plugin.
+Forecast, marine and aviation weather inside ATAK — on the panel and on the map.
 
-## Quick start
-
-1. Copy `TEMPLATE_weather_source.json` or `TEMPLATE_radar_source.json` to your device:
-   ```
-   /sdcard/atak/tools/weather_sources/my-source.json
-   ```
-2. Edit the file with your API details.
-3. In ATAK → Weather Plugin → PARM tab, tap **⟳** (Refresh) to load the new definition.
-4. Your source will appear in the Source spinner immediately.
+**Current release: v3.1.1** · ATAK 5.6.0 (CIV) · arm64-v8a and armeabi-v7a
 
 ---
 
-## Weather source schema  (`sourceId` present → weather source)
+## What it does
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `sourceId` | string | ✅ | Unique ID, lowercase-hyphen (`my-source`). Matches `IWeatherRemoteSource.getSourceId()` if built-in. |
-| `displayName` | string | ✅ | Human-readable name shown in the spinner. |
-| `apiBaseUrl` | string | ✅ | Base URL of the weather API. |
-| `requiresApiKey` | boolean | ✗ | If `true` the plugin will prompt for an API key (future). |
-| `apiKey` | string | ✗ | Inline API key (use for personal/free-tier keys). |
-| `description` | string | ✗ | Short description shown in the PARM tab. |
-| `hourlyParams` | ParamEntry[] | ✗ | List of hourly parameters (see below). |
-| `dailyParams` | ParamEntry[] | ✗ | List of daily parameters. |
-| `currentParams` | ParamEntry[] | ✗ | List of current-conditions parameters. |
+Shows conditions at your position, at the map centre, or at any point you pick — and
+draws weather on the map itself.
 
-### ParamEntry fields
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `key` | string | ✅ | API parameter key (passed verbatim to the request). |
-| `label` | string | ✅ | Display name in the PARM checklist. |
-| `unit` | string | ✗ | Display unit suffix (e.g. `°C`, `m/s`, `%`). |
-| `defaultOn` | boolean | ✗ | Pre-checked on first load (default: `false`). |
-
----
-
-## Radar source schema  (`radarSourceId` present → radar source)
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `radarSourceId` | string | ✅ | Unique ID (`my-radar`). |
-| `displayName` | string | ✅ | Shown in the CONF tab Source spinner. |
-| `manifestUrl` | string | ✅ | URL returning a RainViewer-compatible JSON manifest (`radar.past[].time`). |
-| `tileUrlTemplate` | string | ✅ | Tile URL with placeholders: `{timestamp}` `{z}` `{x}` `{y}` `{size}`. |
-| `tileSize` | integer | ✗ | Tile size in pixels (default: 256). |
-| `defaultZoom` | integer | ✗ | Default zoom level (default: 5). |
-| `attribution` | string | ✗ | Attribution text. |
-
-### Tile URL placeholders
-
-| Placeholder | Replaced with |
+| | |
 |---|---|
-| `{timestamp}` | Unix timestamp (seconds) from the manifest frame |
-| `{z}` | Zoom level integer |
-| `{x}` | Tile X index |
-| `{y}` | Tile Y index |
-| `{size}` | Tile size in px (from `tileSize` field, default `256`) |
+| **Summary** | Current conditions and a 7-day forecast, with staleness and offline badges |
+| **Weather** | Detailed conditions and a scrubbable hourly chart with zoom and range |
+| **Wind** | Vertical wind profile, wind rose, and a wind-effect cone on the map |
+| **Overlays** | Precipitation radar, parameter heatmap, aviation SIGMETs, CBRN plume, marine currents |
+| **Markers** | Weather and wind markers, shareable over the TAK network; weather along a route |
+| **Settings** | Sources, parameters, auto-refresh, mission-prep pre-fetch, cache management |
 
----
+Forecasts are cached on the device, so the plugin keeps working when the network
+does not. Mission Prep pre-fetches an area before you go out.
 
-## Override priority
+## Installing
 
-Files are loaded in this order, later files win on duplicate IDs:
+Download the APK from [Releases](https://github.com/Hellikandra/ATAK-Weather-Plugin/releases),
+install it as you would any ATAK plugin, then open **Weather** from the ATAK menu.
 
-1. `assets/weather_sources/*.json` (bundled in the plugin APK)
-2. `/sdcard/atak/tools/weather_sources/*.json` (user files, loaded alphabetically)
+> **Upgrading from v1.x — uninstall the old plugin first.**
+> v1.x and v3.x are signed with different keys, and Android refuses to replace an
+> installed app when the signature differs, whatever the version number. You will
+> otherwise see `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
 
-To override a built-in source, use the same `sourceId` / `radarSourceId` in your external file.
+## Data sources
 
----
+Four providers are built in. **None needs an API key or an account.**
 
-## File format
+| Source | Provides |
+|---|---|
+| **Open-Meteo (GFS)** — default | Global forecast model: current, hourly, daily, wind profile |
+| **Open-Meteo (ECMWF)** | ECMWF model with pressure-level winds |
+| **Open-Meteo (DWD ICON)** | High-resolution model over Europe |
+| **Aviation Weather Center** | Real METAR station observations, winds aloft, flight category |
 
-Source definitions must be JSON. The legacy hand-rolled YAML loader was removed in
-v3.1.1 — see issue #19 — because it could not parse list-of-mappings (the most
-common YAML structure) and silently produced malformed JSON. Use the v2 JSON schema
-(`_schema_version: "2.0"`) for all source definitions. AWC METAR is shipped as
-`aviation-weather-v2.json`.
+Radar tiles come from RainViewer, marine data from Open-Meteo's marine API, aviation
+hazards from the FAA, and place names from OpenStreetMap Nominatim.
+
+Each reading names the provider that actually produced it, next to the timestamp.
+That matters for the AWC source: the AWC publishes no gridded forecast, so its daily
+and hourly tabs are served by Open-Meteo instead, and the panel says so.
+
+Open-Meteo rate-limits to roughly ten requests a minute. The plugin de-duplicates
+identical requests and backs off automatically.
+
+## Adding your own source
+
+Sources are defined in JSON, so a provider can be added without rebuilding. Drop a
+`.json` file in `/sdcard/atak/tools/weather_sources/`, then **Settings → Sources → refresh**.
+
+Templates and a reference schema ship inside the plugin under
+`assets/weather_sources/` — start from `TEMPLATE_weather_source_v2.json` or
+`TEMPLATE_radar_source.json`. Radar tile URLs use the standard slippy-map placeholders
+`{timestamp}` `{z}` `{x}` `{y}` `{size}`. Reuse a bundled `sourceId` to override it.
+
+Definitions must be JSON. The earlier YAML format was removed in v3.1.1 — its
+hand-rolled parser could not handle common YAML structures and failed silently
+([#19](https://github.com/Hellikandra/ATAK-Weather-Plugin/issues/19)).
+
+## Known limitations
+
+- **No live lightning feed.** The overlay reports "no live source" and shows nothing.
+  Earlier builds generated simulated strikes; that was removed, because fabricated
+  strikes on a tactical map are worse than no layer at all
+  ([#23](https://github.com/Hellikandra/ATAK-Weather-Plugin/issues/23)).
+- **Wind particles need an arm device.** The native engine ships for arm only; on x86
+  the particle layer draws nothing. Wind arrows work everywhere.
+- **The CBRN plume is a planning aid**, using a standard Gaussian approximation with
+  Pasquill-Gifford stability classes. Not an authoritative dispersion product.
+- The heatmap colour legend exists but has no control to show it yet
+  ([#25](https://github.com/Hellikandra/ATAK-Weather-Plugin/issues/25)).
+
+## Documentation
+
+The full user manual ships inside the plugin as `assets/usermanual.pdf` and is built
+from [`docs/user_manual/`](docs/user_manual/) by `gradle/typst.gradle` during the
+release build. To rebuild it locally with [Typst](https://typst.app) installed:
+
+```
+typst compile --root . --font-path docs/user_manual \
+  docs/user_manual/usermanual.typ app/src/main/assets/usermanual.pdf
+```
+
+## Building
+
+```
+./gradlew assembleCivDebug          # debug APK
+./gradlew testCivDebugUnitTest      # unit tests
+./gradlew assembleCivRelease        # signed release APK
+```
+
+Requires the ATAK 5.6.0 SDK. `local.properties` needs `sdk.dir`; the `atak-gradle-takdev`
+plugin is resolved from the TAK repository or from `../../atak-gradle-takdev.jar`.
+
+Native particle libraries are pre-built in `app/src/main/jniLibs/`. `externalNativeBuild`
+is deliberately commented out — the release pipeline cannot install an NDK, so the `.so`
+files ship as-is. To rebuild them, see `app/src/main/cpp/`.
+
+## Reporting a problem
+
+Open an [issue](https://github.com/Hellikandra/ATAK-Weather-Plugin/issues) with your
+ATAK version, the plugin version from the panel, your device, and `adb logcat` output
+if the plugin crashed or failed to load.
+
+## Licence
+
+See [LICENSE](LICENSE).

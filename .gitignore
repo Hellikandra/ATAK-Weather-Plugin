@@ -1,4 +1,6 @@
 # Built application files
+# Generated from docs/user_manual by gradle/typst.gradle
+app/src/main/assets/usermanual.pdf
 *.apk
 *.aar
 *.ap_
@@ -93,6 +95,16 @@ lint/tmp/
 .claude/
 claude/
 references/
-docs/
+# Local HTML reports and analyses live in docs/ and stay out of the repo — but
+# docs/user_manual is the exception: gradle/typst.gradle compiles it into
+# assets/usermanual.pdf during the official ATAK release build, so it must be in
+# the repo and in the TPP submission zip. It was ignored until v3.1.1, which is
+# why every TPP build logged "No *.typ file found, will not build a user manual".
+#
+# Note the pattern: `docs/*` not `docs/`. Git cannot re-include a file whose
+# parent directory is excluded, so excluding the *contents* is what allows the
+# negation below to work.
+docs/*
+!docs/user_manual/
 # Generated reports (can be regenerated)
 reports/
