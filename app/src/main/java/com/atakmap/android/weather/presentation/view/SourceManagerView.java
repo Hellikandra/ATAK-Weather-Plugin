@@ -26,6 +26,7 @@ import com.atakmap.coremap.log.Log;
 
 import java.util.List;
 import java.util.Map;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
 
 /**
  * SourceManagerView — Sprint 8.5: Source Management UI.
@@ -310,7 +311,7 @@ public class SourceManagerView {
 
         try {
             source.fetchCurrentWeather(TEST_LAT, TEST_LON,
-                new IWeatherRemoteSource.FetchCallback<WeatherModel>() {
+                new FetchCallback<WeatherModel>() {
                     @Override
                     public void onResult(WeatherModel data) {
                         mainHandler.post(() -> {

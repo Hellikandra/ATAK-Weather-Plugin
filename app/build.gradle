@@ -248,6 +248,11 @@ android {
         minSdkVersion 21
         targetSdkVersion 36
 
+        // Required for anything in src/androidTest to run. Its absence is why the
+        // declared Espresso/UI Automator dependencies had never executed a single
+        // test — there was no runner to execute them. Finding F29.
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
         def runTasks = gradle.startParameter.taskNames
         if(runTasks.toString().contains('bundle')) {
             ndk {
@@ -372,8 +377,14 @@ dependencies {
     testImplementation "com.tngtech.archunit:archunit-junit5:$archunit_version"
 
     // ── Integration test stack (Wave 6) ──────────────────────────────────
+    // Espresso removed. It drives YOUR app by launching an Activity you own; an
+    // ATAK plugin has no launchable Activity, and instrumentation targeting the
+    // plugin package cannot see views owned by com.atakmap.app.civ. It was a
+    // declared dependency for the life of the project and never had one test
+    // written against it. UI Automator drives other apps via accessibility, which
+    // is what a plugin smoke test actually needs. Finding F29.
     androidTestImplementation "androidx.test.ext:junit:1.1.5"
-    androidTestImplementation "androidx.test.espresso:espresso-core:3.5.1"
+    androidTestImplementation "androidx.test:runner:1.5.2"
     androidTestImplementation "androidx.test.uiautomator:uiautomator:2.3.0"
     androidTestImplementation "androidx.room:room-testing:$room_version"
 }

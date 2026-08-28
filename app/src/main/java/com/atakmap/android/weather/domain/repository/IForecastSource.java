@@ -6,33 +6,24 @@ import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import java.util.List;
 
 /**
- * Interface Segregation (Sprint 24 — S24.2): source for forecast data.
+ * A source that can produce a forecast series.
  *
- * <p>Consumers that need daily/hourly forecasts (e.g., chart, heatmap)
- * depend on this narrow interface instead of the full {@link IWeatherRepository}.</p>
+ * <p><b>Opt-in.</b> Not every provider has one — the FAA Aviation Weather Center
+ * publishes station observations and winds aloft but no gridded forecast, so
+ * {@code AviationWeatherSource} does not implement this interface. That is the
+ * point of the split: a source that cannot forecast has no forecast method to
+ * implement, so it cannot quietly answer with someone else's data.
+ *
+ * <p>Before this existed, the aviation source held a private Open-Meteo instance
+ * and delegated both methods to it unconditionally, and the UI went on saying
+ * "AWC" (finding F21). Substitution is now a decision the repository makes in one
+ * visible place, and the answering provider is stamped on the result.
  */
 public interface IForecastSource {
 
-    /** Callback for daily forecast result. */
-    interface DailyForecastCallback {
-        void onResult(List<DailyForecastModel> forecasts);
-        void onError(String message);
-    }
+    void fetchDailyForecast(double lat, double lon, int days,
+                            FetchCallback<List<DailyForecastModel>> callback);
 
-    /** Callback for hourly forecast result. */
-    interface HourlyForecastCallback {
-        void onResult(List<HourlyEntryModel> entries);
-        void onError(String message);
-    }
-
-    /**
-     * Fetch daily forecast for the given coordinates.
-     */
-    void fetchDailyForecast(double lat, double lon, DailyForecastCallback callback);
-
-    /**
-     * Fetch hourly forecast for the given coordinates.
-     */
-    void fetchHourlyForecast(double lat, double lon, String hourlyParams,
-                              HourlyForecastCallback callback);
+    void fetchHourlyForecast(double lat, double lon, int hours,
+                             FetchCallback<List<HourlyEntryModel>> callback);
 }

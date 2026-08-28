@@ -5,21 +5,14 @@ import com.atakmap.android.weather.domain.model.WindProfileModel;
 import java.util.List;
 
 /**
- * Interface Segregation (Sprint 24 — S24.2): source for wind profile data.
+ * A source that can report wind at multiple altitudes.
  *
- * <p>Consumers that only need wind profiles (e.g., WindTabCoordinator, CBRN)
- * depend on this narrow interface instead of the full {@link IWeatherRepository}.</p>
+ * <p><b>Opt-in</b>, like {@link IForecastSource}. The aviation source implements
+ * it from real winds-aloft observations; the Open-Meteo sources derive it from
+ * model pressure levels.
  */
 public interface IWindProfileSource {
 
-    /** Callback for wind profile result. */
-    interface WindProfileCallback {
-        void onResult(List<WindProfileModel> profiles);
-        void onError(String message);
-    }
-
-    /**
-     * Fetch wind profile (multi-altitude) for the given coordinates.
-     */
-    void fetchWindProfile(double lat, double lon, WindProfileCallback callback);
+    void fetchWindProfile(double lat, double lon,
+                          FetchCallback<List<WindProfileModel>> callback);
 }
