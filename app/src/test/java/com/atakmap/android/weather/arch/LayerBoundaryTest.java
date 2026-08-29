@@ -62,20 +62,28 @@ class LayerBoundaryTest {
                 .importPackages(BASE);
     }
 
-    // ── Rule 1: Domain model isolation ─────────────────────────────────────────
+    // ── Rule 1: Domain isolation from Android ──────────────────────────────────
 
     @Test
-    @DisplayName("Domain model classes must not import Android framework classes")
-    void domainModel_shouldNotImport_androidFramework() {
+    @DisplayName("Domain classes must not import Android framework classes")
+    void domain_shouldNotImport_androidFramework() {
         ArchRule rule = noClasses()
-                .that().resideInAPackage("..domain.model..")
+                .that().resideInAPackage("..domain..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
                         "android..",
                         "androidx.."
                 )
-                .because("Domain models must be pure Java — no Android dependencies");
+                .because("The domain layer must be pure Java — no Android dependencies");
 
+        // Widened from ..domain.model.. to the whole layer when F27 was fixed.
+        // The narrow version was why BriefingDocument could sit in domain.service
+        // raising Toasts and starting share Intents for two years without any
+        // rule objecting: it was a service, not a model, so nothing looked.
+        //
+        // Services and repository ports are as much the domain as the models
+        // are. If this fails, the Android-facing half of whatever you are
+        // writing belongs in presentation.
         rule.check(classes);
     }
 

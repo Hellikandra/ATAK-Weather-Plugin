@@ -50,6 +50,7 @@ import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.weather.domain.model.DailyForecastModel;
 import com.atakmap.android.weather.domain.model.WindProfileModel;
 import com.atakmap.android.weather.domain.service.BriefingDocument;
+import com.atakmap.android.weather.presentation.view.BriefingPresenter;
 import com.atakmap.android.weather.domain.service.BriefingGenerator;
 // ComparisonView import removed — comparison section retired from UI
 import com.atakmap.android.weather.presentation.view.CurrentWeatherView;
@@ -1363,18 +1364,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         String srcName = WeatherSourceManager.getInstance(appContext).getActiveSourceId();
         BriefingDocument doc = BriefingGenerator.generate(
                 lastWeather, dailyCache, hourlyCache, windCache, locName, srcName);
-        new android.app.AlertDialog.Builder(getMapView().getContext())
-                .setTitle("Weather Briefing")
-                .setMessage(doc.getPlainText())
-                .setPositiveButton("OK", null)
-                .setNeutralButton("Copy", (d, w) -> {
-                    android.content.ClipboardManager cm = (android.content.ClipboardManager)
-                            appContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                    if (cm != null) cm.setPrimaryClip(
-                            android.content.ClipData.newPlainText("Weather Briefing", doc.getPlainText()));
-                    Toast.makeText(pluginContext, "Copied to clipboard", Toast.LENGTH_SHORT).show();
-                })
-                .show();
+        new BriefingPresenter(pluginContext, appContext)
+                .show(getMapView().getContext(), doc);
     }
 
     private void handleMarkerDetails(String targetUid, String requestTab) {
