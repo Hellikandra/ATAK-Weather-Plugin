@@ -8,6 +8,8 @@ import com.atakmap.android.weather.domain.model.WindProfileModel;
 import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
 
 import java.util.List;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
+import com.atakmap.android.weather.domain.repository.ICurrentWeatherSource;
 
 /**
  * Pluggable API source contract.
@@ -23,7 +25,7 @@ import java.util.List;
  * internal volatile boolean. WeatherRepositoryImpl calls {@code active().isStale()}
  * without any instanceof cast.
  */
-public interface IWeatherRemoteSource {
+public interface IWeatherRemoteSource extends ICurrentWeatherSource {
 
     /** Unique identifier used in preferences, e.g. "open-meteo". */
     String getSourceId();
@@ -83,20 +85,17 @@ public interface IWeatherRemoteSource {
 
     // ── Fetch callbacks ───────────────────────────────────────────────────────
 
-    interface FetchCallback<T> {
-        void onResult(T data);
-        void onError(String message);
-    }
 
-    void fetchCurrentWeather(double lat, double lon,
-                             FetchCallback<WeatherModel> callback);
-
-    void fetchDailyForecast(double lat, double lon, int days,
-                            FetchCallback<List<DailyForecastModel>> callback);
-
-    void fetchHourlyForecast(double lat, double lon, int hours,
-                             FetchCallback<List<HourlyEntryModel>> callback);
-
-    void fetchWindProfile(double lat, double lon,
-                          FetchCallback<List<WindProfileModel>> callback);
+    // Current weather comes from ICurrentWeatherSource, which every source can
+    // satisfy. Forecast and wind-profile are capabilities a source opts into by
+    // implementing IForecastSource / IWindProfileSource — they are deliberately
+    // NOT declared here.
+    //
+    // That is the whole point of finding F30. While all four fetches lived on
+    // one interface, a source that could not serve forecasts still had to
+    // implement the method, and AviationWeatherSource "implemented" it by
+    // delegating to a private Open-Meteo instance while the UI went on saying
+    // AWC (finding F21). A source that cannot forecast now simply has no
+    // forecast method, and the repository decides — visibly, in one place —
+    // what to do about it.
 }

@@ -20,6 +20,7 @@ import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
 import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
 import com.atakmap.android.weather.data.remote.WeatherSourceManager;
 import com.atakmap.android.weather.domain.repository.ApiKeyStore;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.coremap.log.Log;
@@ -322,7 +323,7 @@ public class SourceManagerView {
 
         try {
             source.fetchCurrentWeather(TEST_LAT, TEST_LON,
-                new IWeatherRemoteSource.FetchCallback<WeatherModel>() {
+                new FetchCallback<WeatherModel>() {
                     @Override
                     public void onResult(WeatherModel data) {
                         mainHandler.post(() -> {
