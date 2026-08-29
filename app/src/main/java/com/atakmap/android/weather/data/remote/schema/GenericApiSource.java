@@ -25,6 +25,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
+import com.atakmap.android.weather.domain.repository.IForecastSource;
+import com.atakmap.android.weather.domain.repository.IWindProfileSource;
 
 /**
  * Schema-driven implementation of {@link IWeatherRemoteSource}.
@@ -53,7 +56,7 @@ import java.util.Map;
  *   <li>Build the domain model and return via callback.</li>
  * </ol>
  */
-public class GenericApiSource implements IWeatherRemoteSource {
+public class GenericApiSource implements IWeatherRemoteSource, IForecastSource, IWindProfileSource {
 
     private static final String TAG = "GenericApiSource";
 

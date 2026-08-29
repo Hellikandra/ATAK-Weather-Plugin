@@ -16,6 +16,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
+import com.atakmap.android.weather.domain.repository.IForecastSource;
+import com.atakmap.android.weather.domain.repository.IWindProfileSource;
 
 /**
  * IWeatherRemoteSource backed by the ECMWF IFS model via Open-Meteo.
@@ -44,7 +47,7 @@ import java.util.List;
  *
  * ── No API key required ───────────────────────────────────────────────────────
  */
-public class OpenMeteoECMWFSource implements IWeatherRemoteSource {
+public class OpenMeteoECMWFSource implements IWeatherRemoteSource, IForecastSource, IWindProfileSource {
 
     private static final String TAG       = "OpenMeteoECMWFSource";
     public  static final String SOURCE_ID = "open-meteo-ecmwf";

@@ -17,6 +17,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
+import com.atakmap.android.weather.domain.repository.IWindProfileSource;
 
 /**
  * IWeatherRemoteSource backed by the FAA Aviation Weather Center (AWC) REST API.
@@ -47,13 +49,17 @@ import java.util.Locale;
  *      wdir12000,wspd12000 (600 hPa ≈ 4200 m)
  *      temp3000, temp6000, temp9000, temp12000
  *
- * ── Hourly / Daily fallback ───────────────────────────────────────────────────
+ * ── This source does not forecast ─────────────────────────────────────────────
  *
  * AWC METARs are point observations, not gridded time-series, so there is no
- * equivalent to Open-Meteo's 168-hour hourly forecast.  To maintain full plugin
- * functionality when this source is active, fetchHourlyForecast() and
- * fetchDailyForecast() delegate to an internal OpenMeteoSource instance.
- * This is intentional and documented here so future developers are not confused.
+ * equivalent to Open-Meteo's 168-hour forecast. This class therefore does NOT
+ * implement {@code IForecastSource}, and has no forecast methods at all.
+ *
+ * It used to implement them by delegating to a private OpenMeteoSource while the
+ * UI still said AWC (finding F21). The capability split in F30 removed that: a
+ * source that cannot forecast now has no forecast method to answer with someone
+ * else's data, and WeatherRepositoryImpl picks a stand-in explicitly, logs the
+ * choice, and stamps the answering provider on the result.
  *
  * ── No API key required ───────────────────────────────────────────────────────
  *
@@ -68,7 +74,7 @@ import java.util.Locale;
  * forecast.  It is most accurate near airports or military airfields that have
  * an ASOS/AWOS station within the query bbox.
  */
-public class AviationWeatherSource implements IWeatherRemoteSource {
+public class AviationWeatherSource implements IWeatherRemoteSource, IWindProfileSource {
 
     private static final String TAG = "AviationWeatherSource";
 
@@ -94,13 +100,15 @@ public class AviationWeatherSource implements IWeatherRemoteSource {
     // ── Fallback forecast source ──────────────────────────────────────────────
 
     /**
-     * Open-Meteo instance used for hourly/daily series (AWC has no equivalent).
-     * Prefs are forwarded to it via setParameterPreferences().
+     * Open-Meteo, used only where a METAR cannot answer at all.
      *
-     * <p>Anything this instance returns is Open-Meteo model output, not an AWC
-     * observation. {@link #getProviderNotice()} states that in the UI, and
-     * models built from real METAR carry a {@code servedBy} stamp so the two
-     * can be told apart at the point of display. Finding F21.
+     * <p>This used to serve the daily and hourly forecast tabs outright, while
+     * the UI still said AWC (finding F21). Those methods are gone: this source no
+     * longer implements {@code IForecastSource}, so the repository picks a
+     * forecast provider explicitly and stamps it on the result. What remains here
+     * is a genuine fallback for current conditions and wind aloft when the
+     * nearest station returns nothing usable — and models built that way carry
+     * Open-Meteo's name, not the AWC's.
      */
     private final OpenMeteoSource fallback = new OpenMeteoSource();
 
@@ -117,9 +125,9 @@ public class AviationWeatherSource implements IWeatherRemoteSource {
      */
     @Override
     public String getProviderNotice() {
-        return "Current conditions and wind aloft are real AWC observations. "
-                + "Daily and hourly forecasts come from Open-Meteo \u2014 AWC "
-                + "publishes no gridded forecast.";
+        return "Real AWC station observations and winds aloft. AWC publishes no "
+                + "gridded forecast, so the daily and hourly tabs are served by "
+                + "Open-Meteo \u2014 each reading names the provider that produced it.";
     }
 
     @Override
@@ -182,30 +190,6 @@ public class AviationWeatherSource implements IWeatherRemoteSource {
                 fallback.fetchCurrentWeather(lat, lon, callback);
             }
         });
-    }
-
-    // ── fetchDailyForecast ────────────────────────────────────────────────────
-
-    /**
-     * AWC provides no gridded daily forecast — delegate to Open-Meteo.
-     * This is by design; see class Javadoc.
-     */
-    @Override
-    public void fetchDailyForecast(double lat, double lon, int days,
-                                   FetchCallback<List<DailyForecastModel>> callback) {
-        fallback.fetchDailyForecast(lat, lon, days, callback);
-    }
-
-    // ── fetchHourlyForecast ───────────────────────────────────────────────────
-
-    /**
-     * AWC provides no hourly time-series — delegate to Open-Meteo.
-     * This is by design; see class Javadoc.
-     */
-    @Override
-    public void fetchHourlyForecast(double lat, double lon, int hours,
-                                    FetchCallback<List<HourlyEntryModel>> callback) {
-        fallback.fetchHourlyForecast(lat, lon, hours, callback);
     }
 
     // ── fetchWindProfile ──────────────────────────────────────────────────────

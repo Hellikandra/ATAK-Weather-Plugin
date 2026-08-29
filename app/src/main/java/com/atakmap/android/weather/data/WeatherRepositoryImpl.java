@@ -10,6 +10,10 @@ import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPr
 
 import java.util.List;
 import java.util.Map;
+import com.atakmap.coremap.log.Log;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
+import com.atakmap.android.weather.domain.repository.IForecastSource;
+import com.atakmap.android.weather.domain.repository.IWindProfileSource;
 
 /**
  * Concrete IWeatherRepository.
@@ -30,6 +34,7 @@ public class WeatherRepositoryImpl implements IWeatherRepository {
     private static final int DEFAULT_HOURS = 168;
 
     private final Map<String, IWeatherRemoteSource> sources;
+    private static final String TAG = "WeatherRepositoryImpl";
     private       String                            activeSourceId;
 
     public WeatherRepositoryImpl(Map<String, IWeatherRemoteSource> sources,
@@ -79,7 +84,7 @@ public class WeatherRepositoryImpl implements IWeatherRepository {
     public void getCurrentWeather(double latitude, double longitude,
                                   Callback<WeatherModel> callback) {
         active().fetchCurrentWeather(latitude, longitude,
-                new IWeatherRemoteSource.FetchCallback<WeatherModel>() {
+                new FetchCallback<WeatherModel>() {
                     @Override public void onResult(WeatherModel data) { callback.onSuccess(data); }
                     @Override public void onError(String msg)          { callback.onError(msg); }
                 });
@@ -88,8 +93,13 @@ public class WeatherRepositoryImpl implements IWeatherRepository {
     @Override
     public void getDailyForecast(double latitude, double longitude,
                                  Callback<List<DailyForecastModel>> callback) {
-        active().fetchDailyForecast(latitude, longitude, DEFAULT_DAYS,
-                new IWeatherRemoteSource.FetchCallback<List<DailyForecastModel>>() {
+        IForecastSource src = forecastProvider();
+        if (src == null) {
+            callback.onError("No forecast provider is available");
+            return;
+        }
+        src.fetchDailyForecast(latitude, longitude, DEFAULT_DAYS,
+                new FetchCallback<List<DailyForecastModel>>() {
                     @Override public void onResult(List<DailyForecastModel> data) { callback.onSuccess(data); }
                     @Override public void onError(String msg)                      { callback.onError(msg); }
                 });
@@ -98,8 +108,13 @@ public class WeatherRepositoryImpl implements IWeatherRepository {
     @Override
     public void getHourlyForecast(double latitude, double longitude,
                                   Callback<List<HourlyEntryModel>> callback) {
-        active().fetchHourlyForecast(latitude, longitude, DEFAULT_HOURS,
-                new IWeatherRemoteSource.FetchCallback<List<HourlyEntryModel>>() {
+        IForecastSource src = forecastProvider();
+        if (src == null) {
+            callback.onError("No forecast provider is available");
+            return;
+        }
+        src.fetchHourlyForecast(latitude, longitude, DEFAULT_HOURS,
+                new FetchCallback<List<HourlyEntryModel>>() {
                     @Override public void onResult(List<HourlyEntryModel> data) { callback.onSuccess(data); }
                     @Override public void onError(String msg)                    { callback.onError(msg); }
                 });
@@ -108,11 +123,57 @@ public class WeatherRepositoryImpl implements IWeatherRepository {
     @Override
     public void getWindProfile(double latitude, double longitude,
                                Callback<List<WindProfileModel>> callback) {
-        active().fetchWindProfile(latitude, longitude,
-                new IWeatherRemoteSource.FetchCallback<List<WindProfileModel>>() {
+        IWindProfileSource src = capabilityOrSubstitute(IWindProfileSource.class);
+        if (src == null) {
+            callback.onError("No wind profile provider is available");
+            return;
+        }
+        src.fetchWindProfile(latitude, longitude,
+                new FetchCallback<List<WindProfileModel>>() {
                     @Override public void onResult(List<WindProfileModel> data) { callback.onSuccess(data); }
                     @Override public void onError(String msg)                    { callback.onError(msg); }
                 });
+    }
+
+    // ── Capability routing (finding F30) ─────────────────────────────────────
+    //
+    // Not every source can serve every request. The FAA Aviation Weather Center
+    // publishes station observations and winds aloft but no gridded forecast, so
+    // AviationWeatherSource does not implement IForecastSource.
+    //
+    // Substitution used to be hidden inside that source: it held a private
+    // Open-Meteo instance and delegated the forecast methods to it while the UI
+    // went on saying AWC (finding F21). Now the source simply has no forecast
+    // method, and the choice of stand-in is made here — once, in the open, and
+    // logged. The answering provider is stamped on every model, so the header
+    // shows which one produced the numbers.
+
+    /** The active source if it can forecast; otherwise an explicit stand-in. */
+    private IForecastSource forecastProvider() {
+        return capabilityOrSubstitute(IForecastSource.class);
+    }
+
+    /**
+     * Return the active source if it has the requested capability, otherwise the
+     * first registered source that does.
+     *
+     * @return null when nothing registered can serve the request, which callers
+     *         must surface as an error rather than silently doing nothing
+     */
+    private <T> T capabilityOrSubstitute(Class<T> capability) {
+        IWeatherRemoteSource src = active();
+        if (capability.isInstance(src)) return capability.cast(src);
+
+        for (IWeatherRemoteSource candidate : sources.values()) {
+            if (capability.isInstance(candidate)) {
+                Log.d(TAG, "Source '" + src.getSourceId() + "' cannot serve "
+                        + capability.getSimpleName() + "; using '"
+                        + candidate.getSourceId() + "'. The reading will name it.");
+                return capability.cast(candidate);
+            }
+        }
+        Log.w(TAG, "No registered source provides " + capability.getSimpleName());
+        return null;
     }
 
     // ── Private ──────────────────────────────────────────────────────────────

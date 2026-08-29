@@ -3,25 +3,14 @@ package com.atakmap.android.weather.domain.repository;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 
 /**
- * Interface Segregation (Sprint 24 — S24.2): source for current weather only.
+ * A source that can report current conditions for a point.
  *
- * <p>Consumers that only need current conditions (e.g., dashboard, markers)
- * depend on this narrow interface instead of the full {@link IWeatherRepository}.</p>
+ * <p>Every weather source can do this, so {@code IWeatherRemoteSource} extends it.
+ * It is a separate type anyway so that consumers which only need current
+ * conditions can say so.
  */
 public interface ICurrentWeatherSource {
 
-    /** Callback for current weather result. */
-    interface CurrentWeatherCallback {
-        void onResult(WeatherModel model);
-        void onError(String message);
-    }
-
-    /**
-     * Fetch current weather for the given coordinates.
-     *
-     * @param lat      latitude
-     * @param lon      longitude
-     * @param callback result callback (main thread)
-     */
-    void fetchCurrentWeather(double lat, double lon, CurrentWeatherCallback callback);
+    void fetchCurrentWeather(double lat, double lon,
+                             FetchCallback<WeatherModel> callback);
 }

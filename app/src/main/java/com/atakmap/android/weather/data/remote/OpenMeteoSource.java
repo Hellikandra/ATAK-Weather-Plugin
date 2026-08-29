@@ -17,6 +17,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import com.atakmap.android.weather.domain.repository.FetchCallback;
+import com.atakmap.android.weather.domain.repository.IForecastSource;
+import com.atakmap.android.weather.domain.repository.IWindProfileSource;
 
 /**
  * IWeatherRemoteSource implementation backed by https://api.open-meteo.com
@@ -43,7 +46,7 @@ import java.util.List;
  *    reads this before a cached fetch to decide whether to bypass the cache
  *    (Sprint 3). For now it is exposed so the Receiver can re-trigger a load.
  */
-public class OpenMeteoSource implements IWeatherRemoteSource,
+public class OpenMeteoSource implements IWeatherRemoteSource, IForecastSource, IWindProfileSource,
         WeatherParameterPreferences.ChangeListener {
 
     private static final String TAG       = "OpenMeteoSource";
