@@ -16,7 +16,6 @@ import android.widget.Toast;
 import com.atakmap.android.ipc.AtakBroadcast;
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.weather.WeatherDropDownReceiver;
-import com.atakmap.android.weather.data.remote.WeatherSourceManager;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.LocationSource;
@@ -24,6 +23,8 @@ import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.model.WindDataPoint;
 import com.atakmap.android.weather.overlay.wind.WindEffectShape;
 import com.atakmap.android.weather.overlay.wind.WindMarkerManager;
+import com.atakmap.android.weather.domain.model.SourceDescriptor;
+import com.atakmap.android.weather.domain.repository.SourceCatalog;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.weather.presentation.viewmodel.WindProfileViewModel;
 import com.atakmap.android.weather.util.WeatherPlaceTool;
@@ -63,6 +64,15 @@ public class WindTabCoordinator {
     private final WindMarkerManager    windMarkerManager;
     private final WindEffectShape      windEffectShape;
     private final WindProfileView      windProfileView;
+
+    /**
+     * What sources exist and which is active (finding F22). Injected from the
+     * composition root; this class used to call
+     * {@code WeatherSourceManager.getInstance(rootView.getContext())} at three
+     * separate sites, so a tab could not be reasoned about without the source
+     * registry's singleton and its context rules.
+     */
+    private SourceCatalog sourceCatalog;
 
     // ── Mutable state ─────────────────────────────────────────────────────────
     /** Tracks all slots that have had a wind marker placed. Key = uidSuffix. */
@@ -201,14 +211,21 @@ public class WindTabCoordinator {
      * "Map Centre" button — immediately requests wind profile at the current
      * map centre without entering tap-map mode.
      */
+    /** Inject the source catalog. Call before wiring the tab. */
+    public void setSourceCatalog(SourceCatalog catalog) { this.sourceCatalog = catalog; }
+
+    /** Active source id, or empty when the catalog has not been injected yet. */
+    private String activeSourceId() {
+        return sourceCatalog == null ? "" : sourceCatalog.activeSourceId();
+    }
+
     private void wireMapCentreButton() {
         Button btnMapCentre = rootView.findViewById(R.id.btn_wind_map_centre);
         if (btnMapCentre == null) return;
         btnMapCentre.setOnClickListener(v -> {
             double lat = mapView.getCenterPoint().get().getLatitude();
             double lon = mapView.getCenterPoint().get().getLongitude();
-            String srcId = WeatherSourceManager.getInstance(rootView.getContext()).getActiveSourceId();
-            windViewModel.addSlot(lat, lon, srcId);
+            windViewModel.addSlot(lat, lon, activeSourceId());
             Toast.makeText(pluginContext,
                     String.format(Locale.US, "Wind profile at map centre (%.4f°, %.4f°)", lat, lon),
                     Toast.LENGTH_SHORT).show();
@@ -303,28 +320,29 @@ public class WindTabCoordinator {
         android.widget.Spinner spinner = rootView.findViewById(R.id.spinner_wind_source);
         if (spinner == null) return;
 
-        WeatherSourceManager mgr     = WeatherSourceManager.getInstance(rootView.getContext());
-        List<WeatherSourceManager.SourceEntry> entries = mgr.getAvailableEntries();
+        if (sourceCatalog == null) return;
+        final List<SourceDescriptor> entries = sourceCatalog.sources();
 
-        ArrayAdapter<WeatherSourceManager.SourceEntry> adapter =
+        ArrayAdapter<SourceDescriptor> adapter =
                 WeatherUiUtils.makeDarkSpinnerAdapter(pluginContext, entries);
         spinner.setAdapter(adapter);
         WeatherUiUtils.styleSpinnerDark(spinner);
-        spinner.setSelection(mgr.getActiveSourceIndex(), false);
+        spinner.setSelection(sourceCatalog.indexOf(sourceCatalog.activeSourceId()), false);
 
         spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent,
                                                  android.view.View v, int pos, long id) {
-                WeatherSourceManager.SourceEntry entry = entries.get(pos);
+                if (pos < 0 || pos >= entries.size()) return;
+                SourceDescriptor entry = entries.get(pos);
                 WindProfileViewModel.WindSlot activeSlot = windViewModel.getActiveWindSlot();
                 if (activeSlot == null) {
-                    mgr.setActiveSourceId(entry.sourceId);
+                    sourceCatalog.setActiveSourceId(entry.id());
                     return;
                 }
                 Toast.makeText(pluginContext,
-                        "Re-fetching wind for slot using " + entry.displayName,
+                        "Re-fetching wind for slot using " + entry.displayName(),
                         Toast.LENGTH_SHORT).show();
-                windViewModel.updateSlotSource(windViewModel.getActiveSlotIndex(), entry.sourceId);
+                windViewModel.updateSlotSource(windViewModel.getActiveSlotIndex(), entry.id());
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
@@ -733,8 +751,8 @@ public class WindTabCoordinator {
     private void syncWindSpinnerToSlot(WindProfileViewModel.WindSlot slot) {
         android.widget.Spinner spinner = rootView.findViewById(R.id.spinner_wind_source);
         if (spinner == null || spinner.getAdapter() == null) return;
-        int idx = WeatherSourceManager.getInstance(rootView.getContext())
-                .getIndexForSourceId(slot.getSourceId());
+        if (sourceCatalog == null) return;
+        int idx = sourceCatalog.indexOf(slot.getSourceId());
         if (idx >= 0 && spinner.getSelectedItemPosition() != idx) {
             spinner.setSelection(idx, false);
         }

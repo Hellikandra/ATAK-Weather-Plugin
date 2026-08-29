@@ -14,8 +14,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.atakmap.android.maps.MapView;
-import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
-import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.model.WindProfileModel;
 import com.atakmap.android.weather.overlay.cbrn.CbrnOverlayManager;
@@ -25,6 +23,7 @@ import com.atakmap.android.weather.overlay.aviation.SigmetOverlayManager;
 import com.atakmap.android.weather.overlay.lightning.LightningOverlayManager;
 import com.atakmap.android.weather.overlay.radar.RadarOverlayManager;
 import com.atakmap.android.weather.overlay.radar.RadarSourceSelector;
+import com.atakmap.android.weather.domain.model.RadarSourceDescriptor;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.weather.util.WeatherPlaceTool;
 import com.atakmap.android.weather.util.WeatherUiUtils;
@@ -254,27 +253,28 @@ public class OverlayTabCoordinator {
             // Fix #18 audit — RadarSourceSelector calls context.getSharedPreferences;
             // pluginContext has no on-disk data dir. Use mapView's host context.
             radarSourceSelector = new RadarSourceSelector(mapView.getContext());
-            // Clear cache and reload to ensure we have latest sources (including imports)
-            SourceDefinitionLoader.clearCache();
-            radarSourceSelector.loadSources();
-            List<WeatherSourceDefinitionV2> v2 = radarSourceSelector.getAvailableSources();
+            // refreshSources() clears the definition cache before reloading, so
+            // sources the user has just imported appear.
+            radarSourceSelector.refreshSources();
+            final List<RadarSourceDescriptor> sources =
+                    radarSourceSelector.getAvailableDescriptors();
 
-            if (!v2.isEmpty()) {
+            if (!sources.isEmpty()) {
                 List<String> names = new ArrayList<>();
-                for (WeatherSourceDefinitionV2 d : v2) names.add(d.getDisplayName());
+                for (RadarSourceDescriptor d : sources) {
+                    // Say up front when a source cannot draw without a key (F35).
+                    names.add(d.requiresApiKey() && !radarSourceSelector.hasApiKey(d.id())
+                            ? d.displayName() + "  — key required"
+                            : d.displayName());
+                }
                 radarSource.setAdapter(WeatherUiUtils.makeDarkSpinnerAdapter(pluginContext, names));
                 WeatherUiUtils.styleSpinnerDark(radarSource);
 
-                final List<WeatherSourceDefinitionV2> finalV2 = v2;
                 radarSource.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
                     @Override public void onNothingSelected(android.widget.AdapterView<?> p) {}
                     @Override public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
-                        if (radarManager != null && pos < finalV2.size()) {
-                            radarManager.setRadarSource(finalV2.get(pos));
-                            radarSourceSelector.setActiveSourceId(
-                                    finalV2.get(pos).getRadarSourceId() != null
-                                            ? finalV2.get(pos).getRadarSourceId()
-                                            : finalV2.get(pos).getSourceId());
+                        if (radarManager != null && pos < sources.size()) {
+                            radarSourceSelector.applyTo(radarManager, sources.get(pos).id());
                         }
                     }
                 });
@@ -294,7 +294,6 @@ public class OverlayTabCoordinator {
         if (btnRefresh != null) {
             btnRefresh.setOnClickListener(v -> {
                 if (radarSourceSelector != null) {
-                    SourceDefinitionLoader.clearCache();
                     radarSourceSelector.refreshSources();
                     Toast.makeText(pluginContext, "Radar sources refreshed", Toast.LENGTH_SHORT).show();
                 }

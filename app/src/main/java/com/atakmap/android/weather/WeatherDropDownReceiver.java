@@ -579,6 +579,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         settingsCoordinator  = new SettingsCoordinator(
                 templateView, pluginContext, appContext, getMapView());
         settingsCoordinator.setApiKeyStore(deps.apiKeyStore());
+        settingsCoordinator.setSourceCatalog(deps.sourceCatalog());
         settingsCoordinator.setAutoRefreshManager(autoRefreshManager);
         settingsCoordinator.setMissionPrepManager(missionPrepManager);
 
@@ -590,6 +591,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
                 getMapView(), templateView, pluginContext,
                 windViewModel, windMarkerManager, sharedWindEffectShape,
                 windProfileView);
+        windTabCoordinator.setSourceCatalog(deps.sourceCatalog());
 
         // ── Sprint 16: Overlay tab coordinator ───────────────────────────
         View overlayRoot = templateView.findViewById(R.id.subTabWidget5);
@@ -698,6 +700,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
             SourceManagerView sourceManagerView =
                     new SourceManagerView(srcMgrRoot, pluginContext, appContext);
             sourceManagerView.setApiKeyStore(deps.apiKeyStore());
+            sourceManagerView.setSourceCatalog(deps.sourceCatalog());
             sourceManagerView.init();
         }
 
@@ -1245,7 +1248,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         TextView descLabel = templateView.findViewById(R.id.textview_parm_source_desc);
         WeatherSourceDefinition def = SourceDefinitionLoader.loadAll(pluginContext).get(sourceId);
         if (def != null && !def.hourlyParams.isEmpty()) {
-            parametersView.setDefinitionParams(sourceId, def.hourlyParams, def.dailyParams, def.currentParams);
+            // The definition's parameter checkboxes were removed from
+            // tab_parameters.xml; only the description is still shown here.
             if (descLabel != null) {
                 if (def.description != null && !def.description.isEmpty()) {
                     descLabel.setText(def.description);

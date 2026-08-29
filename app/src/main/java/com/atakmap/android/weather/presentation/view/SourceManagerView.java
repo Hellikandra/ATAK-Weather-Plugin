@@ -15,18 +15,12 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
-import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
-import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
-import com.atakmap.android.weather.data.remote.WeatherSourceManager;
+import com.atakmap.android.weather.domain.model.SourceDescriptor;
 import com.atakmap.android.weather.domain.repository.ApiKeyStore;
-import com.atakmap.android.weather.domain.repository.FetchCallback;
-import com.atakmap.android.weather.domain.model.WeatherModel;
+import com.atakmap.android.weather.domain.repository.SourceCatalog;
 import com.atakmap.android.weather.plugin.R;
-import com.atakmap.coremap.log.Log;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * SourceManagerView — Sprint 8.5: Source Management UI.
@@ -41,8 +35,6 @@ import java.util.Map;
  * is called once from {@code WeatherDropDownReceiver}.
  */
 public class SourceManagerView {
-
-    private static final String TAG = "SourceManagerView";
 
 
     /** Test location: Liege, Belgium (50.6, 5.5). */
@@ -65,7 +57,6 @@ public class SourceManagerView {
     private final Context appContext;
     private final LinearLayout sourceListContainer;
     private final TextView emptyLabel;
-    private final WeatherSourceManager sourceManager;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     /**
@@ -74,6 +65,18 @@ public class SourceManagerView {
      * never seen by the code that makes the requests.
      */
     private ApiKeyStore apiKeyStore;
+
+    /**
+     * What sources exist, which is active, and what each offers (finding F22).
+     *
+     * <p>This screen used to hold {@code WeatherSourceManager} and call
+     * {@code SourceDefinitionLoader.loadAll} itself, then render a mixture of
+     * fields from a live source and a parsed definition -- 55 of the 98
+     * presentation-to-data.remote dependencies came from this one file. The
+     * catalog performs that join in the layer that owns it and hands back a
+     * single {@link SourceDescriptor} per source.</p>
+     */
+    private SourceCatalog sourceCatalog;
 
     // ── Constructor ─────────────────────────────────────────────────────────────
 
@@ -86,11 +89,13 @@ public class SourceManagerView {
         this.rootView    = rootView;
         this.context     = pluginContext;   // resources live here
         this.appContext  = appContext;      // disk-backed prefs live here
-        this.sourceManager = WeatherSourceManager.getInstance(appContext);
 
         sourceListContainer = rootView.findViewById(R.id.source_list_container);
         emptyLabel          = rootView.findViewById(R.id.src_mgr_empty_label);
     }
+
+    /** Inject the source catalog. Required -- {@link #init()} does nothing without it. */
+    public void setSourceCatalog(SourceCatalog catalog) { this.sourceCatalog = catalog; }
 
     /** Inject the API key store. Call before {@link #init()}. */
     public void setApiKeyStore(ApiKeyStore store) { this.apiKeyStore = store; }
@@ -118,8 +123,7 @@ public class SourceManagerView {
         Button btnRefresh = rootView.findViewById(R.id.btn_src_mgr_refresh);
         if (btnRefresh != null) {
             btnRefresh.setOnClickListener(v -> {
-                SourceDefinitionLoader.clearCache();
-                SourceDefinitionLoader.loadAll(context);
+                if (sourceCatalog != null) sourceCatalog.refresh();
                 refreshSourceList();
                 Toast.makeText(context, R.string.src_mgr_refresh, Toast.LENGTH_SHORT).show();
             });
@@ -147,23 +151,18 @@ public class SourceManagerView {
         if (sourceListContainer == null) return;
         sourceListContainer.removeAllViews();
 
-        List<WeatherSourceManager.SourceEntry> entries = sourceManager.getAvailableEntries();
-        Map<String, WeatherSourceDefinition> allDefs = SourceDefinitionLoader.loadAll(context);
-        String activeId = sourceManager.getActiveSourceId();
+        List<SourceDescriptor> sources = sourceCatalog == null
+                ? java.util.Collections.<SourceDescriptor>emptyList()
+                : sourceCatalog.sources();
 
-        if (entries.isEmpty()) {
+        if (sources.isEmpty()) {
             if (emptyLabel != null) emptyLabel.setVisibility(View.VISIBLE);
             return;
         }
         if (emptyLabel != null) emptyLabel.setVisibility(View.GONE);
 
-        for (WeatherSourceManager.SourceEntry entry : entries) {
-            IWeatherRemoteSource source = sourceManager.getSourceById(entry.sourceId);
-            WeatherSourceDefinition def = allDefs.get(entry.sourceId);
-            if (source == null) continue;
-
-            View itemView = createSourceEntry(source, def, entry.sourceId.equals(activeId));
-            sourceListContainer.addView(itemView);
+        for (SourceDescriptor source : sources) {
+            sourceListContainer.addView(createSourceEntry(source));
         }
     }
 
@@ -172,13 +171,12 @@ public class SourceManagerView {
     /**
      * Create a single source entry view from item_source_entry.xml.
      */
-    private View createSourceEntry(IWeatherRemoteSource source,
-                                   WeatherSourceDefinition def,
-                                   boolean isActive) {
+    private View createSourceEntry(final SourceDescriptor source) {
         LayoutInflater inflater = LayoutInflater.from(context);
         View item = inflater.inflate(R.layout.item_source_entry, sourceListContainer, false);
 
-        String sourceId = source.getSourceId();
+        final String sourceId = source.id();
+        final boolean isActive = source.active();
 
         // ── Background highlight for active source ──────────────────────
         item.setBackgroundColor(isActive ? COLOR_ACTIVE_BG : COLOR_INACTIVE_BG);
@@ -196,21 +194,21 @@ public class SourceManagerView {
         // ── Name and description ────────────────────────────────────────
         TextView tvName = item.findViewById(R.id.source_name);
         if (tvName != null) {
-            String label = source.getDisplayName();
+            String label = source.displayName();
             if (isActive) label += "  [" + context.getString(R.string.src_mgr_active) + "]";
             tvName.setText(label);
         }
 
         TextView tvDesc = item.findViewById(R.id.source_description);
-        if (tvDesc != null && def != null && def.description != null && !def.description.isEmpty()) {
-            tvDesc.setText(def.description);
+        if (tvDesc != null && !source.description().isEmpty()) {
+            tvDesc.setText(source.description());
             tvDesc.setVisibility(View.VISIBLE);
         }
 
         // ── Metadata row ────────────────────────────────────────────────
         TextView tvMeta = item.findViewById(R.id.source_metadata);
-        if (tvMeta != null && def != null) {
-            String meta = buildMetadataLine(def);
+        if (tvMeta != null && source.hasDefinition()) {
+            String meta = buildMetadataLine(source);
             if (!meta.isEmpty()) {
                 tvMeta.setText(meta);
                 tvMeta.setVisibility(View.VISIBLE);
@@ -223,26 +221,20 @@ public class SourceManagerView {
             toggle.setChecked(isActive);
             toggle.setOnCheckedChangeListener((btn, checked) -> {
                 if (checked) {
-                    sourceManager.setActiveSourceId(sourceId);
-                    refreshSourceList();
-                } else {
+                    setActive(sourceId);
+                } else if (isActive) {
                     // Don't allow turning off the active source without selecting another
-                    if (sourceId.equals(sourceManager.getActiveSourceId())) {
-                        toggle.setChecked(true);
-                    }
+                    toggle.setChecked(true);
                 }
             });
         }
 
         // ── Tap item to set as active ───────────────────────────────────
-        item.setOnClickListener(v -> {
-            sourceManager.setActiveSourceId(sourceId);
-            refreshSourceList();
-        });
+        item.setOnClickListener(v -> setActive(sourceId));
 
         // ── API key row ─────────────────────────────────────────────────
         LinearLayout apiRow = item.findViewById(R.id.api_key_row);
-        if (apiRow != null && def != null && def.requiresApiKey) {
+        if (apiRow != null && source.requiresApiKey()) {
             apiRow.setVisibility(View.VISIBLE);
             EditText etKey = item.findViewById(R.id.api_key_input);
             Button btnSave = item.findViewById(R.id.btn_save_key);
@@ -281,7 +273,7 @@ public class SourceManagerView {
         // ── Info button ─────────────────────────────────────────────────
         Button btnInfo = item.findViewById(R.id.btn_source_info);
         if (btnInfo != null) {
-            btnInfo.setOnClickListener(v -> showSourceInfo(source, def));
+            btnInfo.setOnClickListener(v -> showSourceInfo(source));
         }
 
         return item;
@@ -291,95 +283,100 @@ public class SourceManagerView {
      * Build a compact metadata string from the definition.
      * e.g. "Hourly: 28 params | Daily: 14 params | Current: 12 params"
      */
-    private String buildMetadataLine(WeatherSourceDefinition def) {
+    private String buildMetadataLine(SourceDescriptor source) {
         StringBuilder sb = new StringBuilder();
-        if (def.hourlyParams != null && !def.hourlyParams.isEmpty()) {
-            sb.append("Hourly: ").append(def.hourlyParams.size()).append(" params");
-        }
-        if (def.dailyParams != null && !def.dailyParams.isEmpty()) {
-            if (sb.length() > 0) sb.append(" | ");
-            sb.append("Daily: ").append(def.dailyParams.size()).append(" params");
-        }
-        if (def.currentParams != null && !def.currentParams.isEmpty()) {
-            if (sb.length() > 0) sb.append(" | ");
-            sb.append("Current: ").append(def.currentParams.size()).append(" params");
-        }
-        if (def.requiresApiKey) {
-            if (sb.length() > 0) sb.append(" | ");
+        appendCount(sb, "Hourly", source.hourlyParameters().size());
+        appendCount(sb, "Daily", source.dailyParameters().size());
+        appendCount(sb, "Current", source.currentParameters().size());
+        if (source.requiresApiKey()) {
+            appendSeparator(sb);
             sb.append("API key required");
         }
         return sb.toString();
     }
 
+    private static void appendCount(StringBuilder sb, String label, int count) {
+        if (count == 0) return;
+        appendSeparator(sb);
+        sb.append(label).append(": ").append(count).append(" params");
+    }
+
+    private static void appendSeparator(StringBuilder sb) {
+        if (sb.length() > 0) sb.append(" | ");
+    }
+
+    /** Activate a source and redraw, so the highlight and toggles stay in step. */
+    private void setActive(String sourceId) {
+        if (sourceCatalog == null) return;
+        sourceCatalog.setActiveSourceId(sourceId);
+        refreshSourceList();
+    }
+
     /**
      * Test a source by calling fetchCurrentWeather with a known location.
      */
-    private void testSource(IWeatherRemoteSource source, TextView resultView, View dot) {
+    /**
+     * Ask one source for current conditions, to prove it answers.
+     *
+     * <p>Routed through {@link SourceCatalog#probe} rather than the repository:
+     * the point is to exercise <em>this</em> source rather than whichever is
+     * active, and to bypass the cache. The callback arrives on whatever thread
+     * the fetch completed on, so every view touch is posted to the main one.</p>
+     */
+    private void testSource(SourceDescriptor source, TextView resultView, View dot) {
         if (resultView != null) {
             resultView.setText(R.string.src_mgr_test_running);
             resultView.setTextColor(0xFF8b949e);
             resultView.setVisibility(View.VISIBLE);
         }
+        if (sourceCatalog == null) return;
 
-        try {
-            source.fetchCurrentWeather(TEST_LAT, TEST_LON,
-                new FetchCallback<WeatherModel>() {
-                    @Override
-                    public void onResult(WeatherModel data) {
-                        mainHandler.post(() -> {
-                            if (resultView != null) {
-                                resultView.setText(R.string.src_mgr_test_success);
-                                resultView.setTextColor(COLOR_TEXT_SUCCESS);
-                            }
-                            if (dot != null) {
-                                GradientDrawable circle = new GradientDrawable();
-                                circle.setShape(GradientDrawable.OVAL);
-                                circle.setColor(COLOR_DOT_ACTIVE);
-                                circle.setSize(10, 10);
-                                dot.setBackground(circle);
-                            }
-                        });
+        sourceCatalog.probe(source.id(), TEST_LAT, TEST_LON, new SourceCatalog.ProbeCallback() {
+            @Override
+            public void onReachable(String summary) {
+                mainHandler.post(() -> {
+                    if (resultView != null) {
+                        resultView.setText(context.getString(R.string.src_mgr_test_success)
+                                + (summary == null || summary.isEmpty() ? "" : " \u2014 " + summary));
+                        resultView.setTextColor(COLOR_TEXT_SUCCESS);
                     }
-
-                    @Override
-                    public void onError(String message) {
-                        mainHandler.post(() -> {
-                            if (resultView != null) {
-                                resultView.setText(context.getString(R.string.src_mgr_test_fail)
-                                        + " " + message);
-                                resultView.setTextColor(COLOR_TEXT_FAIL);
-                            }
-                            if (dot != null) {
-                                GradientDrawable circle = new GradientDrawable();
-                                circle.setShape(GradientDrawable.OVAL);
-                                circle.setColor(COLOR_DOT_ERROR);
-                                circle.setSize(10, 10);
-                                dot.setBackground(circle);
-                            }
-                        });
-                    }
+                    paintDot(dot, COLOR_DOT_ACTIVE);
                 });
-        } catch (Exception e) {
-            Log.w(TAG, "testSource failed: " + e.getMessage());
-            mainHandler.post(() -> {
-                if (resultView != null) {
-                    resultView.setText(context.getString(R.string.src_mgr_test_fail)
-                            + " " + e.getMessage());
-                    resultView.setTextColor(COLOR_TEXT_FAIL);
-                }
-            });
-        }
+            }
+
+            @Override
+            public void onUnreachable(String message) {
+                mainHandler.post(() -> {
+                    if (resultView != null) {
+                        resultView.setText(context.getString(R.string.src_mgr_test_fail)
+                                + " " + message);
+                        resultView.setTextColor(COLOR_TEXT_FAIL);
+                    }
+                    paintDot(dot, COLOR_DOT_ERROR);
+                });
+            }
+        });
+    }
+
+    /** The status dot is drawn in three places; draw it in one. */
+    private static void paintDot(View dot, int colour) {
+        if (dot == null) return;
+        GradientDrawable circle = new GradientDrawable();
+        circle.setShape(GradientDrawable.OVAL);
+        circle.setColor(colour);
+        circle.setSize(10, 10);
+        dot.setBackground(circle);
     }
 
     /**
      * Scan /sdcard/atak/tools/weather_sources/ for new definitions.
      */
     private void scanExternalFolder() {
-        SourceDefinitionLoader.clearCache();
-        Map<String, WeatherSourceDefinition> allDefs = SourceDefinitionLoader.loadAll(context);
+        if (sourceCatalog == null) return;
+        sourceCatalog.refresh();
         refreshSourceList();
         Toast.makeText(context,
-                context.getString(R.string.sources_refreshed, allDefs.size()),
+                context.getString(R.string.sources_refreshed, sourceCatalog.sources().size()),
                 Toast.LENGTH_SHORT).show();
     }
 
@@ -399,19 +396,12 @@ public class SourceManagerView {
                 new String[] { "json", "xml" },
                 new com.atakmap.android.gui.ImportFileBrowserDialog.DialogDismissed() {
                     @Override public void onFileSelected(java.io.File f) {
-                        if (f == null) return;
-                        try {
-                            SourceDefinitionLoader.importFromFile(context, f);
-                            SourceDefinitionLoader.clearCache();
-                            refreshSourceList();
-                            android.widget.Toast.makeText(context,
-                                    "Imported: " + f.getName(),
-                                    android.widget.Toast.LENGTH_SHORT).show();
-                        } catch (Exception e) {
-                            android.widget.Toast.makeText(context,
-                                    "Import failed: " + e.getMessage(),
-                                    android.widget.Toast.LENGTH_SHORT).show();
-                        }
+                        if (f == null || sourceCatalog == null) return;
+                        SourceCatalog.ImportOutcome outcome =
+                                sourceCatalog.importWeatherDefinition(f);
+                        if (outcome.succeeded()) refreshSourceList();
+                        android.widget.Toast.makeText(context, outcome.message(),
+                                android.widget.Toast.LENGTH_SHORT).show();
                     }
                     @Override public void onDialogClosed() { /* no-op */ }
                 },
@@ -422,39 +412,32 @@ public class SourceManagerView {
     /**
      * Show source info dialog with all available details.
      */
-    private void showSourceInfo(IWeatherRemoteSource source, WeatherSourceDefinition def) {
+    private void showSourceInfo(SourceDescriptor source) {
         StringBuilder info = new StringBuilder();
-        info.append("Source ID: ").append(source.getSourceId()).append("\n");
-        info.append("Display Name: ").append(source.getDisplayName()).append("\n");
+        info.append("Source ID: ").append(source.id()).append("\n");
+        info.append("Display Name: ").append(source.displayName()).append("\n");
 
-        if (def != null) {
-            if (def.apiBaseUrl != null && !def.apiBaseUrl.isEmpty()) {
-                info.append("API Base URL: ").append(def.apiBaseUrl).append("\n");
-            }
-            if (def.description != null && !def.description.isEmpty()) {
-                info.append("\nDescription:\n").append(def.description).append("\n");
-            }
-            info.append("\nRequires API Key: ").append(def.requiresApiKey ? "Yes" : "No").append("\n");
-
-            if (def.hourlyParams != null) {
-                info.append("Hourly params: ").append(def.hourlyParams.size()).append("\n");
-            }
-            if (def.dailyParams != null) {
-                info.append("Daily params: ").append(def.dailyParams.size()).append("\n");
-            }
-            if (def.currentParams != null) {
-                info.append("Current params: ").append(def.currentParams.size()).append("\n");
-            }
+        if (!source.apiBaseUrl().isEmpty()) {
+            info.append("API Base URL: ").append(source.apiBaseUrl()).append("\n");
         }
+        if (!source.description().isEmpty()) {
+            info.append("\nDescription:\n").append(source.description()).append("\n");
+        }
+        info.append("\nRequires API Key: ")
+            .append(source.requiresApiKey() ? "Yes" : "No").append("\n");
+        info.append("Hourly params: ").append(source.hourlyParameters().size()).append("\n");
+        info.append("Daily params: ").append(source.dailyParameters().size()).append("\n");
+        info.append("Current params: ").append(source.currentParameters().size()).append("\n");
 
-        // Schema version hint
-        String schemaLabel = (def != null && def.hourlyParams != null && !def.hourlyParams.isEmpty())
-                ? context.getString(R.string.src_mgr_schema_v2)
-                : context.getString(R.string.src_mgr_schema_v1);
+        // A source with hourly parameters came from a v2 definition; one without
+        // is either v1 or a built-in Java source with no definition behind it.
+        String schemaLabel = source.hourlyParameters().isEmpty()
+                ? context.getString(R.string.src_mgr_schema_v1)
+                : context.getString(R.string.src_mgr_schema_v2);
         info.append("\nSchema: ").append(schemaLabel);
 
         new AlertDialog.Builder(com.atakmap.android.maps.MapView.getMapView().getContext())
-                .setTitle(source.getDisplayName())
+                .setTitle(source.displayName())
                 .setMessage(info.toString())
                 .setPositiveButton("OK", null)
                 .show();

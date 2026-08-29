@@ -4,7 +4,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
+import com.atakmap.android.weather.data.remote.schema.AuthProvider;
 import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
+import com.atakmap.android.weather.domain.model.RadarSourceDescriptor;
 import com.atakmap.coremap.log.Log;
 
 import java.util.ArrayList;
@@ -119,6 +121,90 @@ public class RadarSourceSelector {
     public void setActiveSourceId(String radarSourceId) {
         prefs.edit().putString(KEY_ACTIVE_SOURCE, radarSourceId).apply();
         Log.d(TAG, "Active radar source set to: " + radarSourceId);
+    }
+
+    /**
+     * Whether a source has the API key it needs.
+     *
+     * <p>Lets the overlay tab flag a source that cannot draw a tile without
+     * asking presentation to know anything about auth configuration — the
+     * same reasoning as {@link #applyTo}. See finding F35.</p>
+     *
+     * @return true when the source needs no key, or needs one and has it
+     */
+    public boolean hasApiKey(String radarSourceId) {
+        if (radarSourceId == null) return true;
+        for (WeatherSourceDefinitionV2 def : radarSources) {
+            String id = def.getRadarSourceId() != null
+                    ? def.getRadarSourceId() : def.getSourceId();
+            if (radarSourceId.equals(id)) {
+                return AuthProvider.hasApiKey(context, id, def.getAuth());
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Activate a source by id and point the overlay manager at it.
+     *
+     * <p>Exists so the overlay tab can switch radar providers without ever
+     * holding a {@code WeatherSourceDefinitionV2}. The manager genuinely needs
+     * the definition — it builds tile URLs from the template — but resolving an
+     * id to a definition is this class's job, and doing it in the UI was part of
+     * finding F22. Both classes live in {@code overlay.radar}, so the knowledge
+     * stays where it belongs.</p>
+     *
+     * @return true if the id resolved to a known source
+     */
+    public boolean applyTo(RadarOverlayManager manager, String radarSourceId) {
+        if (manager == null || radarSourceId == null) return false;
+        for (WeatherSourceDefinitionV2 def : radarSources) {
+            String id = def.getRadarSourceId() != null
+                    ? def.getRadarSourceId() : def.getSourceId();
+            if (radarSourceId.equals(id)) {
+                setActiveSourceId(id);
+                manager.setRadarSource(def);
+                return true;
+            }
+        }
+        Log.w(TAG, "No radar source registered as '" + radarSourceId + "'");
+        return false;
+    }
+
+    /**
+     * The available sources as domain descriptors.
+     *
+     * <p>The settings and overlay screens need a name, a provider and whether a
+     * key is required; they do not need the parsed definition, and reaching for
+     * it is part of finding F22. {@link #getAvailableSources()} stays for
+     * {@code RadarOverlayManager}, which does need the definition because it
+     * builds tile URLs from the template.</p>
+     */
+    public List<RadarSourceDescriptor> getAvailableDescriptors() {
+        List<RadarSourceDescriptor> out = new ArrayList<>(radarSources.size());
+        for (WeatherSourceDefinitionV2 def : radarSources) {
+            out.add(describe(def));
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    /** The active source as a domain descriptor, or null if none are loaded. */
+    public RadarSourceDescriptor getActiveDescriptor() {
+        WeatherSourceDefinitionV2 def = getActiveSource();
+        return def == null ? null : describe(def);
+    }
+
+    /** Reload definitions from disk, then hand back the new descriptors. */
+    public List<RadarSourceDescriptor> refreshDescriptors() {
+        refreshSources();
+        return getAvailableDescriptors();
+    }
+
+    private static RadarSourceDescriptor describe(WeatherSourceDefinitionV2 def) {
+        String id = def.getRadarSourceId() != null
+                ? def.getRadarSourceId() : def.getSourceId();
+        return new RadarSourceDescriptor(id, def.getDisplayName(),
+                def.getProvider(), def.requiresApiKey());
     }
 
     /**

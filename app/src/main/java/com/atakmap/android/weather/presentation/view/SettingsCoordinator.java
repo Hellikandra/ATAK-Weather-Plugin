@@ -15,10 +15,9 @@ import android.widget.Toast;
 
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.weather.data.cache.MissionPrepManager;
-import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
-import com.atakmap.android.weather.data.remote.WeatherSourceManager;
-import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
+import com.atakmap.android.weather.domain.model.RadarSourceDescriptor;
 import com.atakmap.android.weather.domain.repository.ApiKeyStore;
+import com.atakmap.android.weather.domain.repository.SourceCatalog;
 import com.atakmap.android.weather.overlay.radar.RadarSourceSelector;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.weather.util.AutoRefreshManager;
@@ -51,6 +50,13 @@ public class SettingsCoordinator {
      * composition root; the screen never learns where keys actually live.
      */
     private ApiKeyStore apiKeyStore;
+
+    /**
+     * The source registry, behind its domain port (finding F22). Only used here
+     * for importing definition files; the radar list goes through
+     * {@link RadarSourceSelector}, which owns radar definitions.
+     */
+    private SourceCatalog sourceCatalog;
     private final MapView mapView;
 
     private AutoRefreshManager autoRefreshManager;
@@ -232,16 +238,11 @@ public class SettingsCoordinator {
                         new String[] { "json", "xml" },
                         new com.atakmap.android.gui.ImportFileBrowserDialog.DialogDismissed() {
                             @Override public void onFileSelected(java.io.File f) {
-                                if (f == null) return;
-                                try {
-                                    SourceDefinitionLoader.importTileSourceFromFile(pluginContext, f);
-                                    SourceDefinitionLoader.clearCache();
-                                    Toast.makeText(pluginContext,
-                                            "Imported: " + f.getName(), Toast.LENGTH_SHORT).show();
-                                } catch (Exception e) {
-                                    Toast.makeText(pluginContext,
-                                            "Import failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                                }
+                                if (f == null || sourceCatalog == null) return;
+                                SourceCatalog.ImportOutcome outcome =
+                                        sourceCatalog.importRadarDefinition(f);
+                                Toast.makeText(pluginContext, outcome.message(),
+                                        Toast.LENGTH_SHORT).show();
                             }
                             @Override public void onDialogClosed() {}
                         },
@@ -254,6 +255,9 @@ public class SettingsCoordinator {
     /** Inject the API key store. Call before {@code init()} for the key rows to appear. */
     public void setApiKeyStore(ApiKeyStore store) { this.apiKeyStore = store; }
 
+    /** Inject the source catalog. Call before {@code init()}. */
+    public void setSourceCatalog(SourceCatalog catalog) { this.sourceCatalog = catalog; }
+
     // ── Radar source list ─────────────────────────────────────────────────
 
     private void wireParmRadarSourceList() {
@@ -262,7 +266,7 @@ public class SettingsCoordinator {
 
         RadarSourceSelector selector = new RadarSourceSelector(appContext);
         selector.loadSources();
-        List<WeatherSourceDefinitionV2> sources = selector.getAvailableSources();
+        List<RadarSourceDescriptor> sources = selector.getAvailableDescriptors();
 
         populateRadarSourceList(radarList, sources, selector);
 
@@ -270,9 +274,7 @@ public class SettingsCoordinator {
         Button btnScan = rootView.findViewById(R.id.btn_scan_radar_folder);
         if (btnScan != null) {
             btnScan.setOnClickListener(v -> {
-                SourceDefinitionLoader.clearCache();
-                selector.refreshSources();
-                List<WeatherSourceDefinitionV2> refreshed = selector.getAvailableSources();
+                List<RadarSourceDescriptor> refreshed = selector.refreshDescriptors();
                 populateRadarSourceList(radarList, refreshed, selector);
                 Toast.makeText(pluginContext,
                         "Radar sources: " + refreshed.size() + " found",
@@ -283,7 +285,7 @@ public class SettingsCoordinator {
 
     private void populateRadarSourceList(
             LinearLayout container,
-            List<WeatherSourceDefinitionV2> sources,
+            List<RadarSourceDescriptor> sources,
             RadarSourceSelector selector) {
         container.removeAllViews();
 
@@ -301,11 +303,10 @@ public class SettingsCoordinator {
         float dp = pluginContext.getResources().getDisplayMetrics().density;
 
         for (int i = 0; i < sources.size(); i++) {
-            WeatherSourceDefinitionV2 def = sources.get(i);
+            RadarSourceDescriptor def = sources.get(i);
 
-            final String srcId = def.getRadarSourceId() != null
-                    ? def.getRadarSourceId() : def.getSourceId();
-            final String provider = def.getProvider() != null ? def.getProvider() : "";
+            final String srcId    = def.id();
+            final String provider = def.provider();
 
             LinearLayout row = new LinearLayout(pluginContext);
             row.setOrientation(LinearLayout.HORIZONTAL);
@@ -318,8 +319,7 @@ public class SettingsCoordinator {
             toggle.setText("");
 
             TextView label = new TextView(pluginContext);
-            String name = def.getDisplayName() != null ? def.getDisplayName()
-                    : (!provider.isEmpty() ? provider : srcId);
+            String name = def.displayName();
             label.setText(name);
             label.setTextSize(12);
             label.setTextColor(0xFFc9d1d9);

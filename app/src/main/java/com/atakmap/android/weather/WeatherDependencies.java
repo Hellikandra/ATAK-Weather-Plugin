@@ -8,10 +8,12 @@ import com.atakmap.android.weather.data.cache.CachingWeatherRepository;
 import com.atakmap.android.weather.data.cache.WeatherDatabase;
 import com.atakmap.android.weather.data.geocoding.NominatimGeocodingSource;
 import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
+import com.atakmap.android.weather.data.remote.WeatherSourceCatalog;
 import com.atakmap.android.weather.data.remote.WeatherSourceManager;
 import com.atakmap.android.weather.data.remote.schema.PreferencesApiKeyStore;
 import com.atakmap.android.weather.domain.repository.ApiKeyStore;
 import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
+import com.atakmap.android.weather.domain.repository.SourceCatalog;
 import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
 import com.atakmap.coremap.log.Log;
 
@@ -70,19 +72,22 @@ public final class WeatherDependencies {
     private final CachingWeatherRepository    repository;
     private final IGeocodingRepository        geocoding;
     private final ApiKeyStore                 apiKeyStore;
+    private final SourceCatalog               sourceCatalog;
 
     private WeatherDependencies(WeatherSourceManager sourceManager,
                                 WeatherParameterPreferences parameterPreferences,
                                 WeatherRepositoryImpl networkRepository,
                                 CachingWeatherRepository repository,
                                 IGeocodingRepository geocoding,
-                                ApiKeyStore apiKeyStore) {
+                                ApiKeyStore apiKeyStore,
+                                SourceCatalog sourceCatalog) {
         this.sourceManager        = sourceManager;
         this.parameterPreferences = parameterPreferences;
         this.networkRepository    = networkRepository;
         this.repository           = repository;
         this.geocoding            = geocoding;
         this.apiKeyStore          = apiKeyStore;
+        this.sourceCatalog        = sourceCatalog;
     }
 
     /**
@@ -125,11 +130,16 @@ public final class WeatherDependencies {
         // the settings screens receive it rather than each inventing its own.
         final ApiKeyStore apiKeyStore = new PreferencesApiKeyStore(hostContext);
 
+        // The source registry and the definition files, joined once (finding
+        // F22). Five presentation classes used to do this join for themselves.
+        final SourceCatalog sourceCatalog =
+                new WeatherSourceCatalog(hostContext, sourceManager);
+
         Log.d(TAG, "Dependency graph built — " + sources.size()
                 + " sources, active=" + sourceManager.getActiveSourceId());
 
         return new WeatherDependencies(sourceManager, parameterPreferences,
-                networkRepository, repository, geocoding, apiKeyStore);
+                networkRepository, repository, geocoding, apiKeyStore, sourceCatalog);
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────────
@@ -154,4 +164,13 @@ public final class WeatherDependencies {
 
     /** Per-source API keys. The settings screens read and write through this. */
     public ApiKeyStore apiKeyStore() { return apiKeyStore; }
+
+    /**
+     * What sources exist and which is active.
+     *
+     * <p>Presentation must use this rather than {@code WeatherSourceManager}
+     * or {@code SourceDefinitionLoader} directly — that coupling is finding
+     * F22, and the ArchUnit rule counts every instance of it.</p>
+     */
+    public SourceCatalog sourceCatalog() { return sourceCatalog; }
 }

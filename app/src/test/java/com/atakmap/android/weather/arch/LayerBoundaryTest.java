@@ -10,7 +10,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * ArchUnit architecture tests — enforce layer boundaries (Sprint 2 — S2.3).
@@ -39,61 +38,22 @@ class LayerBoundaryTest {
     private static final String BASE = "com.atakmap.android.weather";
     private static JavaClasses classes;
 
-    // ── Ratcheted rules ───────────────────────────────────────────────────────
+    // ── No rule here is ratcheted any more ────────────────────────────────────
     //
-    // One rule below is ratcheted: it describes the architecture the project
-    // intends but does not yet have. It was failing outright, which meant the
-    // whole suite was red — and a permanently red suite is one nobody reads,
-    // which is how the compile errors in this source set went unnoticed for
-    // months.
+    // Two of these five used to be. Both described an architecture the project
+    // intended but did not have, and both failed outright — which made the whole
+    // suite red, and a permanently red suite is one nobody reads. That is how the
+    // compile errors in this source set went unnoticed for months.
     //
-    // The domain rule was ratcheted too, at 16 violations. The F26 dead-code
-    // removal took it to 0, so it is a hard assertion again. That is the ratchet
-    // working: the count could only go down, and when it hit zero the guard was
-    // made permanent.
+    // So the counts were frozen instead: the rules ran in full and failed only on
+    // an INCREASE. The domain rule was ratcheted at 16 violations and reached 0
+    // when F26 deleted the dead code holding it up. This one started at 121, and
+    // came down in four steps — F26 to 101, F30 to 100, F35 to 98, and F22 to 0.
     //
-    // Rather than delete the rules or weaken what they assert, the violation
-    // counts are frozen here. The rules still run in full; they simply fail on
-    // an INCREASE rather than on any violation at all. Both numbers must only
-    // ever go down.
-    //
-    // A ratchet is not a fix. The real work for F16 is to inject SourceCatalog /
-    // IWeatherRepository instead of reaching for WeatherSourceManager.getInstance()
-    // from the presentation layer — Wave 2. When you land part of it, lower the
-    // number here in the same commit; that is the whole point of a ratchet.
-
-    /**
-     * Presentation -> data.remote. 121 at commit b814271; 101 after the F26
-     * dead-code removal took RadarTabCoordinator, RouteWeatherView and
-     * ComparisonView out of the presentation layer; 100 after F30 moved
-     * FetchCallback into the domain, so SourceManagerView no longer reaches into
-     * data.remote for it; 98 after F35 put API key storage behind
-     * {@code domain.repository.ApiKeyStore} and stopped the radar source list
-     * re-reading the same definition fields four times per row. Wave 3 (F22)
-     * takes it to 0.
-     */
-    private static final int PRESENTATION_TO_REMOTE_BASELINE = 98;
-
-    /**
-     * Evaluate a rule and fail only if the violation count has grown.
-     *
-     * @param rule     the rule, checked in full — nothing is excluded
-     * @param baseline the count recorded when the ratchet was set
-     * @param finding  the review finding that owns the real fix
-     */
-    private static void ratchet(ArchRule rule, int baseline, String finding) {
-        int actual = rule.evaluate(classes).getFailureReport().getDetails().size();
-        if (actual < baseline) {
-            System.out.println("[ratchet] " + finding + ": violations down to " + actual
-                    + " from a baseline of " + baseline
-                    + " — lower the baseline in LayerBoundaryTest to lock the gain in.");
-        }
-        assertTrue(actual <= baseline,
-                finding + ": architecture violations rose from " + baseline + " to " + actual
-                        + ". This rule is ratcheted — the count may only decrease. "
-                        + "Route the new dependency through an interface instead of adding "
-                        + "to the backlog.");
-    }
+    // A ratchet is a way to hold a line while the real fix is written, not a
+    // substitute for writing it. Both have now been written, so both rules assert
+    // again. Do not reintroduce a baseline here: if one of these starts failing,
+    // the dependency it caught belongs behind an interface.
 
     @BeforeAll
     static void importClasses() {
@@ -170,7 +130,15 @@ class LayerBoundaryTest {
                 .resideInAPackage("..data.remote..")
                 .because("Presentation must go through repository interfaces, not remote sources");
 
-        ratchet(rule, PRESENTATION_TO_REMOTE_BASELINE, "F16");
+        // No longer ratcheted. F22 took this from 98 to 0 by introducing
+        // domain.repository.SourceCatalog: presentation asks what sources exist
+        // and which is active, and never learns that definitions are JSON on
+        // disk or that the registry is a singleton. It was 121 at b814271.
+        //
+        // If this fails, something in presentation has reached for
+        // WeatherSourceManager or SourceDefinitionLoader again. Add the
+        // operation to SourceCatalog instead of restoring the baseline.
+        rule.check(classes);
     }
 
     // ── Rule 5: Util must be leaf ──────────────────────────────────────────────

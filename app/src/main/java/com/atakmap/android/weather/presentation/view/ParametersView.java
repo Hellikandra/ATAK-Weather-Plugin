@@ -59,19 +59,6 @@ public class ParametersView {
         // All parameters remain selected by default via WeatherParameterPreferences.
     }
 
-    /**
-     * Bind JSON-definition-based parameter sections.
-     * NOTE: The Parameters UI section was removed from tab_parameters.xml.
-     * All definition params default to their source-defined defaultOn value.
-     */
-    public void setDefinitionParams(
-            String sourceId,
-            List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry> hourly,
-            List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry> daily,
-            List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry> current) {
-        // Parameters UI removed — all params enabled by default per source definition.
-    }
-
     public void setSourceDescription(String desc) {
         TextView tv = root.findViewById(R.id.textview_parm_source_desc);
         if (tv == null) return;
@@ -124,57 +111,6 @@ public class ParametersView {
                 if (child instanceof CheckBox) ((CheckBox) child).setChecked(false);
             }
             for (WeatherParameter p : params) prefs.setSelected(p, false);
-            scheduleChangeCallback();
-        });
-    }
-
-    // ── Private — definition sections ────────────────────────────────────────
-
-    private void bindDefinitionSection(
-            int containerId, int allBtnId, int noneBtnId,
-            List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry> entries,
-            android.content.SharedPreferences jsonPrefs,
-            String sectionKey) {
-
-        LinearLayout container = root.findViewById(containerId);
-        if (container == null) return;
-        container.removeAllViews();
-
-        for (com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry e : entries) {
-            boolean checked = jsonPrefs.getBoolean(sectionKey + "." + e.key, e.defaultOn);
-            CheckBox cb = makeCheckBox(e.label, checked);
-            final String prefKey = sectionKey + "." + e.key;
-            cb.setOnCheckedChangeListener((v, isChecked) -> {
-                jsonPrefs.edit().putBoolean(prefKey, isChecked).apply();
-                scheduleChangeCallback();
-            });
-            container.addView(cb);
-        }
-
-        final List<com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry>
-                entriesCopy = entries;
-        Button allBtn = root.findViewById(allBtnId);
-        if (allBtn != null) allBtn.setOnClickListener(v -> {
-            for (int i = 0; i < container.getChildCount(); i++) {
-                View child = container.getChildAt(i);
-                if (child instanceof CheckBox) ((CheckBox) child).setChecked(true);
-            }
-            android.content.SharedPreferences.Editor ed = jsonPrefs.edit();
-            for (com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry e : entriesCopy)
-                ed.putBoolean(sectionKey + "." + e.key, true);
-            ed.apply();
-            scheduleChangeCallback();
-        });
-        Button noneBtn = root.findViewById(noneBtnId);
-        if (noneBtn != null) noneBtn.setOnClickListener(v -> {
-            for (int i = 0; i < container.getChildCount(); i++) {
-                View child = container.getChildAt(i);
-                if (child instanceof CheckBox) ((CheckBox) child).setChecked(false);
-            }
-            android.content.SharedPreferences.Editor ed = jsonPrefs.edit();
-            for (com.atakmap.android.weather.data.remote.WeatherSourceDefinition.ParamEntry e : entriesCopy)
-                ed.putBoolean(sectionKey + "." + e.key, false);
-            ed.apply();
             scheduleChangeCallback();
         });
     }
