@@ -137,6 +137,17 @@ public class WeatherSourceDefinitionV2 {
     }
 
     /**
+     * Returns true if this source needs an API key before it can be used.
+     *
+     * <p>Lets a caller ask the question without importing {@link AuthConfig} —
+     * the settings screens need the answer but have no business knowing how auth
+     * is configured (finding F35).</p>
+     */
+    public boolean requiresApiKey() {
+        return auth != null && auth.isRequired();
+    }
+
+    /**
      * Returns true if this definition provides radar tile data (type is "radar" or "both").
      */
     public boolean isRadarSource() {

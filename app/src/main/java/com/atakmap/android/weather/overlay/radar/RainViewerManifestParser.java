@@ -82,7 +82,8 @@ public class RainViewerManifestParser implements IRadarManifestParser {
 
     @Override
     public String buildTileUrl(RadarManifest manifest, RadarManifest.RadarFrame frame,
-                               WeatherSourceDefinitionV2 def, int z, int x, int y) {
+                               WeatherSourceDefinitionV2 def, int z, int x, int y,
+                               String apiKey) {
         String template = def.getTileUrlTemplate();
         if (template == null || template.isEmpty()) {
             // Fallback: use path-aware URL if available, otherwise legacy timestamp URL
@@ -109,6 +110,15 @@ public class RainViewerManifestParser implements IRadarManifestParser {
         String host = manifest.getHost() != null ? manifest.getHost() : "";
         String path = frame.getPath() != null ? frame.getPath() : "";
 
+        // RainViewer itself is keyless, but an imported source using the same
+        // manifest format may not be: honour {apikey} here for the same reason
+        // StaticTileParser does (finding F35).
+        if (template.contains("{apikey}") && (apiKey == null || apiKey.isEmpty())) {
+            Log.w(TAG, "Source " + def.getRadarSourceId() + " needs an API key but "
+                    + "none is configured — no tile will be requested");
+            return "";
+        }
+
         return template
                 .replace("{host}", host)
                 .replace("{path}", path)
@@ -118,7 +128,8 @@ public class RainViewerManifestParser implements IRadarManifestParser {
                 .replace("{y}", String.valueOf(y))
                 .replace("{color}", colorStr)
                 .replace("{options}", optionsStr)
-                .replace("{timestamp}", String.valueOf(frame.getTimestamp()));
+                .replace("{timestamp}", String.valueOf(frame.getTimestamp()))
+                .replace("{apikey}", apiKey == null ? "" : apiKey);
     }
 
     /**

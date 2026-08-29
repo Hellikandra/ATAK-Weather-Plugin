@@ -578,6 +578,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         chartCoordinator     = new ChartCoordinator(templateView);
         settingsCoordinator  = new SettingsCoordinator(
                 templateView, pluginContext, appContext, getMapView());
+        settingsCoordinator.setApiKeyStore(deps.apiKeyStore());
         settingsCoordinator.setAutoRefreshManager(autoRefreshManager);
         settingsCoordinator.setMissionPrepManager(missionPrepManager);
 
@@ -696,6 +697,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         if (srcMgrRoot != null) {
             SourceManagerView sourceManagerView =
                     new SourceManagerView(srcMgrRoot, pluginContext, appContext);
+            sourceManagerView.setApiKeyStore(deps.apiKeyStore());
             sourceManagerView.init();
         }
 

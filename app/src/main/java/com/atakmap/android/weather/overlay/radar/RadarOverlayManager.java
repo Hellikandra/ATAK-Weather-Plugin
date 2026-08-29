@@ -9,6 +9,8 @@ import com.atakmap.android.weather.data.cache.RadarTileCache;
 import com.atakmap.android.weather.data.remote.HttpClient;
 import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
 import com.atakmap.android.weather.data.remote.schema.RateLimitConfig;
+import com.atakmap.android.weather.data.remote.schema.AuthConfig;
+import com.atakmap.android.weather.data.remote.schema.AuthProvider;
 import com.atakmap.coremap.log.Log;
 import com.atakmap.coremap.maps.coords.GeoBounds;
 import com.atakmap.coremap.maps.coords.GeoPoint;
@@ -22,6 +24,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -116,6 +119,16 @@ public class RadarOverlayManager {
 
     /** Parsed manifest from the active source (Sprint 10). */
     private RadarManifest currentManifest;
+
+    /**
+     * API key for the active source, resolved once in {@link #setRadarSource}.
+     *
+     * <p>Null for keyless sources, which is most of them. Resolved here rather
+     * than inside the tile loop so the key is looked up once per source switch
+     * instead of once per tile, and so {@link #start()} can refuse to run a
+     * keyed source that has none (finding F35).</p>
+     */
+    private String activeApiKey;
 
     /** Configurable radar source — defaults to bundled RainViewer values. */
     private String manifestUrl     = RadarTileProvider.MANIFEST_URL;
@@ -243,6 +256,7 @@ public class RadarOverlayManager {
         this.tileUrlTemplate = radarDef.getTileUrlTemplate();
         this.manifestParser = RadarManifestParserFactory.getParser(
                 radarDef.getManifestFormat());
+        this.activeApiKey = resolveApiKey(radarDef);
 
         // Reconfigure rate limiter from source definition
         RateLimitConfig rlConfig = radarDef.getRateLimit();
@@ -281,6 +295,7 @@ public class RadarOverlayManager {
         this.tileUrlTemplate = newTileUrlTemplate;
         this.activeRadarDef  = null;
         this.manifestParser  = new RainViewerManifestParser();
+        this.activeApiKey    = null;   // legacy mode is RainViewer, which is keyless
         if (wasActive) start();
     }
 
@@ -290,6 +305,15 @@ public class RadarOverlayManager {
     public String getManifestUrl() { return manifestUrl; }
 
     public void start() {
+        // A source that needs a key and has none cannot produce a single tile.
+        // Say so, once, instead of firing off requests that all 401 in silence.
+        if (activeRadarDef != null && !hasRequiredApiKey()) {
+            String name = activeRadarDef.getDisplayName() != null
+                    ? activeRadarDef.getDisplayName() : activeRadarDef.getRadarSourceId();
+            Log.w(TAG, "Refusing to start " + name + ": API key required, none configured");
+            emit(name + " needs an API key. Add one under Settings → Radar sources.");
+            return;
+        }
         if (!active.compareAndSet(false, true)) return;
         // Purge expired L2 tiles on start (lightweight — index scan only)
         if (diskCache != null) {
@@ -409,7 +433,10 @@ public class RadarOverlayManager {
             return;
         }
 
-        HttpClient.get(manifestUrl, new HttpClient.Callback() {
+        // Query-param auth belongs on the manifest request too, not only on tiles.
+        final String authedManifestUrl = applyAuthToUrl(manifestUrl);
+
+        HttpClient.get(authedManifestUrl, new HttpClient.Callback() {
             @Override public void onSuccess(String body) {
                 if (!active.get()) return;
                 try {
@@ -564,13 +591,32 @@ public class RadarOverlayManager {
         }
         try {
             String tileUrl = buildTileUrlForFrame(ts, z, x, y, frameIndex);
+            if (tileUrl == null || tileUrl.isEmpty()) return;   // parser already logged why
             HttpURLConnection conn = (HttpURLConnection)
                     new URL(tileUrl).openConnection();
             conn.setConnectTimeout(8_000);
             conn.setReadTimeout(12_000);
             conn.setRequestProperty("User-Agent", "ATAK-WeatherPlugin/3.0");
+            // Header-based auth (bearer / X-API-Key); query-param auth is already
+            // in the URL. Empty map for keyless sources.
+            for (Map.Entry<String, String> h : authHeaders().entrySet()) {
+                conn.setRequestProperty(h.getKey(), h.getValue());
+            }
             conn.connect();
-            if (conn.getResponseCode() == 200) {
+            int status = conn.getResponseCode();
+            if (status != 200) {
+                // Previously this fell through and returned nothing at all, so a
+                // provider rejecting every request looked identical to an empty
+                // radar picture (finding F35). 401/403 in particular means the
+                // key is missing or wrong, and the user can act on that.
+                Log.w(TAG, "Tile [" + z + "/" + x + "/" + y + "] HTTP " + status
+                        + " from " + hostOf(tileUrl));
+                if (status == 401 || status == 403) {
+                    emit("Radar source rejected the request (HTTP " + status
+                            + "). Check the API key.");
+                }
+            }
+            if (status == 200) {
                 try (InputStream is = conn.getInputStream()) {
                     Bitmap bmp = BitmapFactory.decodeStream(is);
                     if (bmp == null) return;
@@ -620,6 +666,63 @@ public class RadarOverlayManager {
         }
     }
 
+    // ── Auth (finding F35) ────────────────────────────────────────────────────
+    //
+    // The tile URL template carries an {apikey} placeholder that used to be
+    // replaced with the empty string, under a comment claiming injection was
+    // "handled elsewhere". It was not: AuthProvider was only ever reached from
+    // the weather path, never the radar path. Every keyed radar source — the
+    // bundled OpenWeatherMap definition included — therefore requested tiles
+    // with no credential and got 401s that nothing surfaced.
+    //
+    // The key is resolved once per source switch and applied in all three places
+    // a request can carry it: the template placeholder, the query string, and
+    // the request headers.
+
+    /** Resolve the key for a definition, or null if it needs none. */
+    private String resolveApiKey(WeatherSourceDefinitionV2 def) {
+        AuthConfig auth = def.getAuth();
+        if (auth == null || !auth.isRequired()) return null;
+        String id = def.getRadarSourceId() != null ? def.getRadarSourceId() : def.getSourceId();
+        String key = AuthProvider.getApiKey(mapView.getContext(), id, auth);
+        if (key == null) {
+            Log.w(TAG, "Radar source '" + id + "' requires an API key and none is configured");
+        }
+        return key;
+    }
+
+    /** True when the active source either needs no key or has one. */
+    private boolean hasRequiredApiKey() {
+        AuthConfig auth = activeRadarDef.getAuth();
+        if (auth == null || !auth.isRequired()) return true;
+        return activeApiKey != null && !activeApiKey.isEmpty();
+    }
+
+    /** Apply query-param auth and the {apikey} placeholder to a non-tile URL. */
+    private String applyAuthToUrl(String url) {
+        if (url == null || url.isEmpty()) return url;
+        if (activeApiKey != null && url.contains("{apikey}")) {
+            return url.replace("{apikey}", activeApiKey);
+        }
+        if (activeRadarDef == null) return url;
+        return AuthProvider.applyToUrl(url, activeRadarDef.getAuth(), activeApiKey);
+    }
+
+    /** Header-based auth for the active source; empty for keyless ones. */
+    private Map<String, String> authHeaders() {
+        if (activeRadarDef == null) return java.util.Collections.emptyMap();
+        return AuthProvider.getAuthHeaders(activeRadarDef.getAuth(), activeApiKey);
+    }
+
+    /** Host of a URL, for logging — never log the full URL, it carries the key. */
+    private static String hostOf(String url) {
+        try {
+            return new URL(url).getHost();
+        } catch (Exception e) {
+            return "unknown host";
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void notifyMain(Runnable r) { mapView.post(r); }
@@ -666,7 +769,8 @@ public class RadarOverlayManager {
                 && activeRadarDef != null
                 && frameIndex >= 0 && frameIndex < allFrames.size()) {
             RadarManifest.RadarFrame frame = allFrames.get(frameIndex);
-            return manifestParser.buildTileUrl(currentManifest, frame, activeRadarDef, z, x, y);
+            return manifestParser.buildTileUrl(currentManifest, frame, activeRadarDef,
+                    z, x, y, activeApiKey);
         }
 
         // Legacy fallback

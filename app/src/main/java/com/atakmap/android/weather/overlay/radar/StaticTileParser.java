@@ -19,7 +19,8 @@ import java.util.Collections;
  * the current system time.</p>
  *
  * <p>The {@link #buildTileUrl} method performs simple placeholder
- * substitution on the tile URL template from the source definition.</p>
+ * substitution on the tile URL template from the source definition,
+ * {@code {apikey}} included.</p>
  */
 public class StaticTileParser implements IRadarManifestParser {
 
@@ -42,7 +43,8 @@ public class StaticTileParser implements IRadarManifestParser {
 
     @Override
     public String buildTileUrl(RadarManifest manifest, RadarManifest.RadarFrame frame,
-                               WeatherSourceDefinitionV2 def, int z, int x, int y) {
+                               WeatherSourceDefinitionV2 def, int z, int x, int y,
+                               String apiKey) {
         String template = def.getTileUrlTemplate();
         if (template == null || template.isEmpty()) {
             Log.w(TAG, "No tileUrlTemplate for static source " + def.getRadarSourceId());
@@ -51,12 +53,22 @@ public class StaticTileParser implements IRadarManifestParser {
 
         int tileSize = def.getTileSize() > 0 ? def.getTileSize() : 256;
 
+        // A template that asks for a key and is handed none used to be quietly
+        // rewritten into a keyless URL, which the provider rejects with a 401
+        // that nothing logged (finding F35). Refuse instead: an empty URL fails
+        // at the caller, where it is reported.
+        if (template.contains("{apikey}") && (apiKey == null || apiKey.isEmpty())) {
+            Log.w(TAG, "Source " + def.getRadarSourceId() + " needs an API key but "
+                    + "none is configured — no tile will be requested");
+            return "";
+        }
+
         return template
                 .replace("{z}", String.valueOf(z))
                 .replace("{x}", String.valueOf(x))
                 .replace("{y}", String.valueOf(y))
                 .replace("{size}", String.valueOf(tileSize))
                 .replace("{timestamp}", String.valueOf(frame.getTimestamp()))
-                .replace("{apikey}", "");  // Placeholder — API key injection handled elsewhere
+                .replace("{apikey}", apiKey == null ? "" : apiKey);
     }
 }

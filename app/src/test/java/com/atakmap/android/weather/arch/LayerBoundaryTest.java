@@ -63,11 +63,14 @@ class LayerBoundaryTest {
     // number here in the same commit; that is the whole point of a ratchet.
 
     /**
-     * Presentation -> data.remote. Was 121 at commit b814271; down to 101 after
-     * the F26 dead-code removal took RadarTabCoordinator, RouteWeatherView and
-     * ComparisonView out of the presentation layer. Wave 2 (F22) takes it to 0.
+     * Presentation -> data.remote. Was 121 at commit b814271; 101 after the F26
+     * dead-code removal took RadarTabCoordinator, RouteWeatherView and
+     * ComparisonView out of the presentation layer; 99 after F35 put API key
+     * storage behind {@code domain.repository.ApiKeyStore} and stopped the radar
+     * source list re-reading the same definition fields four times per row.
+     * Wave 2 (F22) takes it to 0.
      */
-    private static final int PRESENTATION_TO_REMOTE_BASELINE = 101;
+    private static final int PRESENTATION_TO_REMOTE_BASELINE = 99;
 
     /**
      * Evaluate a rule and fail only if the violation count has grown.

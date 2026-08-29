@@ -83,6 +83,8 @@ Five sub-panels, selected with the pills at the top of the section.
 == Radar
 Precipitation radar tiles from RainViewer, with playback across recent frames, opacity, colour and brightness controls. Tiles are cached on the device, so revisiting an area does not re-download. Other tile sources can be added -- see *Adding Your Own Source*.
 
+RainViewer needs no account. Some other providers do: under *Settings > Radar sources*, any source that needs an API key shows a key field and is marked #text(style: "italic")[key required] until one is saved. A source with no key will not draw tiles, and says so rather than showing an empty map.
+
 == Heatmap
 Colours the map by a chosen parameter -- temperature, humidity, pressure, wind and others -- interpolated across the visible area. Opacity and colour scale are adjustable.
 
@@ -170,7 +172,7 @@ Then open *Settings #sym.arrow.r Sources* and tap refresh. The new source appear
 A weather definition needs `sourceId`, `displayName` and `apiBaseUrl`, plus lists of the parameters to request. Copy `TEMPLATE_weather_source_v2.json` from the plugin's bundled sources as a starting point.
 
 == Radar source
-A radar definition needs `radarSourceId`, `displayName`, `manifestUrl` and a `tileUrlTemplate`. The template accepts the placeholders `{timestamp}`, `{z}`, `{x}`, `{y}` and `{size}`, which is the standard slippy-map tile scheme.
+A radar definition needs `radarSourceId`, `displayName`, `manifestUrl` and a `tileUrlTemplate`. The template accepts the placeholders `{timestamp}`, `{z}`, `{x}`, `{y}` and `{size}`, which is the standard slippy-map tile scheme. Add `{apikey}` where the provider expects the key, and declare an `auth` block naming its query parameter; the key you save in *Settings > Radar sources* is substituted there at request time.
 
 == Overriding a built-in
 Use the same `sourceId` as a bundled source and your file takes precedence. Files are loaded from the plugin's own assets first, then from the folder above, so user files always win.

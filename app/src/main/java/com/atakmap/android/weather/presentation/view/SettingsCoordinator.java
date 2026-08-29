@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
@@ -17,6 +18,7 @@ import com.atakmap.android.weather.data.cache.MissionPrepManager;
 import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
 import com.atakmap.android.weather.data.remote.WeatherSourceManager;
 import com.atakmap.android.weather.data.remote.schema.WeatherSourceDefinitionV2;
+import com.atakmap.android.weather.domain.repository.ApiKeyStore;
 import com.atakmap.android.weather.overlay.radar.RadarSourceSelector;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.android.weather.util.AutoRefreshManager;
@@ -43,6 +45,12 @@ public class SettingsCoordinator {
     private final View rootView;
     private final Context pluginContext;
     private final Context appContext;
+
+    /**
+     * Where API keys are read and written (finding F35). Injected from the
+     * composition root; the screen never learns where keys actually live.
+     */
+    private ApiKeyStore apiKeyStore;
     private final MapView mapView;
 
     private AutoRefreshManager autoRefreshManager;
@@ -243,6 +251,9 @@ public class SettingsCoordinator {
         }
     }
 
+    /** Inject the API key store. Call before {@code init()} for the key rows to appear. */
+    public void setApiKeyStore(ApiKeyStore store) { this.apiKeyStore = store; }
+
     // ── Radar source list ─────────────────────────────────────────────────
 
     private void wireParmRadarSourceList() {
@@ -292,6 +303,10 @@ public class SettingsCoordinator {
         for (int i = 0; i < sources.size(); i++) {
             WeatherSourceDefinitionV2 def = sources.get(i);
 
+            final String srcId = def.getRadarSourceId() != null
+                    ? def.getRadarSourceId() : def.getSourceId();
+            final String provider = def.getProvider() != null ? def.getProvider() : "";
+
             LinearLayout row = new LinearLayout(pluginContext);
             row.setOrientation(LinearLayout.HORIZONTAL);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -304,7 +319,7 @@ public class SettingsCoordinator {
 
             TextView label = new TextView(pluginContext);
             String name = def.getDisplayName() != null ? def.getDisplayName()
-                    : (def.getProvider() != null ? def.getProvider() : def.getSourceId());
+                    : (!provider.isEmpty() ? provider : srcId);
             label.setText(name);
             label.setTextSize(12);
             label.setTextColor(0xFFc9d1d9);
@@ -313,7 +328,7 @@ public class SettingsCoordinator {
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
             TextView info = new TextView(pluginContext);
-            info.setText(def.getProvider() != null ? def.getProvider() : "");
+            info.setText(provider);
             info.setTextSize(9);
             info.setTextColor(0xFF8b949e);
             info.setPadding((int)(4*dp), 0, 0, 0);
@@ -322,11 +337,19 @@ public class SettingsCoordinator {
             row.addView(label);
             row.addView(info);
 
+            // ── API key row (finding F35) ──────────────────────────────
+            //
+            // Keyed radar sources shipped with no way to supply a key: the
+            // list showed a name and a switch and nothing else, so the bundled
+            // OpenWeatherMap source could be selected but never made to work.
+            LinearLayout keyRow = null;
+            if (def.requiresApiKey() && apiKeyStore != null) {
+                keyRow = buildRadarKeyRow(srcId, label, name, dp);
+            }
+
             toggle.setOnCheckedChangeListener((btn, checked) -> {
                 if (checked) {
-                    String sourceId = def.getRadarSourceId() != null
-                            ? def.getRadarSourceId() : def.getSourceId();
-                    selector.setActiveSourceId(sourceId);
+                    selector.setActiveSourceId(srcId);
                     for (int c = 0; c < container.getChildCount(); c++) {
                         View child = container.getChildAt(c);
                         if (child instanceof LinearLayout) {
@@ -342,6 +365,69 @@ public class SettingsCoordinator {
             });
 
             container.addView(row);
+            if (keyRow != null) container.addView(keyRow);
         }
+    }
+
+    /**
+     * Build the "API key" line shown under a radar source that needs one.
+     *
+     * <p>Writes through {@link AuthProvider}, the same store
+     * {@code RadarOverlayManager} reads at request time — the mismatch between
+     * where keys were written and where they were read is half of finding
+     * F35.</p>
+     */
+    private LinearLayout buildRadarKeyRow(final String sourceId,
+                                          final TextView label, final String name,
+                                          float dp) {
+        LinearLayout keyRow = new LinearLayout(pluginContext);
+        keyRow.setOrientation(LinearLayout.HORIZONTAL);
+        keyRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        keyRow.setPadding((int) (36 * dp), 0, (int) (4 * dp), (int) (6 * dp));
+
+        final EditText etKey = new EditText(pluginContext);
+        etKey.setHint("API key");
+        etKey.setTextSize(11);
+        etKey.setSingleLine(true);
+        etKey.setTextColor(0xFFc9d1d9);
+        etKey.setHintTextColor(0xFF6e7681);
+        etKey.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        String existing = apiKeyStore.get(sourceId);
+        if (existing != null && !existing.isEmpty()) etKey.setText(existing);
+
+        Button btnSave = new Button(pluginContext);
+        btnSave.setText("Save");
+        btnSave.setTextSize(10);
+        btnSave.setOnClickListener(v -> {
+            String key = etKey.getText().toString().trim();
+            if (key.isEmpty()) {
+                apiKeyStore.remove(sourceId);
+                Toast.makeText(pluginContext, name + ": key cleared",
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                apiKeyStore.put(sourceId, key);
+                Toast.makeText(pluginContext, name + ": key saved",
+                        Toast.LENGTH_SHORT).show();
+            }
+            markRadarKeyState(label, name, sourceId);
+        });
+
+        keyRow.addView(etKey);
+        keyRow.addView(btnSave);
+
+        markRadarKeyState(label, name, sourceId);
+        return keyRow;
+    }
+
+    /**
+     * Flag a keyed source that has no key, so the list says why it will not
+     * draw anything rather than leaving the user to guess.
+     */
+    private void markRadarKeyState(TextView label, String name, String sourceId) {
+        boolean ok = apiKeyStore.has(sourceId);
+        label.setText(ok ? name : name + "  — key required");
+        label.setTextColor(ok ? 0xFFc9d1d9 : 0xFFd29922);
     }
 }

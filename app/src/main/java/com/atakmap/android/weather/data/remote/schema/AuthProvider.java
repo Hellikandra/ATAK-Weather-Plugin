@@ -32,6 +32,19 @@ public final class AuthProvider {
     private static final String PREFS_FILE = "weather_api_keys";
     private static final String KEY_PREFIX = "wx_apikey_";
 
+    /**
+     * Where the source-manager UI used to write keys.
+     *
+     * <p>Different file <em>and</em> different prefix from the pair above, so a
+     * key typed into the settings screen was stored somewhere nothing ever read
+     * it (finding F35). This class is now the only store; {@link #getApiKey}
+     * migrates anything found at the old address on first read, so keys entered
+     * before the fix survive the upgrade. Remove once no supported version can
+     * still be carrying one.</p>
+     */
+    private static final String LEGACY_PREFS_FILE = "WeatherToolPrefs";
+    private static final String LEGACY_KEY_PREFIX = "wx_api_key_";
+
     private AuthProvider() { /* utility */ }
 
     /**
@@ -57,6 +70,10 @@ public final class AuthProvider {
             }
         }
 
+        // 1b. Migrate a key left at the pre-F35 address, then use it
+        String legacy = migrateLegacyKey(context, sourceId);
+        if (legacy != null) return legacy;
+
         // 2. Check auth.value from definition
         if (auth != null && auth.getValue() != null && !auth.getValue().isEmpty()) {
             return auth.getValue();
@@ -75,6 +92,29 @@ public final class AuthProvider {
         }
 
         return null;
+    }
+
+    /**
+     * Move a key from the old settings-screen location into this class's store.
+     *
+     * @return the migrated key, or null if there was nothing to migrate
+     */
+    private static String migrateLegacyKey(Context context, String sourceId) {
+        if (context == null || sourceId == null) return null;
+        try {
+            SharedPreferences old = context.getSharedPreferences(LEGACY_PREFS_FILE,
+                    Context.MODE_PRIVATE);
+            String key = old.getString(LEGACY_KEY_PREFIX + sourceId, null);
+            if (key == null || key.isEmpty()) return null;
+
+            storeApiKey(context, sourceId, key);
+            old.edit().remove(LEGACY_KEY_PREFIX + sourceId).apply();
+            Log.i(TAG, "Migrated API key for '" + sourceId + "' from the pre-F35 store");
+            return key;
+        } catch (Exception e) {
+            Log.w(TAG, "Legacy API key migration failed for " + sourceId, e);
+            return null;
+        }
     }
 
     /**

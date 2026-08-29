@@ -9,6 +9,8 @@ import com.atakmap.android.weather.data.cache.WeatherDatabase;
 import com.atakmap.android.weather.data.geocoding.NominatimGeocodingSource;
 import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
 import com.atakmap.android.weather.data.remote.WeatherSourceManager;
+import com.atakmap.android.weather.data.remote.schema.PreferencesApiKeyStore;
+import com.atakmap.android.weather.domain.repository.ApiKeyStore;
 import com.atakmap.android.weather.domain.repository.IGeocodingRepository;
 import com.atakmap.android.weather.infrastructure.preferences.WeatherParameterPreferences;
 import com.atakmap.coremap.log.Log;
@@ -67,17 +69,20 @@ public final class WeatherDependencies {
     private final WeatherRepositoryImpl       networkRepository;
     private final CachingWeatherRepository    repository;
     private final IGeocodingRepository        geocoding;
+    private final ApiKeyStore                 apiKeyStore;
 
     private WeatherDependencies(WeatherSourceManager sourceManager,
                                 WeatherParameterPreferences parameterPreferences,
                                 WeatherRepositoryImpl networkRepository,
                                 CachingWeatherRepository repository,
-                                IGeocodingRepository geocoding) {
+                                IGeocodingRepository geocoding,
+                                ApiKeyStore apiKeyStore) {
         this.sourceManager        = sourceManager;
         this.parameterPreferences = parameterPreferences;
         this.networkRepository    = networkRepository;
         this.repository           = repository;
         this.geocoding            = geocoding;
+        this.apiKeyStore          = apiKeyStore;
     }
 
     /**
@@ -116,11 +121,15 @@ public final class WeatherDependencies {
 
         final IGeocodingRepository geocoding = new NominatimGeocodingSource();
 
+        // One place API keys are written and read (finding F35). Built here so
+        // the settings screens receive it rather than each inventing its own.
+        final ApiKeyStore apiKeyStore = new PreferencesApiKeyStore(hostContext);
+
         Log.d(TAG, "Dependency graph built — " + sources.size()
                 + " sources, active=" + sourceManager.getActiveSourceId());
 
         return new WeatherDependencies(sourceManager, parameterPreferences,
-                networkRepository, repository, geocoding);
+                networkRepository, repository, geocoding, apiKeyStore);
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────────
@@ -142,4 +151,7 @@ public final class WeatherDependencies {
 
     /** Reverse geocoding for the location header. */
     public IGeocodingRepository geocoding() { return geocoding; }
+
+    /** Per-source API keys. The settings screens read and write through this. */
+    public ApiKeyStore apiKeyStore() { return apiKeyStore; }
 }

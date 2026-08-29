@@ -2,7 +2,6 @@ package com.atakmap.android.weather.presentation.view;
 
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
@@ -20,6 +19,7 @@ import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
 import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
 import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
 import com.atakmap.android.weather.data.remote.WeatherSourceManager;
+import com.atakmap.android.weather.domain.repository.ApiKeyStore;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.plugin.R;
 import com.atakmap.coremap.log.Log;
@@ -43,10 +43,6 @@ public class SourceManagerView {
 
     private static final String TAG = "SourceManagerView";
 
-    /** SharedPreferences file for API key storage (same as WeatherSourceManager). */
-    private static final String PREFS_NAME = "WeatherToolPrefs";
-    /** Prefix for per-source API key entries. */
-    private static final String KEY_API_PREFIX = "wx_api_key_";
 
     /** Test location: Liege, Belgium (50.6, 5.5). */
     private static final double TEST_LAT = 50.6;
@@ -69,8 +65,14 @@ public class SourceManagerView {
     private final LinearLayout sourceListContainer;
     private final TextView emptyLabel;
     private final WeatherSourceManager sourceManager;
-    private final SharedPreferences prefs;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    /**
+     * Where API keys are read and written (finding F35). This screen used to keep
+     * its own preferences file and key prefix, which is why a key typed here was
+     * never seen by the code that makes the requests.
+     */
+    private ApiKeyStore apiKeyStore;
 
     // ── Constructor ─────────────────────────────────────────────────────────────
 
@@ -84,11 +86,13 @@ public class SourceManagerView {
         this.context     = pluginContext;   // resources live here
         this.appContext  = appContext;      // disk-backed prefs live here
         this.sourceManager = WeatherSourceManager.getInstance(appContext);
-        this.prefs       = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
         sourceListContainer = rootView.findViewById(R.id.source_list_container);
         emptyLabel          = rootView.findViewById(R.id.src_mgr_empty_label);
     }
+
+    /** Inject the API key store. Call before {@link #init()}. */
+    public void setApiKeyStore(ApiKeyStore store) { this.apiKeyStore = store; }
 
     /**
      * Backward-compat constructor — kept so existing callers compile.
@@ -242,18 +246,26 @@ public class SourceManagerView {
             EditText etKey = item.findViewById(R.id.api_key_input);
             Button btnSave = item.findViewById(R.id.btn_save_key);
 
-            // Pre-fill saved key (masked)
-            String savedKey = prefs.getString(KEY_API_PREFIX + sourceId, "");
-            if (etKey != null && !savedKey.isEmpty()) {
+            // Read and write through AuthProvider — the one place that resolves
+            // keys at request time. This screen used to keep its own prefs file
+            // and its own key prefix, so a key typed here was stored where
+            // nothing looked for it (finding F35).
+            String savedKey = apiKeyStore != null ? apiKeyStore.get(sourceId) : null;
+            if (etKey != null && savedKey != null && !savedKey.isEmpty()) {
                 etKey.setText(savedKey);
             }
 
             if (btnSave != null) {
                 btnSave.setOnClickListener(v -> {
-                    if (etKey == null) return;
+                    if (etKey == null || apiKeyStore == null) return;
                     String key = etKey.getText().toString().trim();
-                    prefs.edit().putString(KEY_API_PREFIX + sourceId, key).apply();
-                    Toast.makeText(context, "API key saved", Toast.LENGTH_SHORT).show();
+                    if (key.isEmpty()) {
+                        apiKeyStore.remove(sourceId);
+                        Toast.makeText(context, "API key cleared", Toast.LENGTH_SHORT).show();
+                    } else {
+                        apiKeyStore.put(sourceId, key);
+                        Toast.makeText(context, "API key saved", Toast.LENGTH_SHORT).show();
+                    }
                 });
             }
         }
