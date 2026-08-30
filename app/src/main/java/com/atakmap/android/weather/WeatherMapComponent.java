@@ -217,19 +217,26 @@ public class WeatherMapComponent extends DropDownMapComponent {
         // Pass the shared windViewModel and windEffectShape so the DDR uses the
         // same ViewModel state as the HUD. The DDR's initDependencies() creates
         // its own WeatherViewModel (for weather data) but delegates wind to these.
+        // One bundle, built here and validated on build() (finding F25). Adding a
+        // tenth overlay now fails to compile until it is supplied, rather than
+        // producing a tab that is silently dead when a user opens it.
+        final WeatherOverlays overlays = WeatherOverlays.builder()
+                .radar(radarManager)
+                .heatmap(heatmapManager)
+                .sigmet(sigmetManager)
+                .lightning(lightningManager)
+                .cbrn(cbrnManager)
+                .heatmapLegend(heatmapLegendWidget)
+                .windArrows(windArrowOverlay)
+                .windParticleLayer(windParticleLayer)
+                .windParticleView(windParticleView)
+                .build();
+
         ddr = new WeatherDropDownReceiver(
                 view, context, deps,
                 markerManager, windMarkerManager,
                 windViewModel, windEffectShape,
-                radarManager);
-        ddr.setHeatmapManager(heatmapManager);
-        ddr.setSigmetManager(sigmetManager);
-        ddr.setLightningManager(lightningManager);
-        ddr.setCbrnManager(cbrnManager);
-        ddr.setHeatmapLegendWidget(heatmapLegendWidget);
-        ddr.setWindArrowOverlay(windArrowOverlay);
-        ddr.setWindParticleLayer(windParticleLayer);
-        ddr.setWindParticleView(windParticleView);
+                overlays);
 
         // Sprint 28: Auto-pause particles when screen off, resume on screen on
         screenOffReceiver = new android.content.BroadcastReceiver() {

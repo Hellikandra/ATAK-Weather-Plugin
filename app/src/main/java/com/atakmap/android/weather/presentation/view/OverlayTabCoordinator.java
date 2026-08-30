@@ -16,6 +16,7 @@ import android.widget.Toast;
 import com.atakmap.android.maps.MapView;
 import com.atakmap.android.weather.domain.model.WeatherModel;
 import com.atakmap.android.weather.domain.model.WindProfileModel;
+import com.atakmap.android.weather.WeatherOverlays;
 import com.atakmap.android.weather.overlay.cbrn.CbrnOverlayManager;
 import com.atakmap.android.weather.overlay.heatmap.HeatmapDataSet;
 import com.atakmap.android.weather.overlay.heatmap.HeatmapOverlayManager;
@@ -119,49 +120,32 @@ public class OverlayTabCoordinator {
 
     // ── Manager injection ──────────────────────────────────────────────────────
 
-    public void setRadarManager(RadarOverlayManager mgr) {
-        this.radarManager = mgr;
-        if (mgr != null) wireRadarListener();
-    }
+    /**
+     * Receive every map overlay at once (finding F25).
+     *
+     * <p>These arrived as nine separate setters, each guarded with
+     * {@code if (mgr != null)} — not because any was optional, but because a
+     * setter nobody called looks exactly like one called with null. The bundle
+     * is validated at construction, so the listeners below can be wired
+     * unconditionally.</p>
+     */
+    public void setOverlays(WeatherOverlays overlays) {
+        if (overlays == null) return;
+        this.radarManager        = overlays.radar();
+        this.heatmapManager      = overlays.heatmap();
+        this.sigmetManager       = overlays.sigmet();
+        this.lightningManager    = overlays.lightning();
+        this.cbrnManager         = overlays.cbrn();
+        this.heatmapLegendWidget = overlays.heatmapLegend();
+        this.windArrowOverlay    = overlays.windArrows();
+        this.windParticleLayer   = overlays.windParticleLayer();
+        this.windParticleView    = overlays.windParticleView();
 
-    public void setHeatmapManager(HeatmapOverlayManager mgr) {
-        this.heatmapManager = mgr;
-        if (mgr != null) wireHeatmapListener();
-    }
-
-    public void setSigmetManager(SigmetOverlayManager mgr) {
-        this.sigmetManager = mgr;
-        if (mgr != null) wireSigmetListener();
-    }
-
-    public void setLightningManager(LightningOverlayManager mgr) {
-        this.lightningManager = mgr;
-        if (mgr != null) wireLightningListener();
-    }
-
-    public void setCbrnManager(CbrnOverlayManager mgr) {
-        this.cbrnManager = mgr;
-        if (mgr != null) wireCbrnListener();
-    }
-
-    public void setHeatmapLegendWidget(
-            com.atakmap.android.weather.overlay.heatmap.HeatmapLegendWidget w) {
-        this.heatmapLegendWidget = w;
-    }
-
-    public void setWindArrowOverlay(
-            com.atakmap.android.weather.overlay.wind.WindArrowOverlayView v) {
-        this.windArrowOverlay = v;
-    }
-
-    public void setWindParticleLayer(
-            com.atakmap.android.weather.overlay.wind.WindParticleLayer layer) {
-        this.windParticleLayer = layer;
-    }
-
-    public void setWindParticleView(
-            com.atakmap.android.weather.overlay.wind.WindParticleBitmapView view) {
-        this.windParticleView = view;
+        wireRadarListener();
+        wireHeatmapListener();
+        wireSigmetListener();
+        wireLightningListener();
+        wireCbrnListener();
     }
 
     /** Called from DDR when weather data refreshes. */

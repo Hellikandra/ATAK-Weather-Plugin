@@ -35,7 +35,6 @@ import com.atakmap.android.weather.data.remote.IWeatherRemoteSource;
 import com.atakmap.android.weather.data.remote.SourceDefinitionLoader;
 import com.atakmap.android.weather.data.remote.WeatherSourceDefinition;
 import com.atakmap.android.weather.data.remote.WeatherSourceManager;
-import com.atakmap.android.weather.overlay.radar.RadarOverlayManager;
 import com.atakmap.android.weather.domain.model.HourlyEntryModel;
 import com.atakmap.android.weather.domain.model.LocationSnapshot;
 import com.atakmap.android.weather.domain.model.LocationSource;
@@ -218,23 +217,13 @@ public class WeatherDropDownReceiver extends DropDownReceiver
     private final WindEffectShape sharedWindEffectShape;
 
     /**
-     * RadarOverlayManager — injected from WeatherMapComponent so the DDR
-     * Show/Hide buttons and the Overlay Manager toggle act on the same manager.
+     * Everything that draws on the map, handed over at construction.
+     *
+     * <p>Replaces nine separate fields that this class held, never read, and
+     * forwarded to the overlay tab one setter at a time (finding F25). Never
+     * null: {@link WeatherOverlays} refuses to build without all nine.</p>
      */
-    private final RadarOverlayManager radarManager;
-
-    /**
-     * HeatmapOverlayManager — injected from WeatherMapComponent (Sprint 11)
-     * so the CONF tab controls and Overlay Manager toggle share the same instance.
-     */
-    private com.atakmap.android.weather.overlay.heatmap.HeatmapOverlayManager heatmapManager;
-
-    /**
-     * Sprint 14 R&D overlay managers — injected from WeatherMapComponent.
-     */
-    private com.atakmap.android.weather.overlay.aviation.SigmetOverlayManager sigmetManager;
-    private com.atakmap.android.weather.overlay.lightning.LightningOverlayManager lightningManager;
-    private com.atakmap.android.weather.overlay.cbrn.CbrnOverlayManager cbrnManager;
+    private final WeatherOverlays overlays;
 
     // ── Last known good state ─────────────────────────────────────────────────
     private WeatherModel     lastWeather;
@@ -274,7 +263,10 @@ public class WeatherDropDownReceiver extends DropDownReceiver
      *
      * @param windViewModel        shared ViewModel also observed by {@link com.atakmap.android.weather.overlay.wind.WindHudWidget}
      * @param sharedWindEffectShape shared WindEffectShape also used by WindHudWidget
-     * @param radarManager         shared RadarOverlayManager also used by RadarMapOverlay
+     * @param overlays             everything that draws on the map, as one bundle.
+     *                             Was one constructor argument plus eight setters
+     *                             until finding F25; this receiver never uses any
+     *                             of them itself, it hands them to the overlay tab.
      */
     public WeatherDropDownReceiver(final MapView mapView,
                                    final Context context,
@@ -283,7 +275,7 @@ public class WeatherDropDownReceiver extends DropDownReceiver
                                    final WindMarkerManager windMarkerManager,
                                    final WindProfileViewModel windViewModel,
                                    final WindEffectShape sharedWindEffectShape,
-                                   final RadarOverlayManager radarManager) {
+                                   final WeatherOverlays overlays) {
         super(mapView);
         this.pluginContext          = context;
         this.appContext             = mapView.getContext();
@@ -292,84 +284,19 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         this.windMarkerManager      = windMarkerManager;
         this.windViewModel          = windViewModel;
         this.sharedWindEffectShape  = sharedWindEffectShape;
-        this.radarManager           = radarManager;
+        this.overlays               = overlays;
         templateView = PluginLayoutInflater.inflate(context, R.layout.main_layout, null);
     }
 
     /**
-     * Inject the shared HeatmapOverlayManager (Sprint 11).
-     * Called from WeatherMapComponent after construction.
+     * The map overlays, as handed in at construction.
+     *
+     * <p>Exposed for {@code WeatherMapComponent}, which needs the same instances
+     * for its own lifecycle handling. Nothing can replace them: an overlay set
+     * that is swapped after the tabs are wired is the bug this finding was
+     * about.</p>
      */
-    public void setHeatmapManager(
-            com.atakmap.android.weather.overlay.heatmap.HeatmapOverlayManager mgr) {
-        this.heatmapManager = mgr;
-    }
-
-    /** Accessor for heatmap manager — used by tab coordinators. */
-    public com.atakmap.android.weather.overlay.heatmap.HeatmapOverlayManager getHeatmapManager() {
-        return heatmapManager;
-    }
-
-    /** Inject the shared SigmetOverlayManager (Sprint 14). */
-    public void setSigmetManager(
-            com.atakmap.android.weather.overlay.aviation.SigmetOverlayManager mgr) {
-        this.sigmetManager = mgr;
-    }
-
-    /** Accessor for SIGMET manager — used by tab coordinators. */
-    public com.atakmap.android.weather.overlay.aviation.SigmetOverlayManager getSigmetManager() {
-        return sigmetManager;
-    }
-
-    /** Inject the shared LightningOverlayManager (Sprint 14). */
-    public void setLightningManager(
-            com.atakmap.android.weather.overlay.lightning.LightningOverlayManager mgr) {
-        this.lightningManager = mgr;
-    }
-
-    /** Accessor for lightning manager — used by tab coordinators. */
-    public com.atakmap.android.weather.overlay.lightning.LightningOverlayManager getLightningManager() {
-        return lightningManager;
-    }
-
-    /** Inject the shared CbrnOverlayManager (Sprint 14). */
-    public void setCbrnManager(
-            com.atakmap.android.weather.overlay.cbrn.CbrnOverlayManager mgr) {
-        this.cbrnManager = mgr;
-    }
-
-    /** Accessor for CBRN manager — used by tab coordinators. */
-    public com.atakmap.android.weather.overlay.cbrn.CbrnOverlayManager getCbrnManager() {
-        return cbrnManager;
-    }
-
-    /** Inject the heatmap legend widget for overlay coordinator control. */
-    public void setHeatmapLegendWidget(
-            com.atakmap.android.weather.overlay.heatmap.HeatmapLegendWidget w) {
-        this.heatmapLegendWidget = w;
-    }
-    private com.atakmap.android.weather.overlay.heatmap.HeatmapLegendWidget heatmapLegendWidget;
-
-    /** Inject the wind arrow overlay for overlay coordinator control. */
-    public void setWindArrowOverlay(
-            com.atakmap.android.weather.overlay.wind.WindArrowOverlayView v) {
-        this.windArrowOverlay = v;
-    }
-    private com.atakmap.android.weather.overlay.wind.WindArrowOverlayView windArrowOverlay;
-
-    /** Inject the wind particle layer for Windy-style particle flow. */
-    public void setWindParticleLayer(
-            com.atakmap.android.weather.overlay.wind.WindParticleLayer layer) {
-        this.windParticleLayer = layer;
-    }
-    private com.atakmap.android.weather.overlay.wind.WindParticleLayer windParticleLayer;
-
-    /** Inject the V4 bitmap particle overlay (full-screen rendering). */
-    public void setWindParticleView(
-            com.atakmap.android.weather.overlay.wind.WindParticleBitmapView view) {
-        this.windParticleView = view;
-    }
-    private com.atakmap.android.weather.overlay.wind.WindParticleBitmapView windParticleView;
+    public WeatherOverlays getOverlays() { return overlays; }
 
     // ── onReceive ─────────────────────────────────────────────────────────────
 
@@ -599,15 +526,8 @@ public class WeatherDropDownReceiver extends DropDownReceiver
         if (overlayRoot != null) {
             overlayTabCoordinator = new OverlayTabCoordinator(
                     overlayRoot, pluginContext, getMapView());
-            if (radarManager     != null) overlayTabCoordinator.setRadarManager(radarManager);
-            if (heatmapManager   != null) overlayTabCoordinator.setHeatmapManager(heatmapManager);
-            if (sigmetManager    != null) overlayTabCoordinator.setSigmetManager(sigmetManager);
-            if (lightningManager != null) overlayTabCoordinator.setLightningManager(lightningManager);
-            if (cbrnManager      != null) overlayTabCoordinator.setCbrnManager(cbrnManager);
-            if (heatmapLegendWidget != null) overlayTabCoordinator.setHeatmapLegendWidget(heatmapLegendWidget);
-            if (windArrowOverlay    != null) overlayTabCoordinator.setWindArrowOverlay(windArrowOverlay);
-            if (windParticleLayer  != null) overlayTabCoordinator.setWindParticleLayer(windParticleLayer);
-            if (windParticleView   != null) overlayTabCoordinator.setWindParticleView(windParticleView);
+            // One call, and no null checks: the bundle cannot be half-built.
+            overlayTabCoordinator.setOverlays(overlays);
         }
 
         // ── Sprint 17: Marker tab coordinator ────────────────────────────
