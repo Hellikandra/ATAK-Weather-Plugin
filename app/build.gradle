@@ -230,6 +230,10 @@ android {
         applicationVariants.all { variant ->
             variant.resValue "string", "versionName", variant.versionName
             buildConfigField 'String', 'ATAK_PACKAGE_NAME', '"com.atakmap.app.civ"'
+            // The plugin version as a plain string, for the User-Agent header.
+            // versionName carries the git hash and ATAK target and is not a
+            // valid product token.
+            buildConfigField 'String', 'PLUGIN_VERSION', "\"${PLUGIN_VERSION}\""
         }
     }
 
