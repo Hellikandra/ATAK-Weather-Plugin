@@ -11,6 +11,27 @@ buildscript {
     ext.PLUGIN_VERSION = "3.1.1"
     ext.ATAK_VERSION   = "5.6.0"
 
+    // versionCode is what Android and every MDM key an update on; versionName is
+    // only displayed. The SDK's getVersionCode() reads the git commit time, and
+    // tak.gov builds from a zip with no .git, so every signed release so far has
+    // shipped as versionCode 1 and no MDM can push one over another. Derived
+    // from the two versions above instead, so it is the same on every machine:
+    // 3.1.1 on ATAK 5.6.0 -> 30101 * 10000 + 5060 = 301015060. The ATAK target
+    // is folded in because a release is one APK per ATAK version under one
+    // package name, and an MDM given two of them with one code and different
+    // hashes reports an incompatible build. Every release orders above the
+    // last on every target, and 5.6 < 5.7 < 5.8 within a release.
+    ext.PLUGIN_VERSION_CODE = { ->
+        def p = (PLUGIN_VERSION.tokenize('.') + ['0', '0']).collect { it as int }
+        def a = (ATAK_VERSION.tokenize('.').takeWhile { it.isInteger() } + ['0', '0']).collect { it as int }
+        if (p[1] > 99 || p[2] > 99 || a[0] > 9 || a[1] > 99 || a[2] > 9)
+            throw new GradleException("PLUGIN_VERSION $PLUGIN_VERSION on ATAK $ATAK_VERSION does not fit the versionCode scheme")
+        def code = (p[0] * 10000 + p[1] * 100 + p[2]) * 10000 + a[0] * 1000 + a[1] * 10 + a[2]
+        if (code > 2100000000)
+            throw new GradleException("versionCode $code is past Android's limit: PLUGIN_VERSION major stays at or below 20")
+        return code
+    }()
+
     def takdevVersion = '3.+'
 
     def getValueFromPropertiesFile = { propFile, key ->
@@ -225,7 +246,7 @@ android {
             // It is strongly encouraged that plugin developers do not modify the archiveBaseName, version code logic and version
             // name logic to provide for consistency within the community.
             setProperty("archivesBaseName", "ATAK-Plugin-" + rootProject.name + "-" + PLUGIN_VERSION + "-" + getVersionName() + "-" + ATAK_VERSION)
-            defaultConfig.versionCode = getVersionCode()
+            defaultConfig.versionCode = PLUGIN_VERSION_CODE
             defaultConfig.versionName = PLUGIN_VERSION + " (" + getVersionName() + ") - [" + ATAK_VERSION + "]"
         }
 
