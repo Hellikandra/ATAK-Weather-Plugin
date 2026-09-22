@@ -3,6 +3,7 @@ package com.atakmap.android.weather.data.remote;
 import android.os.Handler;
 import android.os.Looper;
 
+import com.atakmap.android.weather.plugin.BuildConfig;
 import com.atakmap.coremap.log.Log;
 
 import java.io.BufferedReader;
@@ -52,6 +53,21 @@ public final class HttpClient {
 
     private static final String TAG = "WeatherHttpClient";
     private static final int TIMEOUT_MS = 10_000;
+
+    /**
+     * Sent on every request this plugin makes.
+     *
+     * <p>Android's stock {@code HttpURLConnection} User-Agent is
+     * {@code Dalvik/2.1.0 (Linux; U; Android ...)}, and Nominatim's usage
+     * policy refuses it: "stock User-Agents as set by http libraries will not
+     * do". On a device that is an HTTP 403 on every reverse geocode, so the
+     * location header only ever showed raw coordinates. The other providers do
+     * not block a stock agent today, but each asks to be able to identify the
+     * application, so the header goes on every request, not just Nominatim's.
+     */
+    public static final String USER_AGENT =
+            "ATAK-WeatherPlugin/" + BuildConfig.PLUGIN_VERSION
+            + " (+https://github.com/Hellikandra/ATAK-Weather-Plugin)";
     private static final int MAX_RETRIES = 3;
     private static final long[] BACKOFF_MS = {1_000, 2_000, 4_000};
 
@@ -210,6 +226,7 @@ public final class HttpClient {
             connection = opener.open(urlString);
             connection.setConnectTimeout(TIMEOUT_MS);
             connection.setReadTimeout(TIMEOUT_MS);
+            connection.setRequestProperty("User-Agent", USER_AGENT);
             connection.connect();
 
             int status = connection.getResponseCode();

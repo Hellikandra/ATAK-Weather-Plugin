@@ -2,6 +2,7 @@ package com.atakmap.android.weather.data.remote;
 
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -216,5 +217,23 @@ class HttpClientTest {
         assertTrue(e.getMessage().contains("non-HTTPS"), e.getMessage());
 
         assertThrows(IOException.class, () -> HttpClient.HTTPS_ONLY.open(null));
+    }
+    @Nested @DisplayName("Every request identifies the plugin")
+    class UserAgent {
+        @Test @DisplayName("The User-Agent header names the plugin and its version")
+        void userAgentIsSent() throws Exception {
+            server.enqueue(new MockResponse().setBody("ok"));
+            Recorder rec = new Recorder(1);
+            HttpClient.get(server.url("/reverse").toString(), rec);
+            rec.awaitAll();
+
+            RecordedRequest req = server.takeRequest(5, TimeUnit.SECONDS);
+            assertNotNull(req, "no request reached the server");
+            String ua = req.getHeader("User-Agent");
+            assertNotNull(ua, "no User-Agent header at all");
+            assertTrue(ua.startsWith("ATAK-WeatherPlugin/"),
+                    "a stock library agent, which Nominatim refuses: " + ua);
+            assertEquals(HttpClient.USER_AGENT, ua);
+        }
     }
 }

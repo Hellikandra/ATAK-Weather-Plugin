@@ -596,7 +596,7 @@ public class RadarOverlayManager {
                     new URL(tileUrl).openConnection();
             conn.setConnectTimeout(8_000);
             conn.setReadTimeout(12_000);
-            conn.setRequestProperty("User-Agent", "ATAK-WeatherPlugin/3.0");
+            conn.setRequestProperty("User-Agent", HttpClient.USER_AGENT);
             // Header-based auth (bearer / X-API-Key); query-param auth is already
             // in the URL. Empty map for keyless sources.
             for (Map.Entry<String, String> h : authHeaders().entrySet()) {
